@@ -45,6 +45,8 @@ ALLOWED_HOSTS = [
 ]
 
 
+
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -180,7 +182,13 @@ MEDIA_ROOT = BASE_DIR / 'media'
 CRISPY_ALLOWED_TEMPLATE_PACKS = 'tailwind'
 CRISPY_TEMPLATE_PACK = 'tailwind'
 
-CORS_ALLOW_ALL_ORIGINS = True
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+else:
+    CORS_ALLOWED_ORIGINS = [
+        'https://www.uonalumni.or.ke',
+        'https://uonalumni.or.ke',
+    ]
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
@@ -195,3 +203,34 @@ if os.environ.get('CLOUDINARY_CLOUD_NAME'):
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 USE_THOUSAND_SEPARATOR = True
+
+# HTTPS and Security Settings
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = True
+    PREPEND_WWW = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+else:
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SECURE_SSL_REDIRECT = False
+    
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://www.uonalumni.or.ke',
+    'https://uonalumni.or.ke',
+]
+
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS += [
+        'http://127.0.0.1:8000',
+        'http://localhost:8000',
+    ]
+
