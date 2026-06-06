@@ -5,7 +5,7 @@ app_name = 'home'
 
 
 def index(request):
-    return HttpResponse('Home app is installed.')
+    return HttpResponse('Welcome to the new University of Nairobi Alumni Verification Portal.')
 
 
 urlpatterns = [
