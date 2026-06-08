@@ -38,12 +38,20 @@ if not SECRET_KEY:
             "DJANGO_SECRET_KEY environment variable is required in production"
         )
 
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost").split(",")
-    if host.strip()
-]
 
+def split_env_list(value):
+    return [item.strip() for item in value.split(',') if item.strip()]
+
+if DEBUG:
+    ALLOWED_HOSTS = split_env_list(
+        os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1')
+    )
+else:
+    ALLOWED_HOSTS = split_env_list(os.getenv('ALLOWED_HOSTS', ''))
+    if not ALLOWED_HOSTS:
+        raise RuntimeError(
+            'ALLOWED_HOSTS environment variable is required in production'
+        )
 
 
 
