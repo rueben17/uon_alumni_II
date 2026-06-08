@@ -21,16 +21,16 @@ from django.conf.urls.static import static
 from django.urls import path, include
 from django.views.generic import TemplateView
 from django.contrib.sitemaps.views import sitemap
-# from apps.home.sitemaps import UonAlumniStaticSitemap 
+from apps.home.sitemaps import UonAlumniStaticSitemap 
 
 
-# sitemaps = {'static': UonAlumniStaticSitemap}
+sitemaps = {'static': UonAlumniStaticSitemap}
 
 urlpatterns = [
     # path("", TemplateView.as_view(template_name="home/alumni_home.html"), name="home"),
     path("", include('apps.home.urls', namespace="home")), 
-    path("admin/", admin.site.urls),
-    # path('sitemap.xml', sitemap, {'sitemaps': sitemaps}, name='sitemap'),
+    path("2005/", admin.site.urls),
+    path('sitemap.xml', sitemap, {'sitemaps': sitemaps}, name='sitemap'),
     
     # path('user/', include('apps.user.urls', namespace="user")), 
 ]
