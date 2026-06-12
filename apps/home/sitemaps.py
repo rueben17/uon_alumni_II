@@ -10,9 +10,9 @@ class UonAlumniStaticSitemap(Sitemap):
         return [
             'home:uon_alumni_home',
             'home:uon_alumni_register',
-            'home:uon_alumni_chapters',
             'home:uon_alumni_donate',
-            'home:uon_alumni_all_news',
+            'home:uon_alumni_scholarship',
+            'home:uon_alumni_in_memoriam',
             'home:uon_alumni_contact_us',
         ]
 

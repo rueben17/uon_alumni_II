@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+<title>{% block title %} {{name_title}} | Scholarship {% endblock %}</title>
+
+
+{% block content %}
+
+        <div  class="container mx-auto min-h-screen space-y-2" style="max-width: 1700px;important;">
+            {% include "snippets/navbar.html" %} 
+            
+
+            {% include "snippets/banner.html" %} 
+
+ 
+
+            {% include "snippets/footer.html" %} 
+        </div>
+
+    
+
+{% endblock content %}

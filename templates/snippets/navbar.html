@@ -1,185 +1,279 @@
-<header class=" bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm max-w-8xl mx-auto px-2 text-black">
-    <div class="flex items-center justify-between mx-auto">
-        <div class="flex-shrink-0">
-            {% for image in banner_images %}
-                <img src="{{image.logo.url}}" alt="" class="h-32 w-32 md:h-36 md:w-36 object-contain">
-            {% endfor %}  
-        </div>
+{% load static %}
+{% load subdomain_urls %}
 
-        <div class="flex items-center gap-3 relative hidden space-x-1 md:inline-flex">
-            <a href="{% url 'home:uon_alumni_home' %}" class="px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer">Home</a>
-            
-            <!-- About Dropdown - Pure CSS Hover -->
-            <div class="relative group">
-                <button class="flex items-center tracking-wider px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer">
-                    About
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="flex-none w-4 h-4 ml-1 -mr-1 transition duration-200 ease-out transform group-hover:rotate-180">
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
-                </button>
+<header class="bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm w-full mx-auto px-2 text-black">
+    <div class="max-w-8xl mx-auto">
+        <div class="flex items-center justify-between gap-4">
+            <!-- Logo - responsive sizing -->
+            <div class="flex-shrink-0">
                 
-                <div class="absolute left-1/2 -translate-x-1/2 z-50 w-screen max-w-md p-2 mt-12 text-sm text-gray-800 transform bg-white rounded shadow-xl border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300">
-                    <div class="grid grid-cols-2 gap-1 mb-1">
-                        <a href="{% url 'home:uon_alumni_history' %}" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
-                            <p class="font-semibold text-sm tracking-wider">History</p>
-                            <span class="text-xs">Our History since formation 2005.</span>
-                        </a>
-                        <a href="" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
-                            <p class="font-semibold tracking-wider">Executive Committee</p>
-                            <span class="text-xs">Our Executive Committee Members.</span>
-                        </a>
-                        <a href="" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
-                            <p class="font-semibold tracking-wider">Secretariat</p>
-                            <span class="text-xs">Meet The Secretariat.</span>
-                        </a>
-                        <a href="" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
-                            <p class="font-semibold tracking-wider">Chapters</p>
-                            <span class="text-xs">All The Chapters.</span>
-                        </a>
-                        <a href="" class="px-1.5 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">
-                            <p class="font-semibold tracking-wider">Mission, Vision & Core Values</p>
-                            <span class="text-xs">What UoNAA Stands For.</span>
-                        </a>
-                        <a href="" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
-                            <p class="font-semibold tracking-wider">Partners</p>
-                            <span class="text-xs">Whom We Work With.</span>
-                        </a>
-                        <a href="" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
-                            <p class="font-semibold tracking-wider">Annual General Meeting</p>
-                            <span class="text-xs">Members review reports, discuss progress, and make key decisions for the year ahead.</span>
-                        </a>
-                        <a href="" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
-                            <p class="font-semibold tracking-wider">Consultancy & Training</p>
-                            <span class="text-xs">Professional Development, Certification courses, and Supervisory skill Programmes.</span>
-                        </a>
-                        <a href="{% url 'home:uon_alumni_gallery' %}" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
-                            <p class="font-semibold tracking-wider">Gallery</p>
-                            <span class="text-xs">Us in Pictures.</span>
-                        </a>
-                        <a href="" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
-                            <p class="font-semibold tracking-wider">In Memory</p>
-                            <span class="text-xs">Remembrance and Respect of our Alumni</span>
-                        </a>
-                    </div>
-                </div>
+                <img src="https://res.cloudinary.com/doh3hvrdz/image/upload/q_auto/f_auto/v1781224354/UONAA_Original_Logo_Blue_1_lgwkmu.png" alt="" class="h-20 w-20 sm:h-28 sm:w-28 md:h-32 md:w-32 lg:h-36 lg:w-36 object-contain">
+                
             </div>
 
-            <!-- Membership Dropdown - Pure CSS Hover -->
-            <div class="relative group">
-                <button class="flex items-center tracking-wider px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer">
-                    Membership
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="flex-none w-4 h-4 ml-1 -mr-1 transition duration-200 ease-out transform group-hover:rotate-180">
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
-                </button>
+            <!-- Desktop Menu - hidden on mobile/tablet, visible on large screens -->
+            <div class="hidden lg:flex items-center gap-1 xl:gap-3 flex-wrap justify-end">
+                <a href="/" class="px-3 xl:px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer whitespace-nowrap">Home</a>
                 
-                <div class="absolute left-1/2 -translate-x-1/2 z-50 w-screen max-w-md p-2 mt-8 text-sm text-gray-800 transform bg-white rounded shadow-xl border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300">
-                    <p class="pt-2 pl-3 text-lg text-center font-light tracking-wide text-gray-700 uppercase">Join Us</p>
-                    <div class="flex flex-col space-y-1 font-light text-black"> 
-                        <a href="" class="px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Categories & Benefits</a>
-                        <a href="" class="px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Register</a>
-                        <a href="#" class="px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Alumni Card</a>
-                        <a href="#" class="px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Upgrade Membership</a>
-                        <a href="#" class="px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Corporates</a>
-                        <a href="" class="flex items-center justify-center p-3 transition bg-yellow-400 text-slate-700 hover:bg-blue-400 hover:text-black cursor-pointer">
-                            Our Notable Alumni
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="w-4 h-4 ml-1">
-                                <line x1="5" y1="12" x2="19" y2="12"></line>
-                                <polyline points="12 5 19 12 12 19"></polyline>
-                            </svg>
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Get Involved Dropdown - Pure CSS Hover -->
-            <div class="relative group">
-                <button class="flex items-center tracking-wider px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer">
-                    Get Involved
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="flex-none w-4 h-4 ml-1 -mr-1 transition duration-200 ease-out transform group-hover:rotate-180">
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
-                </button>
-                
-                <div class="absolute left-0 z-50 w-64 p-2 mt-8 text-sm text-gray-800 transform bg-white rounded shadow-xl border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300">
-                    <a href="" class="block px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Donate</a>
-                    <a href="" class="block px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Scholarship</a>
-                    <a href="" class="block px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">UoN Alumni Walk</a>
-                </div>
-            </div>
-
-            <!-- Resources Dropdown - Pure CSS Hover -->
-            <div class="relative group">
-                <button class="flex items-center tracking-wider px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer">
-                    Resources
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="flex-none w-4 h-4 ml-1 -mr-1 transition duration-200 ease-out transform group-hover:rotate-180">
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
-                </button>
-                
-                <div class="absolute left-0 z-50 w-64 p-2 mt-12 text-sm text-gray-800 transform bg-white rounded shadow-xl border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300">
-                    <!-- Verify Dropdown -->
-                    <div class="relative group/verify">
-                        <button class="w-full text-left flex items-center justify-between px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer ">
-                            Verify
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="w-3 h-3 ml-1 transition duration-200 ease-out transform group-hover/verify:rotate-90">
-                                <polyline points="9 6 15 12 9 18"></polyline>
-                            </svg>
-                        </button>
-                        <div class="absolute left-full top-0 ml-1 z-50 w-40 p-2 bg-white rounded shadow-lg border border-slate-100 opacity-0 invisible group-hover/verify:opacity-100 group-hover/verify:visible transition-all duration-200">
-                            <a href="" class="block px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer text-sm">Staff</a>
-                            <a href="" class="block px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer text-sm">Students</a>
+                <!-- About Dropdown - Pure CSS Hover -->
+                <div class="relative group">
+                    <button class="flex items-center tracking-wider px-3 xl:px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer whitespace-nowrap">
+                        About
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="flex-none w-4 h-4 ml-1 -mr-1 transition duration-200 ease-out transform group-hover:rotate-180">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </button>
+                    
+                    <div class="absolute left-1/2 -translate-x-1/2 z-50 w-[90vw] max-w-md p-2 mt-8 text-sm text-gray-800 transform bg-white rounded shadow-xl border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 mb-1">
+                            <a href="{{ url_history }}" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
+                                <p class="font-semibold text-sm tracking-wider">History</p>
+                                <span class="text-xs">Our History since formation 2005.</span>
+                            </a>
+                            <a href="" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
+                                <p class="font-semibold tracking-wider">Executive Committee</p>
+                                <span class="text-xs">Our Executive Committee Members.</span>
+                            </a>
+                            <a href="" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
+                                <p class="font-semibold tracking-wider">Secretariat</p>
+                                <span class="text-xs">Meet The Secretariat.</span>
+                            </a>
+                            <a href="" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
+                                <p class="font-semibold tracking-wider">Chapters</p>
+                                <span class="text-xs">All The Chapters.</span>
+                            </a>
+                            <a href="" class="px-1.5 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">
+                                <p class="font-semibold tracking-wider">Mission, Vision & Core Values</p>
+                                <span class="text-xs">What UoNAA Stands For.</span>
+                            </a>
+                            <a href="" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
+                                <p class="font-semibold tracking-wider">Partners</p>
+                                <span class="text-xs">Whom We Work With.</span>
+                            </a>
+                            <a href="" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
+                                <p class="font-semibold tracking-wider">Annual General Meeting</p>
+                                <span class="text-xs">Members review reports, discuss progress, and make key decisions for the year ahead.</span>
+                            </a>
+                            <a href="" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
+                                <p class="font-semibold tracking-wider">Consultancy & Training</p>
+                                <span class="text-xs">Professional Development, Certification courses, and Supervisory skill Programmes.</span>
+                            </a>
+                            <a href="{{ url_gallery }}" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
+                                <p class="font-semibold tracking-wider">Gallery</p>
+                                <span class="text-xs">Us in Pictures.</span>
+                            </a>
+                            <a href="{{ url_in_memoriam }}" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer"> 
+                                <p class="font-semibold tracking-wider">In Memoriam</p>
+                                <span class="text-xs">Remembrance and Respect of our Alumni</span>
+                            </a>
                         </div>
                     </div>
-                    <a href="" class="block px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Downloads</a>
-                    <a href="" class="block px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Shop</a>
                 </div>
-            </div>
 
-            <!-- Standalone items -->
-            <a href="" target="_blank" class="tracking-wider px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer">UoN</a>
-            <a href="" class="tracking-wider px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer">Contact Us</a>
-            {% if request.user.is_authenticated  %}  
-                <a href="" class="px-4 py-1.5 transition font-light bg-black text-white hover:bg-blue-400 hover:text-white cursor-pointer">Sign Out</a>
-            {% else %}
-                <a href="" class="px-4 py-1.5 transition font-light bg-black text-white hover:bg-blue-400 hover:text-white cursor-pointer">Sign In</a>
-            {% endif %}
-        </div>
-        
-        <div class="flex items-center space-x-1">
-            <div class="inline-flex md:hidden" x-data="{ open: false }">
-                <button class="flex-none px-2 btn btn-white btn-sm cursor-pointer" @click="open = true">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="w-5 h-5">
-                        <line x1="3" y1="12" x2="21" y2="12"></line>
-                        <line x1="3" y1="6" x2="21" y2="6"></line>
-                        <line x1="3" y1="18" x2="21" y2="18"></line>
-                    </svg>
-                    <span class="sr-only">Open Menu</span>
-                </button>
-                <div class="absolute top-0 left-0 right-0 z-50 flex flex-col p-2 m-2 space-y-1 bg-white rounded shadow" x-show.transition="open" @click.away="open = false" x-cloak>
-                    <button class="self-end flex-none px-2 btn btn-link btn-icon cursor-pointer" @click="open = false">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                <!-- Membership Dropdown - Pure CSS Hover -->
+                <div class="relative group">
+                    <button class="flex items-center tracking-wider px-3 xl:px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer whitespace-nowrap">
+                        Membership
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="flex-none w-4 h-4 ml-1 -mr-1 transition duration-200 ease-out transform group-hover:rotate-180">
+                            <polyline points="6 9 12 15 18 9"></polyline>
                         </svg>
-                        <span class="sr-only">Close Menu</span>
                     </button>
-                    <div class="grid grid-cols-2 gap-1">
-                        <a href="" class="px-3 py-1.5 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Home</a>
-                        <a href="" class="px-3 py-1.5 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">History</a>
-                        <a href="" class="px-3 py-1.5 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Register</a>
-                        <a href="" class="px-3 py-1.5 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Donate</a>
-                        <a href="" class="px-3 py-1.5 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">UoN Alumni Walk</a>
-                        <a href="" class="px-3 py-1.5 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">UoN</a>
-                        <a href="" class="px-3 py-1.5 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Contact Us</a>
-                        {% if request.user.is_authenticated  %}  
-                            <a href="" class="px-4 py-1.5 transition font-light bg-black text-white hover:bg-blue-400 hover:text-white cursor-pointer">Sign Out</a>
-                        {% else %}
-                            <a href="" class="px-4 py-1.5 transition font-light bg-black text-white hover:bg-blue-400 hover:text-white cursor-pointer">Sign In</a>
-                        {% endif %}
+                    
+                    <div class="absolute left-1/2 -translate-x-1/2 z-50 w-screen max-w-md p-2 mt-8 text-sm text-gray-800 transform bg-white rounded shadow-xl border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300">
+                        <p class="pt-2 pl-3 text-lg text-center font-light tracking-wide text-gray-700 uppercase">Join Us</p>
+                        <div class="flex flex-col space-y-1 font-light text-black"> 
+                            <a href="" class="px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Categories & Benefits</a>
+                            <a href="{{ url_register }}" class="px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Register</a>
+                            <a href="#" class="px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Alumni Card</a>
+                            <a href="#" class="px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Upgrade Membership</a>
+                            <a href="#" class="px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Corporates</a>
+                            <a href="" class="flex items-center justify-center p-3 transition bg-yellow-400 text-slate-700 hover:bg-blue-400 hover:text-black cursor-pointer">
+                                Our Notable Alumni
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="w-4 h-4 ml-1">
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                    <polyline points="12 5 19 12 12 19"></polyline>
+                                </svg>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Get Involved Dropdown - Pure CSS Hover -->
+                <div class="relative group">
+                    <button class="flex items-center tracking-wider px-3 xl:px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer whitespace-nowrap">
+                        Get Involved
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="flex-none w-4 h-4 ml-1 -mr-1 transition duration-200 ease-out transform group-hover:rotate-180">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </button>
+                    
+                    <div class="absolute left-0 z-50 w-64 p-2 mt-8 text-sm text-gray-800 transform bg-white rounded shadow-xl border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300">
+                        <a href="{{ url_donate }}" class="block px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Donate</a>
+                        <a href="{{ url_scholarship }}" class="block px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Scholarship</a>
+                        <a href="" class="block px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">UoN Alumni Walk</a>
+                    </div>
+                </div>
+
+                <!-- Resources Dropdown - Pure CSS Hover -->
+                <div class="relative group">
+                    <button class="flex items-center tracking-wider px-3 xl:px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer whitespace-nowrap">
+                        Resources
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="flex-none w-4 h-4 ml-1 -mr-1 transition duration-200 ease-out transform group-hover:rotate-180">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </button>
+                    
+                    <div class="absolute left-0 z-50 w-64 p-2 mt-8 text-sm text-gray-800 transform bg-white rounded shadow-xl border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300">
+                        <!-- Verify Dropdown -->
+                        <div class="relative group/verify">
+                            <button class="w-full text-left flex items-center justify-between px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">
+                                Verify
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="w-3 h-3 ml-1 transition duration-200 ease-out transform group-hover/verify:rotate-90">
+                                    <polyline points="9 6 15 12 9 18"></polyline>
+                                </svg>
+                            </button>
+                            <div class="absolute left-full top-0 ml-1 z-50 w-40 p-2 bg-white rounded shadow-lg border border-slate-100 opacity-0 invisible group-hover/verify:opacity-100 group-hover/verify:visible transition-all duration-200">
+                                <a href="{% subdomain_url 'staff:all_uon_staff' 'staff' %}" class="block px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer text-sm">Staff</a>
+                                <a href="{% subdomain_url 'student:all_uon_students' 'students' %}" class="block px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer text-sm">Students</a>
+                            </div>
+                        </div>
+                        <a href="" class="block px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Downloads</a>
+                        <a href="" class="block px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Shop</a>
+                    </div>
+                </div>
+
+                <!-- Standalone items -->
+                <a href="https://www.uonbi.ac.ke/" target="_blank" class="tracking-wider px-3 xl:px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer whitespace-nowrap">UoN</a>
+                <a href="{{ url_contact }}" class="tracking-wider px-3 xl:px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer whitespace-nowrap">Contact Us</a>
+                {% if request.user.is_authenticated %}  
+                    <a href="" class="px-3 xl:px-4 py-1.5 transition font-light bg-black text-white hover:bg-blue-400 hover:text-white cursor-pointer whitespace-nowrap">Sign Out</a>
+                {% else %}
+                    <a href="" class="px-3 xl:px-4 py-1.5 transition font-light bg-black text-white hover:bg-blue-400 hover:text-white cursor-pointer whitespace-nowrap">Sign In</a>
+                {% endif %}
+            </div>
+            
+            <!-- Mobile/Tablet Menu Button - visible on medium screens and below -->
+            <div class="flex items-center space-x-1 lg:hidden">
+                <div x-data="{ open: false }">
+                    <button class="flex-none px-2 btn btn-white btn-sm cursor-pointer" @click="open = true">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="w-6 h-6">
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                        <span class="sr-only">Open Menu</span>
+                    </button>
+                    <div class="fixed top-0 left-0 right-0 bottom-0 z-50 flex flex-col bg-white shadow-lg overflow-y-auto" x-show="open" x-transition.opacity @click.away="open = false" x-cloak>
+                        <div class="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
+                            <div class="flex-shrink-0">
+                                {% for image in banner_images %}
+                                    <img src="{{image.logo.url}}" alt="" class="h-12 w-12 object-contain">
+                                {% endfor %}
+                            </div>
+                            <button class="flex-none px-2 btn btn-link btn-icon cursor-pointer" @click="open = false">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                                <span class="sr-only">Close Menu</span>
+                            </button>
+                        </div>
+                        <div class="p-4 space-y-2">
+                            <!-- Main navigation items with accordion for dropdowns -->
+                            <a href="{{url_home}}" class="block px-3 py-2 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Home</a>
+                            
+                            <!-- About Accordion -->
+                            <div x-data="{ aboutOpen: false }">
+                                <button @click="aboutOpen = !aboutOpen" class="w-full text-left px-3 py-2 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer flex justify-between items-center">
+                                    About
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{'rotate-180': aboutOpen}" class="w-4 h-4 transition-transform">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </button>
+                                <div x-show="aboutOpen" x-collapse class="pl-4 space-y-1">
+                                    <a href="{{ url_history }}" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">History</a>
+                                    <a href="" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Mission, Vision & Core Values</a>
+                                    <a href="" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Executive Committee</a>
+                                    <a href="" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Secretariat</a>
+                                    <a href="" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Chapters</a>
+                                    <a href="" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Partners</a>
+                                    <a href="" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Annual General Meeting</a>
+                                    <a href="" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Consultancy & Training</a>
+                                    <a href="{{ url_gallery }}" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer ">Gallery</a>
+                                    <a href="{{ url_in_memoriam }}" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">In Memoriam</a>
+                                </div>
+                            </div>
+
+                            <!-- Membership Accordion -->
+                            <div x-data="{ membershipOpen: false }">
+                                <button @click="membershipOpen = !membershipOpen" class="w-full text-left px-3 py-2 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer rounded flex justify-between items-center">
+                                    Membership
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{'rotate-180': membershipOpen}" class="w-4 h-4 transition-transform">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </button>
+                                <div x-show="membershipOpen" x-collapse class="pl-4 space-y-1">
+                                    <a href="{{ url_register }}" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer ">Register</a>
+                                    <a href="" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer ">Categories & Benefits</a>
+                                    <a href="#" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer ">Alumni Card</a>
+                                    <a href="#" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer ">Upgrade Membership</a>
+                                    <a href="" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer ">Our Notable Alumni</a>
+                                    <a href="#" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer ">Corporate</a>
+                                </div>
+                            </div>
+
+                            <!-- Get Involved Accordion -->
+                            <div x-data="{ involvedOpen: false }">
+                                <button @click="involvedOpen = !involvedOpen" class="w-full text-left px-3 py-2 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer  flex justify-between items-center">
+                                    Get Involved
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{'rotate-180': involvedOpen}" class="w-4 h-4 transition-transform">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </button>
+                                <div x-show="involvedOpen" x-collapse class="pl-4 space-y-1">
+                                    <a href="{{ url_donate }}" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Donate</a>
+                                    <a href="{{ url_scholarship }}" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Scholarship</a>
+                                    <a href="" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">UoN Alumni Walk</a>
+                                </div>
+                            </div>
+
+                            <!-- Resources Accordion -->
+                            <div x-data="{ resourcesOpen: false }">
+                                <button @click="resourcesOpen = !resourcesOpen" class="w-full text-left px-3 py-2 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer  flex justify-between items-center">
+                                    Resources
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{'rotate-180': resourcesOpen}" class="w-4 h-4 transition-transform">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </button>
+                                <div x-show="resourcesOpen" x-collapse class="pl-4 space-y-1">
+                                    <div x-data="{ verifyOpen: false }">
+                                        <button @click="verifyOpen = !verifyOpen" class="w-full text-left px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer flex justify-between items-center">
+                                            Verify
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{'rotate-90': verifyOpen}" class="w-3 h-3 transition-transform">
+                                                <polyline points="9 6 15 12 9 18"></polyline>
+                                            </svg>
+                                        </button>
+                                        <div x-show="verifyOpen" x-collapse class="pl-4 space-y-1">
+                                            <a href="{% subdomain_url 'staff:all_uon_staff' 'staff' %}" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Staff</a>
+                                            <a href="{% subdomain_url 'student:all_uon_students' 'students' %}" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Students</a>
+                                        </div>
+                                    </div>
+                                    <a href="" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Downloads</a>
+                                    <a href="" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Shop</a>
+                                </div>
+                            </div>
+
+                            <a href="https://www.uonbi.ac.ke/" target="_blank" class="block px-3 py-2 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">UoN</a>
+                            <a href="{{ url_contact }}" class="block px-3 py-2 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Contact Us</a>
+                            {% if request.user.is_authenticated %}  
+                                <a href="" class="block px-3 py-2 transition font-light bg-black text-white hover:bg-blue-400 hover:text-white cursor-pointer text-center">Sign Out</a>
+                            {% else %}
+                                <a href="" class="block px-3 py-2 transition font-light bg-black text-white hover:bg-blue-400 hover:text-white cursor-pointer text-center">Sign In</a>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</header> 
+</header>

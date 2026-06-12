@@ -1,7 +1,9 @@
 asgiref==3.11.1
 certifi==2026.5.20
 charset-normalizer==3.4.7
+click==8.4.1
 cloudinary==1.44.2
+colorama==0.4.6
 crispy-tailwind==1.0.3
 dj-database-url==3.1.2
 Django==5.2.15
@@ -12,6 +14,7 @@ django-crispy-forms==2.6
 django-htmx==1.27.0
 django-resized==1.0.3
 django-sitemaps==2.0.2
+django-subdomains2==4.1.2
 factory_boy==3.3.3
 Faker==40.21.0
 gunicorn==26.0.0
@@ -20,11 +23,14 @@ lxml==6.1.1
 packaging==26.2
 pillow==12.2.0
 psycopg2-binary==2.9.12
+pur==7.4.0
 python-dotenv==1.2.2
 requests==2.34.2
+setuptools==82.0.1
 shortuuid==1.0.13
 six==1.17.0
 sqlparse==0.5.5
 tzdata==2026.2
 urllib3==2.7.0
+wheel==0.47.0
 whitenoise==6.12.0

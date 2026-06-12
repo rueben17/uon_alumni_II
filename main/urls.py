@@ -1,25 +1,17 @@
 """
 URL configuration for main project.
 
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.0/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+Subdomains are routed via middleware to different URLconf modules:
+- staff.uonalumni.or.ke → apps.staff.urls
+- students.uonalumni.or.ke → apps.student.urls
+- www.uonalumni.or.ke / uonalumni.or.ke / localhost → apps.home.urls
+
+This file serves as the default/fallback URLconf.
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from django.urls import path, include
-from django.views.generic import TemplateView
 from django.contrib.sitemaps.views import sitemap
 from apps.home.sitemaps import UonAlumniStaticSitemap 
 
@@ -27,12 +19,15 @@ from apps.home.sitemaps import UonAlumniStaticSitemap
 sitemaps = {'static': UonAlumniStaticSitemap}
 
 urlpatterns = [
-    # path("", TemplateView.as_view(template_name="home/alumni_home.html"), name="home"),
-    path("", include('apps.home.urls', namespace="home")), 
-    path("2005/", admin.site.urls),
-    path('sitemap.xml', sitemap, {'sitemaps': sitemaps}, name='sitemap'),
+    # Admin and sitemaps (accessible from any subdomain)
+        # Base routes with path prefixes for backward compatibility
+    # (These will be overridden by middleware-based subdomain routing)
     
-    # path('user/', include('apps.user.urls', namespace="user")), 
+    path("2005/", admin.site.urls),
+    path("", include('apps.home.urls', namespace="home")), 
+    path("", include('apps.staff.urls', namespace="staff")), 
+    path("", include('apps.student.urls', namespace="student")), 
+    path('sitemap.xml', sitemap, {'sitemaps': sitemaps}, name='sitemap'),
 ]
 
 if settings.DEBUG:
