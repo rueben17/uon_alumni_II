@@ -13,7 +13,7 @@
 
             <!-- Desktop Menu - hidden on mobile/tablet, visible on large screens -->
             <div class="hidden lg:flex items-center gap-1 xl:gap-3 flex-wrap justify-end">
-                <a href="/" class="px-3 xl:px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer whitespace-nowrap">Home</a>
+                <a href="{{url_home}}" class="px-3 xl:px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer whitespace-nowrap">Home</a>
                 
                 <!-- About Dropdown - Pure CSS Hover -->
                 <div class="relative group">
@@ -206,7 +206,7 @@
 
                             <!-- Membership Accordion -->
                             <div x-data="{ membershipOpen: false }">
-                                <button @click="membershipOpen = !membershipOpen" class="w-full text-left px-3 py-2 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer rounded flex justify-between items-center">
+                                <button @click="membershipOpen = !membershipOpen" class="w-full text-left px-3 py-2 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer  flex justify-between items-center">
                                     Membership
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{'rotate-180': membershipOpen}" class="w-4 h-4 transition-transform">
                                         <polyline points="6 9 12 15 18 9"></polyline>
