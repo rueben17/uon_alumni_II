@@ -23,7 +23,7 @@
          alt="Footer background">
     
     <!-- Overlay - improved gradient for better text contrast -->
-    <div class="absolute inset-0 bg-gradient-to-t from-gray-900/90 via-gray-900/50 to-gray-900/30"></div>
+    <div class="absolute inset-0 bg-linear-to-t from-gray-900/90  to-gray-900/30"></div>
     
     <!-- Footer Content -->
     <footer class="relative container mx-auto p-0 md:p-8 xl:px-0">
@@ -155,7 +155,7 @@
             </div>
             <div class="mt-8 border-t border-white/30 pt-8 sm:mt-20 lg:mt-24">
                 <div class="text-balance text-center text-white/80 text-sm">
-                    Copyright © {{date}}. <a href="/" class="hover:text-white hover:underline transition">{{ name_title }}</a>
+                    Copyright © {{date}}. <a href="{{url_home}}" class="hover:text-white hover:underline transition">{{ name_title }}</a>
                     <br> 
                     <span class="text-xs text-white/60">
                         Crafted by RUBEN at

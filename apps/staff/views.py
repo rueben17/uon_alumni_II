@@ -8,3 +8,4 @@ def all_uon_staff(request):
 
     }
     return render(request, "staff/all_uon_staff.html", context)
+

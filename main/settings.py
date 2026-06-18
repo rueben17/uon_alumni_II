@@ -5,11 +5,15 @@ Docs: https://docs.djangoproject.com/en/6.0/topics/settings/
 Full reference: https://docs.djangoproject.com/en/6.0/ref/settings/
 
 Environment variables required in production (.env or server environment):
-  DJANGO_SECRET_KEY   — secret key, never commit this
-  DJANGO_DEBUG        — set to "False" in production (defaults to True)
-  ALLOWED_HOSTS       — comma-separated list of allowed hostnames
-  DATABASE_URL        — Neon Postgres connection string
+  DJANGO_SECRET_KEY            — secret key, never commit this
+  DJANGO_DEBUG                 — set to "False" in production (defaults to True)
+  ALLOWED_HOSTS                — comma-separated list of allowed hostnames
+  DATABASE_URL                 — Neon Postgres connection string
   CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET — media storage
+  GOOGLE_OAUTH_CLIENT_ID        — from Google Auth Platform → Clients
+  GOOGLE_OAUTH_CLIENT_SECRET    — from Google Auth Platform → Clients
+  ALLOWED_GOOGLE_LOGIN_DOMAINS  — comma-separated email domains allowed to
+                                  sign in via Google (defaults to uonbi.ac.ke)
 """
 
 import os
@@ -24,7 +28,7 @@ import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
-
+SITE_ID = 1
 
 # ─────────────────────────────────────────────
 # Core
@@ -89,6 +93,13 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.sitemaps',
 
+    # django-allauth
+    'django.contrib.sites',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
+
     # Third-party
     'corsheaders',
     'crispy_forms',
@@ -100,11 +111,17 @@ INSTALLED_APPS = [
     'apps.user',
     'apps.staff',
     'apps.student',
+    'apps.qr_manager',
 ]
 
 # Custom user model — must be set before the first migration.
 AUTH_USER_MODEL = 'user.User'
 
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
 
 # ─────────────────────────────────────────────
 # Middleware
@@ -118,6 +135,7 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     # SubdomainRoutingMiddleware sets request.urlconf and request.subdomain.
     # Must be after SessionMiddleware and before CommonMiddleware.
+    'allauth.account.middleware.AccountMiddleware',
     'main.middleware.SubdomainRoutingMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django_htmx.middleware.HtmxMiddleware',
@@ -165,13 +183,27 @@ WSGI_APPLICATION = 'main.wsgi.application'
 # ─────────────────────────────────────────────
 
 if DEBUG:
-    # SQLite for local development — no setup required.
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+    # USE_NEON_LOCALLY is a temporary, manual escape hatch — set it in your
+    # local .env when you specifically want to test against the production
+    # Neon DB while keeping DEBUG=True (avoids ALLOWED_HOSTS/SSL issues on
+    # lvh.me). Remove this block and the env var once testing is done.
+    if os.getenv('USE_NEON_LOCALLY', 'False').lower() in ('true', '1', 'yes'):
+        _db_url = os.getenv('DATABASE_URL')
+        if not _db_url:
+            raise RuntimeError(
+                'DATABASE_URL is required when USE_NEON_LOCALLY is set'
+            )
+        DATABASES = {
+            'default': dj_database_url.parse(_db_url, conn_max_age=600)
         }
-    }
+    else:
+        # SQLite for local development — no setup required.
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
 else:
     # Neon Postgres in production via DATABASE_URL.
     # conn_max_age=600 keeps connections alive for 10 minutes (connection pooling).
@@ -292,10 +324,46 @@ else:
 # Staff and student views should always pass login_url='/login/' explicitly so
 # the redirect lands on the correct subdomain's login page, not this fallback.
 LOGIN_URL = '/login/'
-LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 
 
+# django-allauth settings
+ACCOUNT_EMAIL_VERIFICATION = 'none'          # Google already verified email
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+ACCOUNT_LOGIN_METHODS = {'email'}
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
+
+SOCIALACCOUNT_QUERY_EMAIL = True
+SOCIALACCOUNT_EMAIL_REQUIRED = True
+SOCIALACCOUNT_AUTO_SIGNUP = True
+
+# Email domains allowed to sign in via Google, enforced in
+# apps/user/adapter.py across all subdomains (main, staff, students).
+# Add 'alumni.uonbi.ac.ke' to the env var once the ICT Directorate issues
+# that extension — no code change needed, just update .env and redeploy.
+ALLOWED_GOOGLE_LOGIN_DOMAINS = split_env_list(
+    os.getenv('ALLOWED_GOOGLE_LOGIN_DOMAINS', 'uonbi.ac.ke')
+)
+
+# Google OAuth specific
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': ['profile', 'email'],
+        'AUTH_PARAMS': {'access_type': 'online'},
+        'FETCH_USERINFO': True,
+        'APP': {
+            'client_id': os.getenv('GOOGLE_OAUTH_CLIENT_ID'),
+            'secret': os.getenv('GOOGLE_OAUTH_CLIENT_SECRET'),
+        },
+    }
+}
+
+# Custom adapter — enforces ALLOWED_GOOGLE_LOGIN_DOMAINS and creates
+# Employee/Student records depending on subdomain.
+SOCIALACCOUNT_ADAPTER = 'apps.user.adapter.CustomSocialAccountAdapter'
+
+# Redirect after login (can be overridden by your post-login redirect view)
+LOGIN_REDIRECT_URL = '/'   # you may change to '/accounts/login-redirect/' later
 # ─────────────────────────────────────────────
 # Sessions and cookies
 # ─────────────────────────────────────────────

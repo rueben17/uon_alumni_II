@@ -24,6 +24,7 @@ urlpatterns = [
     # (These will be overridden by middleware-based subdomain routing)
     
     path("2005/", admin.site.urls),
+    path('accounts/', include('allauth.urls')),
     path("", include('apps.home.urls', namespace="home")), 
     path("", include('apps.staff.urls', namespace="staff")), 
     path("", include('apps.student.urls', namespace="student")), 

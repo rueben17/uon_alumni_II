@@ -150,6 +150,7 @@ SERVICE_DATA = [
     {"name": "University Health Services", "unit_type": "CENTRE"},
     {"name": "University Library", "unit_type": "CENTRE"},
     {"name": "University Press", "unit_type": "OTHER"},
+    {"name": "UoN Alumni Association", "unit_type": "OFFICE"},
 ]
 
 # -------------------------------------------------------------------
