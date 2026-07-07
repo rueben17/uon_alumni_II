@@ -32,7 +32,11 @@
                             </button>
                             <div class="absolute left-1/2 -translate-x-1/2 z-50 w-[90vw] max-w-md p-2 mt-8 text-sm text-gray-800 bg-white rounded shadow-xl border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300">
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 mb-1">
-                                    {% if request.user == employee.user %}
+                                    {% if request.user.employee %}
+                                        <a href="{{ request.user.employee.get_absolute_url }}" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
+                                            <p class="font-semibold text-sm tracking-wider">View Personal Details</p>
+                                            <span class="text-xs">See your profile as others see it.</span>
+                                        </a>
                                         <a href="{% url 'staff:profile_update' %}" class="px-1.5 py-1.5 transition hover:bg-blue-400 hover:text-white cursor-pointer">
                                             <p class="font-semibold text-sm tracking-wider">Update Personal Details</p>
                                             <span class="text-xs">View and update your information.</span>
@@ -268,14 +272,17 @@
                                 <!-- ── STAFF MOBILE ── -->
                                 <a href="{{url_home}}" class="block px-3 py-2 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Home</a>
 
-                                {% if request.user.is_authenticated %}
+                                 {% if request.user.is_authenticated %}
                                     <div x-data="{ profileOpen: false }">
                                         <button @click="profileOpen = !profileOpen" class="w-full text-left px-3 py-2 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer flex justify-between items-center">
                                             My Profile
                                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{'rotate-180': profileOpen}" class="w-4 h-4 transition-transform"><polyline points="6 9 12 15 18 9"></polyline></svg>
                                         </button>
                                         <div x-show="profileOpen" x-collapse class="pl-4 space-y-1">
-                                            <a href="{{ employee.get_absolute_url }}" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Personal Details</a>
+                                            {% if request.user.employee %}
+                                                <a href="{{ request.user.employee.get_absolute_url }}" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">View Personal Details</a>
+                                                <a href="{% url 'staff:profile_update' %}" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Update Personal Details</a>
+                                            {% endif %}
                                             <a href="" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Staff ID</a>
                                             <a href="" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Employment Record</a>
                                             <a href="" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Change Password</a>
