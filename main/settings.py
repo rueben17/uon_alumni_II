@@ -471,6 +471,34 @@ if DEBUG:
 
 
 # ─────────────────────────────────────────────
+# Logging
+# ─────────────────────────────────────────────
+#
+# Unhandled view exceptions (500s) are only sent to Django's default
+# mail_admins handler when DEBUG=False, which does nothing here (no
+# ADMINS/email backend configured), so they vanish silently. This makes
+# them print to stderr instead, which systemd/gunicorn captures into
+# journalctl -u uon_alumni.
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+    },
+}
+
+
+# ─────────────────────────────────────────────
 # Misc
 # ─────────────────────────────────────────────
 
