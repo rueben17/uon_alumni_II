@@ -225,3 +225,8 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Local TLS cert/key and saved session cookies (dev artifacts, never commit)
+cert.crt
+cert.key
+cookies.txt

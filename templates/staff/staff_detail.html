@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+<title>{% block title %} {{name_title}} | {{ employee.display_name }} | Staff Profile {% endblock %}</title>
+
+
+{% block content %}
+
+        <div  class="container mx-auto min-h-screen space-y-2" style="max-width: 1700px;important;">
+            {% include "snippets/navbar.html" %} 
+            
+
+            {% include "snippets/banner.html" %} 
+            
+                <section id="front_page" class="max-w-8xl min-h-[50dvh] mx-auto bg-white shadow-sm border border-solid border-gray-300 py-3 rounded-sm">
+                    {% include "staff/staff_header.html" %}
+                </section>
+
+                <section id="front_page_2" class="max-w-8xl min-h-screen mx-auto  ">
+                
+                    
+                </section>
+ 
+
+            {% include "snippets/footer.html" %} 
+        </div>
+
+    
+
+{% endblock content %}

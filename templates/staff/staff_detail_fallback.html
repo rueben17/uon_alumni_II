@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+<title>{% block title %} {{name_title}} | {{employee.full_name}} {% endblock %}</title>
+
+
+{% block content %}
+
+        <div  class="container mx-auto min-h-screen space-y-2" style="max-width: 1700px;important;">
+            {% include "snippets/navbar.html" %} 
+            
+
+            {% include "snippets/banner.html" %} 
+            
+                <section id="front_page" class="max-w-8xl min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
+                    <div  class="container max-w-5xl mx-auto min-h-screen  content-center items-center p-2 space-y-2 text-black" style="max-width: 1700px;important;">
+                        Profile Not Yet Complete
+                        {% if can_complete %}
+                        You haven't finished setting up your staff profile yet.
+
+                        Complete your profile 
+                        {% else %}
+                        This staff member hasn't finished setting up their profile yet.
+
+
+                            <div class="bg-neutral-primary-soft block max-w-sm p-6 border border-default rounded-base shadow-xs">
+                                <h5 class="mb-3 text-2xl font-semibold tracking-tight text-heading leading-8">Noteworthy technology acquisitions 2021</h5>
+                                <p class="text-body mb-6">Here are the biggest technology acquisitions of 2025 so far, in reverse chronological order.</p>
+                                <a href="{% subdomain_url 'staff:complete_profile' 'staff' uuid=employee.id %}" class="inline-flex items-center text-white bg-brand box-border border border-transparent hover:bg-brand-strong focus:ring-4 focus:ring-brand-medium shadow-xs font-medium leading-5 rounded-base text-sm px-4 py-2.5 focus:outline-none">
+                                    Complete Pofile 
+                                    <svg class="w-4 h-4 ms-1.5 rtl:rotate-180 -me-0.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 12H5m14 0-4 4m4-4-4-4"/></svg>
+                                </a>
+                            </div>
+
+                        {% endif %}
+                    </div>
+
+                </section>
+
+                <section id="front_page_2" class="max-w-8xl min-h-screen mx-auto  ">
+                
+                    
+                </section>
+ 
+
+            {% include "snippets/footer.html" %} 
+        </div>
+
+    
+
+{% endblock content %}

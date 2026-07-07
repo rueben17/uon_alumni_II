@@ -26,8 +26,8 @@ urlpatterns = [
     path("2005/", admin.site.urls),
     path('accounts/', include('allauth.urls')),
     path("", include('apps.home.urls', namespace="home")), 
-    path("", include('apps.staff.urls', namespace="staff")), 
-    path("", include('apps.student.urls', namespace="student")), 
+    path('staff/', include(('apps.staff.urls'), namespace='staff')),
+    path("students/", include('apps.student.urls', namespace="student")),
     path('sitemap.xml', sitemap, {'sitemaps': sitemaps}, name='sitemap'),
 ]
 

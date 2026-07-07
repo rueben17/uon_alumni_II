@@ -24,15 +24,22 @@ def get_employee_slug(instance):
     """
     Produces: honorific-firstname-lastname
     e.g. prof-jane-doe
-    The UUID is a separate URL segment, not part of the slug itself.
+    The UUID is a separate URL segment (see apps/qr_manager/urls.py), not
+    part of the slug itself -- the slug is purely cosmetic.
     """
     honorific = instance.get_honorific_display() if instance.honorific else ""
     return slugify(f"{honorific} {instance.given_name} {instance.family_name}")
 
 
 def qr_upload_path(instance, filename):
-    """Store QR codes under media/qr_codes/<staff_id>/<filename>."""
-    return f"qr_codes/{instance.staff_id}/{filename}"
+    """
+    qr_codes/<unit-slug>/<employee-uuid>.png — unit folder for a
+    browsable structure, UUID filename: unique, immutable, no PII.
+    Incoming filename ignored so regenerations overwrite in place.
+    """
+    unit = instance.unit
+    unit_slug = unit.slug if unit and unit.slug else "unassigned"
+    return f"qr_codes/{unit_slug}/{instance.pk}.png"
 
 
 # -------------------------------------------------------------------
@@ -464,7 +471,7 @@ class Employee(models.Model):
     @property
     def full_name(self) -> str:
         """Given + middle (if any) + family."""
-        parts = [self.given_name, self.middle_name, self.family_name]
+        parts = [self.given_name, self.family_name]
         return " ".join(filter(None, parts)) or "N/A"
 
     @property
@@ -501,8 +508,14 @@ class Employee(models.Model):
 
     @property
     def unit(self):
-        """Returns whichever organisational unit this employee belongs to."""
-        return self.department or self.service_unit or self.research_unit
+        """Returns the organisational unit that matches the selected staff track."""
+        if self.staff_track == self.StaffTrack.TEACHING:
+            return self.department
+        if self.staff_track == self.StaffTrack.SERVICE:
+            return self.service_unit
+        if self.staff_track == self.StaffTrack.RESEARCH:
+            return self.research_unit
+        return None
 
     @property
     def is_teaching_staff(self) -> bool:
@@ -522,43 +535,36 @@ class Employee(models.Model):
         if errors:
             raise ValidationError(errors)
 
+
     def save(self, *args, **kwargs):
         # No automatic full_clean() – forms will call it.
         super().save(*args, **kwargs)
 
-    def get_absolute_url(self) -> str:
-        # This will be updated later to include the UUID as a separate path segment.
-        # For now, returns the old style – we'll modify after URL changes.
-        if self.staff_track == self.StaffTrack.TEACHING and self.department:
+
+    def get_absolute_url(self):
+            # Pretty URL once the profile is complete; the form's clean()
+            # guarantees exactly one unit matches the track, so self.unit
+            # is that unit.
+            if self.is_active and self.profile_is_complete and self.slug and self.unit:
+                # Keep URL format consistent across tracks:
+                # <unit-name-slug>/<employee-slug>/<uuid>/
+                unit_slug = slugify(self.unit.name)
+                return reverse(
+                    'staff:staff_detail',
+                    kwargs={
+                        'unit_slug': unit_slug,
+                        'name_slug': self.slug,
+                        'uuid': self.id,
+                    },
+                    urlconf='apps.staff.site_urls',
+                )
+
+            # Fresh-from-Google / incomplete profile: stable UUID URL.
             return reverse(
-                "staff:teaching_staff_detail",
-                kwargs={
-                    "faculty_slug": self.department.faculty.slug,
-                    "dept_slug":    self.department.slug,
-                    "slug":         self.slug,      # name part only
-                    "uuid":         self.id,        # separate UUID
-                },
+                'staff:staff_detail_fallback',
+                kwargs={'uuid': self.id},
+                urlconf='apps.staff.site_urls',
             )
-        if self.staff_track == self.StaffTrack.SERVICE and self.service_unit:
-            return reverse(
-                "staff:service_staff_detail",
-                kwargs={
-                    "unit_slug":    self.service_unit.slug,
-                    "slug":         self.slug,
-                    "uuid":         self.id,
-                },
-            )
-        if self.staff_track == self.StaffTrack.RESEARCH and self.research_unit:
-            return reverse(
-                "staff:research_staff_detail",
-                kwargs={
-                    "unit_slug":    self.research_unit.slug,
-                    "slug":         self.slug,
-                    "uuid":         self.id,
-                },
-            )
-        # fallback – profile incomplete, no clean URL yet
-        return reverse("staff:staff_detail_fallback", kwargs={"uuid": self.id})
 
     def __str__(self):
         return f"{self.display_name} ({self.staff_id})" if self.staff_id else self.email

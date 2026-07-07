@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}{{ name_title }} | {{ user.employee.given_name }} | Complete Your Profile{% endblock %}
+
+{% block content %}
+<div class="container mx-auto min-h-screen space-y-2" style="max-width: 1700px;">
+    {% include "snippets/navbar.html" %}
+    {% include "snippets/banner.html" %}
+
+    <section class="max-w-5xl mx-auto px-4 py-8">
+        <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+            <h1 class="text-2xl font-bold text-slate-900">Complete Your Staff Profile</h1>
+            <p class="mt-2 mb-8 text-slate-600">Please fill in your details below. Fields marked with * are required.</p>
+
+            {% if form.non_field_errors %}
+                <div class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+                    {% for error in form.non_field_errors %}
+                        <p>{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <form method="post" enctype="multipart/form-data" novalidate class="space-y-8">
+                {% csrf_token %}
+
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">Personal Details</h2>
+                    <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                        {% include "snippets/form_field.html" with field=form.honorific %}
+                        {% include "snippets/form_field.html" with field=form.academic_rank %}
+                        {% include "snippets/form_field.html" with field=form.given_name %}
+                        {% include "snippets/form_field.html" with field=form.middle_name %}
+                        {% include "snippets/form_field.html" with field=form.family_name %}
+                        {% include "snippets/form_field.html" with field=form.date_of_birth %}
+                        {% include "snippets/form_field.html" with field=form.national_id %}
+                        {% include "snippets/form_field.html" with field=form.staff_id %}
+                    </div>
+                </div>
+
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">Contact Information</h2>
+                    <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                        {% include "snippets/form_field.html" with field=form.alt_email_address %}
+                        {% include "snippets/form_field.html" with field=form.phone_number %}
+                        {% include "snippets/form_field.html" with field=form.alt_phone_number wrapper_class="md:col-span-2" %}
+                    </div>
+                </div>
+
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">Employment Details</h2>
+                    <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                        {% include "snippets/form_field.html" with field=form.staff_track %}
+                        {% include "snippets/form_field.html" with field=form.employment_type %}
+                        <div id="department-wrapper">
+                            {% include "snippets/form_field.html" with field=form.department %}
+                        </div>
+                        <div id="service-unit-wrapper">
+                            {% include "snippets/form_field.html" with field=form.service_unit %}
+                        </div>
+                        <div id="research-unit-wrapper" class="md:col-span-2">
+                            {% include "snippets/form_field.html" with field=form.research_unit %}
+                        </div>
+                        {% include "snippets/form_field.html" with field=form.position %}
+                        {% include "snippets/form_field.html" with field=form.date_joined %}
+                    </div>
+                </div>
+
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">Profile Photo</h2>
+                    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        {% if form.instance.photo %}
+                            <div class="mb-3 flex items-center gap-3">
+                                <img src="{{ form.instance.photo.url }}" alt="Current profile photo" class="h-16 w-16 rounded-full object-cover ring-2 ring-white shadow-sm">
+                                <p class="text-sm text-slate-600">Current photo on file. Upload a new file to replace it.</p>
+                            </div>
+                        {% endif %}
+                        {% include "snippets/form_field.html" with field=form.photo %}
+                        <p id="photo-file-name" class="mt-2 text-xs text-slate-500"></p>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-3 pt-2">
+                    <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300">
+                        Save Profile
+                    </button>
+                    <p class="text-sm text-slate-500">Your profile is used to generate your public staff page.</p>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    {% include "snippets/footer.html" %}
+</div>
+
+<script>
+    (function () {
+        const trackField = document.getElementById("id_staff_track");
+        const wrappers = {
+            teaching: document.getElementById("department-wrapper"),
+            service: document.getElementById("service-unit-wrapper"),
+            research: document.getElementById("research-unit-wrapper"),
+        };
+
+        function toggleUnitFields() {
+            if (!trackField) return;
+
+            const selectedTrack = trackField.value;
+            Object.entries(wrappers).forEach(([track, element]) => {
+                if (!element) return;
+                element.classList.toggle("hidden", selectedTrack !== track);
+            });
+        }
+
+        if (trackField) {
+            trackField.addEventListener("change", toggleUnitFields);
+            toggleUnitFields();
+        }
+
+        const photoInput = document.getElementById("id_photo");
+        const fileNameTarget = document.getElementById("photo-file-name");
+
+        if (photoInput && fileNameTarget) {
+            photoInput.addEventListener("change", function () {
+                if (photoInput.files && photoInput.files.length > 0) {
+                    fileNameTarget.textContent = "Selected file: " + photoInput.files[0].name;
+                } else {
+                    fileNameTarget.textContent = "";
+                }
+            });
+        }
+    })();
+</script>
+{% endblock %}

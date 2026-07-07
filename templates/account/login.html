@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% load socialaccount %}
+
+{% block title %} {{name_title}} Sign In {% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+    <div class="w-full max-w-md">
+
+        {# UoN Branding #}
+        <div class="text-center mb-8">
+            {% load static %}
+            <img src="https://res.cloudinary.com/doh3hvrdz/image/upload/q_auto/f_auto/v1781224354/UONAA_Original_Logo_Blue_1_lgwkmu.png"
+                 alt="University of Nairobi"
+                 class="h-16 w-auto mx-auto mb-4">
+            <h1 class="text-xl font-semibold text-gray-900">University of Nairobi Alumni Association</h1>
+            <p class="text-sm text-gray-500 mt-1">University of Nairobi Alumni Association</p>
+        </div>
+
+        {# Card #}
+        <div class="bg-white rounded-lg shadow px-8 py-10">
+
+            <div class="text-center mb-6">
+                <p class="text-lg font-semibold text-slate-900">Sign in to your account</p>
+                <p class="mt-1 text-sm text-slate-500">
+                    Use your UoN Google account (<span class="font-medium">@uonbi.ac.ke</span>) to continue.
+                </p>
+            </div>
+
+            {# Django messages — shown when domain restriction blocks a login #}
+            {% if messages %}
+                <div class="mb-5 space-y-2">
+                    {% for message in messages %}
+                        <div class="rounded-md px-4 py-3 text-sm
+                            {% if message.tags == 'error' %}bg-red-50 text-red-700 border border-red-200
+                            {% elif message.tags == 'success' %}bg-green-50 text-green-700 border border-green-200
+                            {% else %}bg-blue-50 text-blue-700 border border-blue-200{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {# Google Sign-In button #}
+            {% if request.GET.next %}
+                <a href="{% provider_login_url 'google' process='login' next=request.GET.next %}"
+                   class="flex items-center justify-center gap-3 w-full h-11 rounded-lg border border-slate-300 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400">
+                    <img src="https://www.svgrepo.com/show/475656/google-color.svg"
+                         alt="Google"
+                         class="h-5 w-5">
+                    Continue with Google
+                </a>
+            {% else %}
+                <a href="{% provider_login_url 'google' process='login' %}"
+                   class="flex items-center justify-center gap-3 w-full h-11 rounded-lg border border-slate-300 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400">
+                    <img src="https://www.svgrepo.com/show/475656/google-color.svg"
+                         alt="Google"
+                         class="h-5 w-5">
+                    Continue with Google
+                </a>
+            {% endif %}
+
+            <p class="mt-6 text-center text-xs text-slate-400">
+                Access is restricted to UoN staff with an active
+                <span class="font-medium">@uonbi.ac.ke</span> Google account.
+                <br>Contact the
+                <a href="mailto:ict@uonbi.ac.ke" class="text-blue-600 hover:underline">ICT Directorate</a>
+                if you need access.
+            </p>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

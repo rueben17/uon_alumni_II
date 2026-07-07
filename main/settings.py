@@ -14,6 +14,8 @@ Environment variables required in production (.env or server environment):
   GOOGLE_OAUTH_CLIENT_SECRET    — from Google Auth Platform → Clients
   ALLOWED_GOOGLE_LOGIN_DOMAINS  — comma-separated email domains allowed to
                                   sign in via Google (defaults to uonbi.ac.ke)
+  RESTRICT_GOOGLE_LOGIN_DOMAINS — set to "False" to allow any Google account
+                                  (for local dev/testing only)
 """
 
 import os
@@ -102,9 +104,12 @@ INSTALLED_APPS = [
 
     # Third-party
     'corsheaders',
-    'crispy_forms',
+    "crispy_forms",
+    "crispy_tailwind",
+    'widget_tweaks',
     'django_htmx',
     'cloudinary_storage',
+    'django_extensions',
 
     # Project apps
     'apps.home',
@@ -268,8 +273,9 @@ if os.environ.get('CLOUDINARY_CLOUD_NAME'):
 # Forms
 # ─────────────────────────────────────────────
 
-CRISPY_ALLOWED_TEMPLATE_PACKS = 'tailwind'
-CRISPY_TEMPLATE_PACK = 'tailwind'
+CRISPY_ALLOWED_TEMPLATE_PACKS = "tailwind"
+
+CRISPY_TEMPLATE_PACK = "tailwind"
 
 
 # ─────────────────────────────────────────────
@@ -303,7 +309,7 @@ if DEBUG:
     SUBDOMAIN_URLCONFS = {
         None:       'main.urls',
         'www':      'main.urls',
-        'staff':    'apps.staff.urls',
+        'staff':    'apps.staff.site_urls',
         'students': 'apps.student.urls',
     }
 else:
@@ -311,31 +317,74 @@ else:
     SUBDOMAIN_URLCONFS = {
         None:       'main.urls',
         'www':      'main.urls',
-        'staff':    'apps.staff.urls',
+        'staff':    'apps.staff.site_urls',
         'students': 'apps.student.urls',
     }
 
 
+# Origin encoded into printed QR badges. Explicit rather than derived
+# from DEBUG: a QR is a permanent artifact, so the URL it carries must
+# never depend on what mode the generating process happened to run in.
+if DEBUG:
+    QR_SCAN_ORIGIN = os.getenv('QR_SCAN_ORIGIN', 'http://staff.lvh.me:8000')
+else:
+    QR_SCAN_ORIGIN = os.getenv('QR_SCAN_ORIGIN', 'https://staff.uonalumni.or.ke')
+
+    
 # ─────────────────────────────────────────────
 # Authentication
 # ─────────────────────────────────────────────
+#
+# Google OAuth (via django-allauth) is the ONLY auth method, and the
+# /accounts/ paths are shared across all subdomains: the middleware
+# keeps them on ROOT_URLCONF, so the same login/logout URLs work on
+# uonalumni.or.ke, staff., and students. alike.
+#
+# Post-login routing lives in apps/user/adapter.py:
+#   - login on staff.    → Employee ensured → complete_profile or detail page
+#   - login on students. → Student ensured  → (when apps.student is built)
+#   - logout (anywhere)  → main site home page
 
-# Global fallback login URL — used when @login_required has no explicit login_url.
-# Staff and student views should always pass login_url='/login/' explicitly so
-# the redirect lands on the correct subdomain's login page, not this fallback.
-LOGIN_URL = '/login/'
-LOGOUT_REDIRECT_URL = '/'
+# Where @login_required sends anonymous users.
+# This lands on the local login page, which presents the Google
+# social auth option instead of bypassing straight to Google.
+LOGIN_URL = '/accounts/login/'
 
+# Fallback redirect after login, used only when the adapter's
+# get_login_redirect_url() doesn't return a subdomain-specific URL
+# (i.e. logins on the main domain).
+LOGIN_REDIRECT_URL = '/'
 
-# django-allauth settings
-ACCOUNT_EMAIL_VERIFICATION = 'none'          # Google already verified email
+# Logout redirect is handled by CustomAccountAdapter.get_logout_redirect_url()
+# (always the main site home page), so no setting is needed here.
+LOGOUT_REDIRECT_URL = None
+
+# ----- django-allauth core -----
+
+# Google-only auth: no usernames, email is the identifier, and Google
+# has already verified the address (checked in the adapter), so
+# allauth's own email verification is off.
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 ACCOUNT_LOGIN_METHODS = {'email'}
-ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
+ACCOUNT_SIGNUP_FIELDS = ['email*']
+ACCOUNT_UNIQUE_EMAIL = True
+ACCOUNT_EMAIL_VERIFICATION = 'none'
 
-SOCIALACCOUNT_QUERY_EMAIL = True
-SOCIALACCOUNT_EMAIL_REQUIRED = True
+# ----- django-allauth social -----
+
+# Skip the intermediate signup form and create the account directly
+# from the Google profile.
 SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_LOGIN_ON_GET = True
+SOCIALACCOUNT_EMAIL_REQUIRED = True
+SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
+
+# If the Google email matches an existing User, log into that account
+# and auto-connect the social account instead of showing the signup
+# form (the ACCOUNT_UNIQUE_EMAIL conflict case). Safe because only
+# Google-verified UoN addresses get this far.
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
 
 # Email domains allowed to sign in via Google, enforced in
 # apps/user/adapter.py across all subdomains (main, staff, students).
@@ -345,11 +394,21 @@ ALLOWED_GOOGLE_LOGIN_DOMAINS = split_env_list(
     os.getenv('ALLOWED_GOOGLE_LOGIN_DOMAINS', 'uonbi.ac.ke')
 )
 
-# Google OAuth specific
+# Toggle domain restriction for local development/testing.
+# Set RESTRICT_GOOGLE_LOGIN_DOMAINS=False in .env to allow any Google account.
+RESTRICT_GOOGLE_LOGIN_DOMAINS = os.getenv('RESTRICT_GOOGLE_LOGIN_DOMAINS', 'True') == 'True'
+
+# ----- Google provider -----
+
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
         'SCOPE': ['profile', 'email'],
-        'AUTH_PARAMS': {'access_type': 'online'},
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+            # Force Google's consent page so users explicitly see
+            # and approve the data-sharing screen before account selection.
+            'prompt': 'consent select_account',
+        },
         'FETCH_USERINFO': True,
         'APP': {
             'client_id': os.getenv('GOOGLE_OAUTH_CLIENT_ID'),
@@ -358,35 +417,10 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
-# Custom adapter — enforces ALLOWED_GOOGLE_LOGIN_DOMAINS and creates
-# Employee/Student records depending on subdomain.
+# ----- Custom adapters (redirects + Employee/Student creation) -----
+
+ACCOUNT_ADAPTER = 'apps.user.adapter.CustomAccountAdapter'
 SOCIALACCOUNT_ADAPTER = 'apps.user.adapter.CustomSocialAccountAdapter'
-
-# Redirect after login (can be overridden by your post-login redirect view)
-LOGIN_REDIRECT_URL = '/'   # you may change to '/accounts/login-redirect/' later
-# ─────────────────────────────────────────────
-# Sessions and cookies
-# ─────────────────────────────────────────────
-
-# SESSION_COOKIE_DOMAIN and CSRF_COOKIE_DOMAIN control which hosts can read
-# the cookies set by Django.
-#
-# Setting the leading-dot form (e.g. '.uonalumni.or.ke') makes cookies
-# readable across ALL subdomains — staff., students., www. etc.
-# This is required if a user logs in on the main domain and you want that
-# session recognised on a subdomain (or vice versa).
-#
-# Set both to None if subdomains should have fully isolated sessions
-# (separate logins for each subdomain with no crossover).
-
-if DEBUG:
-    SESSION_COOKIE_DOMAIN = None   # isolated per host in local dev
-    CSRF_COOKIE_DOMAIN = None
-else:
-    SESSION_COOKIE_DOMAIN = '.uonalumni.or.ke'   # shared across subdomains
-    CSRF_COOKIE_DOMAIN = '.uonalumni.or.ke'
-
-
 # ─────────────────────────────────────────────
 # Security
 # ─────────────────────────────────────────────
