@@ -1,0 +1,8 @@
+# Local development only — not needed in production (gunicorn serves prod).
+# Powers `manage.py runserver_plus --cert-file cert.crt --key-file cert.key`,
+# django-extensions' HTTPS-capable dev server.
+-r requirements.txt
+
+MarkupSafe==3.0.3
+pyOpenSSL==26.3.0
+Werkzeug==3.1.8
