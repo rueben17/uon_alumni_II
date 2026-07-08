@@ -4,6 +4,10 @@ from django.urls import include, path
 
 urlpatterns = [
     path('', include('apps.staff.urls')),
+    # Every badge encodes <QR_SCAN_ORIGIN>/qr/<uuid>/?t=<token> (see
+    # QRCode.generate_qr) -- QR_SCAN_ORIGIN is this subdomain, so the
+    # scan endpoint must be mounted here.
+    path('qr/', include('apps.qr_manager.urls')),
 ]
 
 # Dev-only: serve media on this subdomain too. main.urls' static()
