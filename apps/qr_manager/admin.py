@@ -226,6 +226,8 @@ class ScanLogAdmin(admin.ModelAdmin):
         return "—"
 
     def _is_supervisor(self, request):
+        if not request.user.is_authenticated:
+            return False
         return request.user.is_superuser or Supervisor.objects.filter(user=request.user).exists()
 
     def has_module_permission(self, request):
@@ -313,6 +315,8 @@ class SupervisorEmployeeAdmin(admin.ModelAdmin):
     ordering = ("family_name", "given_name")
 
     def _is_supervisor(self, request):
+        if not request.user.is_authenticated:
+            return False
         return request.user.is_superuser or Supervisor.objects.filter(user=request.user).exists()
 
     def has_module_permission(self, request):

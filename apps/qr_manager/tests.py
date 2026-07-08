@@ -240,6 +240,27 @@ class SupervisorAdminAccessTests(TestCase):
         self.assertEqual(resp.status_code, 200)
 
 
+class AnonymousAdminLoginPageTests(TestCase):
+    """The admin login page itself renders each_context() -> get_app_list()
+    -> has_module_permission() for every registered ModelAdmin, for an
+    anonymous request.user -- before any login has happened. Regression
+    test for a bug where ScanLogAdmin/SupervisorEmployeeAdmin's
+    has_module_permission ran Supervisor.objects.filter(user=request.user)
+    against an AnonymousUser, raising a TypeError and 500ing the login
+    page for everyone, including superusers."""
+
+    def test_main_admin_login_page_does_not_crash_for_anonymous_visitor(self):
+        resp = self.client.get(reverse("admin:login"))
+        self.assertEqual(resp.status_code, 200)
+
+    @override_settings(ROOT_URLCONF="apps.staff.site_urls")
+    def test_qr_admin_login_page_does_not_crash_for_anonymous_visitor(self):
+        resp = self.client.get(
+            reverse("qr_admin:login"), HTTP_HOST="staff.lvh.me"
+        )
+        self.assertEqual(resp.status_code, 200)
+
+
 @override_settings(ROOT_URLCONF="apps.staff.site_urls")
 class QRSupervisorSiteTests(TestCase):
     """The dedicated /qr-admin/ site (apps/qr_manager/qr_admin_site.py):
