@@ -2,12 +2,18 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import include, path
 
+from apps.qr_manager.qr_admin_site import qr_admin_site
+
 urlpatterns = [
     path('', include('apps.staff.urls')),
     # Every badge encodes <QR_SCAN_ORIGIN>/qr/<uuid>/?t=<token> (see
     # QRCode.generate_qr) -- QR_SCAN_ORIGIN is this subdomain, so the
     # scan endpoint must be mounted here.
     path('qr/', include('apps.qr_manager.urls')),
+    # Supervisors are staff members, so their dedicated admin lives on
+    # this subdomain too (unlike the main /2005/ admin, which is
+    # root-domain only per main/urls.py).
+    path('qr-admin/', qr_admin_site.urls),
 ]
 
 # Dev-only: serve media on this subdomain too. main.urls' static()

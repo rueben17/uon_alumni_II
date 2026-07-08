@@ -1,13 +1,33 @@
+import shutil
+import tempfile
+
 from django.contrib.admin.sites import site as admin_site
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from apps.qr_manager.models import QRCode, ScanLog, Supervisor
 from apps.staff.models import Employee, ServiceUnit
 
 User = get_user_model()
+
+# Employee/QRCode creation in these tests triggers the post_save signal
+# that writes a real badge PNG via ImageField.save() -- that hits disk
+# directly, unaffected by the test DB's transaction rollback. Point
+# MEDIA_ROOT at a throwaway temp dir for the whole module so test runs
+# never leak files into the real media/ directory.
+_test_media_root = tempfile.mkdtemp(prefix="qr_manager_test_media_")
+_media_root_override = override_settings(MEDIA_ROOT=_test_media_root)
+
+
+def setUpModule():
+    _media_root_override.enable()
+
+
+def tearDownModule():
+    _media_root_override.disable()
+    shutil.rmtree(_test_media_root, ignore_errors=True)
 
 
 def _grant_qrcode_perms(user):
@@ -220,10 +240,18 @@ class SupervisorAdminAccessTests(TestCase):
         self.assertEqual(resp.status_code, 200)
 
 
+@override_settings(ROOT_URLCONF="apps.staff.site_urls")
 class QRSupervisorSiteTests(TestCase):
     """The dedicated /qr-admin/ site (apps/qr_manager/qr_admin_site.py):
     login is gated on holding a Supervisor row, and it exposes only
-    QRCode (scoped, full CRUD) and Employee (scoped, read-only)."""
+    QRCode (scoped, full CRUD) and Employee (scoped, read-only).
+
+    /qr-admin/ is mounted on the staff subdomain's urlconf
+    (apps/staff/site_urls.py), not main.urls. override_settings makes
+    reverse() resolve against it; HTTP_HOST="staff.lvh.me" on every
+    client call makes main.middleware.SubdomainRoutingMiddleware pick
+    the same urlconf for the actual request (it keys off the Host
+    header, not settings.ROOT_URLCONF, once a subdomain matches)."""
 
     @classmethod
     def setUpTestData(cls):
@@ -258,18 +286,22 @@ class QRSupervisorSiteTests(TestCase):
             email="admin3@example.com", password="x"
         )
 
+    STAFF_HOST = "staff.lvh.me"
+
     def test_staff_without_supervisor_row_denied_login(self):
         self.client.force_login(self.plain_staff_user)
-        resp = self.client.get(reverse("qr_admin:index"))
+        resp = self.client.get(reverse("qr_admin:index"), HTTP_HOST=self.STAFF_HOST)
         self.assertEqual(resp.status_code, 302)
         self.assertIn(reverse("qr_admin:login"), resp.url)
 
     def test_supervisor_can_log_in_and_see_own_unit_qrcodes(self):
         self.client.force_login(self.lib_sup_user)
-        resp = self.client.get(reverse("qr_admin:index"))
+        resp = self.client.get(reverse("qr_admin:index"), HTTP_HOST=self.STAFF_HOST)
         self.assertNotIn("admin/login.html", [t.name for t in resp.templates])
 
-        resp = self.client.get(reverse("qr_admin:qr_manager_qrcode_changelist"))
+        resp = self.client.get(
+            reverse("qr_admin:qr_manager_qrcode_changelist"), HTTP_HOST=self.STAFF_HOST
+        )
         self.assertEqual(resp.status_code, 200)
         object_list = list(resp.context["cl"].queryset)
         lib_qr = QRCode.objects.get(employee=self.lib_emp)
@@ -279,14 +311,18 @@ class QRSupervisorSiteTests(TestCase):
 
     def test_supervisor_read_only_roster_scoped_to_own_unit(self):
         self.client.force_login(self.lib_sup_user)
-        resp = self.client.get(reverse("qr_admin:staff_employee_changelist"))
+        resp = self.client.get(
+            reverse("qr_admin:staff_employee_changelist"), HTTP_HOST=self.STAFF_HOST
+        )
         self.assertEqual(resp.status_code, 200)
         object_list = list(resp.context["cl"].queryset)
         self.assertIn(self.lib_emp, object_list)
         self.assertNotIn(self.fin_emp, object_list)
 
         # Add is fully blocked.
-        resp = self.client.get(reverse("qr_admin:staff_employee_add"))
+        resp = self.client.get(
+            reverse("qr_admin:staff_employee_add"), HTTP_HOST=self.STAFF_HOST
+        )
         self.assertEqual(resp.status_code, 403)
 
         # The change URL renders read-only (Django's view-only mode --
@@ -294,12 +330,14 @@ class QRSupervisorSiteTests(TestCase):
         # actual edit attempt is blocked since has_change_permission
         # is False.
         resp = self.client.get(
-            reverse("qr_admin:staff_employee_change", args=[self.lib_emp.pk])
+            reverse("qr_admin:staff_employee_change", args=[self.lib_emp.pk]),
+            HTTP_HOST=self.STAFF_HOST,
         )
         self.assertEqual(resp.status_code, 200)
         resp = self.client.post(
             reverse("qr_admin:staff_employee_change", args=[self.lib_emp.pk]),
             data={"given_name": "Changed"},
+            HTTP_HOST=self.STAFF_HOST,
         )
         self.assertEqual(resp.status_code, 403)
         self.lib_emp.refresh_from_db()
@@ -307,7 +345,9 @@ class QRSupervisorSiteTests(TestCase):
 
     def test_superuser_sees_everything_on_supervisor_site(self):
         self.client.force_login(self.superuser)
-        resp = self.client.get(reverse("qr_admin:staff_employee_changelist"))
+        resp = self.client.get(
+            reverse("qr_admin:staff_employee_changelist"), HTTP_HOST=self.STAFF_HOST
+        )
         object_list = list(resp.context["cl"].queryset)
         self.assertIn(self.lib_emp, object_list)
         self.assertIn(self.fin_emp, object_list)
@@ -370,9 +410,13 @@ class ScanLogAdminScopingTests(TestCase):
         resp = self.client.get(reverse("admin:qr_manager_scanlog_changelist"))
         self.assertEqual(resp.status_code, 403)
 
+    @override_settings(ROOT_URLCONF="apps.staff.site_urls")
     def test_qr_admin_site_scoped_to_supervised_unit(self):
         self.client.force_login(self.lib_sup_user)
-        resp = self.client.get(reverse("qr_admin:qr_manager_scanlog_changelist"))
+        resp = self.client.get(
+            reverse("qr_admin:qr_manager_scanlog_changelist"),
+            HTTP_HOST="staff.lvh.me",
+        )
         self.assertEqual(resp.status_code, 200)
         object_list = list(resp.context["cl"].queryset)
         self.assertIn(self.lib_scan, object_list)
@@ -387,6 +431,7 @@ class ScanLogAdminScopingTests(TestCase):
         self.assertIn(self.unknown_scan, object_list)
 
 
+@override_settings(ROOT_URLCONF="apps.staff.site_urls")
 class QRAdminSiteBrandingTests(TestCase):
     """site_header/site_title/index_title on /qr-admin/ must name the
     actual logged-in supervisor's unit (not a generic label), and
@@ -417,19 +462,19 @@ class QRAdminSiteBrandingTests(TestCase):
 
     def test_supervisor_sees_own_unit_name_in_header(self):
         self.client.force_login(self.lib_sup_user)
-        resp = self.client.get(reverse("qr_admin:index"))
+        resp = self.client.get(reverse("qr_admin:index"), HTTP_HOST="staff.lvh.me")
         self.assertIn("Library", resp.context["site_header"])
         self.assertIn("Library", resp.context["site_title"])
         self.assertEqual(resp.context["index_title"], "Library")
 
     def test_supervisor_with_multiple_units_sees_both(self):
         self.client.force_login(self.multi_sup_user)
-        resp = self.client.get(reverse("qr_admin:index"))
+        resp = self.client.get(reverse("qr_admin:index"), HTTP_HOST="staff.lvh.me")
         self.assertIn("Library", resp.context["site_header"])
         self.assertIn("Finance and Accounting", resp.context["site_header"])
 
     def test_superuser_sees_all_units_label_not_a_specific_unit(self):
         self.client.force_login(self.superuser)
-        resp = self.client.get(reverse("qr_admin:index"))
+        resp = self.client.get(reverse("qr_admin:index"), HTTP_HOST="staff.lvh.me")
         self.assertIn("All Units (Superuser)", resp.context["site_header"])
         self.assertNotIn("Library", resp.context["site_header"])

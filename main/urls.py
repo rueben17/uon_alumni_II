@@ -14,7 +14,6 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.sitemaps.views import sitemap
 from apps.home.sitemaps import UonAlumniStaticSitemap
-from apps.qr_manager.qr_admin_site import qr_admin_site
 
 
 sitemaps = {'static': UonAlumniStaticSitemap}
@@ -23,9 +22,10 @@ urlpatterns = [
     # Admin and sitemaps (accessible from any subdomain)
         # Base routes with path prefixes for backward compatibility
     # (These will be overridden by middleware-based subdomain routing)
-    
+
     path("2005/", admin.site.urls),
-    path("qr-admin/", qr_admin_site.urls),
+    # qr-admin/ lives on the staff subdomain instead (apps/staff/site_urls.py)
+    # -- supervisors are staff members, that's where they already work.
     path('accounts/', include('allauth.urls')),
     path("", include('apps.home.urls', namespace="home")), 
     path('staff/', include(('apps.staff.urls'), namespace='staff')),
