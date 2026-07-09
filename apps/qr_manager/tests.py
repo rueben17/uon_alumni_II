@@ -12,11 +12,14 @@ from apps.staff.models import Employee, ServiceUnit
 
 User = get_user_model()
 
-# Employee/QRCode creation in these tests triggers the post_save signal
-# that writes a real badge PNG via ImageField.save() -- that hits disk
-# directly, unaffected by the test DB's transaction rollback. Point
-# MEDIA_ROOT at a throwaway temp dir for the whole module so test runs
-# never leak files into the real media/ directory.
+# QR generation is supervisor-triggered only (no more auto-generation
+# on Employee save -- see git history for the removed post_save
+# signal). But QRCodeAdmin.save_model() still calls generate_qr()
+# explicitly on every admin add/change, which writes a real badge PNG
+# via ImageField.save() -- that hits disk directly, unaffected by the
+# test DB's transaction rollback. Point MEDIA_ROOT at a throwaway temp
+# dir for the whole module so test runs never leak files into the
+# real media/ directory.
 _test_media_root = tempfile.mkdtemp(prefix="qr_manager_test_media_")
 _media_root_override = override_settings(MEDIA_ROOT=_test_media_root)
 
@@ -82,11 +85,10 @@ class QRCodeAdminScopingTests(TestCase):
             email="admin@example.com", password="x"
         )
 
-        # A post_save signal on Employee (apps/qr_manager/signals.py)
-        # auto-creates a QRCode for every employee, so fetch those
-        # rather than creating duplicates.
-        cls.qr_lib = QRCode.objects.get(employee=cls.lib_emp)
-        cls.qr_fin = QRCode.objects.get(employee=cls.fin_emp)
+        # QR generation is supervisor-triggered only -- create these
+        # explicitly rather than relying on any auto-generation.
+        cls.qr_lib = QRCode.objects.create(employee=cls.lib_emp)
+        cls.qr_fin = QRCode.objects.create(employee=cls.fin_emp)
         cls.qr_visitor = QRCode.objects.create(label="Guest")
 
     def test_supervisor_changelist_scoped_to_supervised_unit(self):
@@ -175,6 +177,29 @@ class QRCodeAdminScopingTests(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
 
+    def test_changelist_annotates_scan_and_unique_ip_counts(self):
+        # 3 scans on qr_lib: 2 from one IP, 1 from another -> 2 unique.
+        ScanLog.objects.create(
+            qrcode=self.qr_lib, result=ScanLog.Result.VALID, ip_address="10.0.0.1"
+        )
+        ScanLog.objects.create(
+            qrcode=self.qr_lib, result=ScanLog.Result.VALID, ip_address="10.0.0.1"
+        )
+        ScanLog.objects.create(
+            qrcode=self.qr_lib, result=ScanLog.Result.VALID, ip_address="10.0.0.2"
+        )
+
+        self.client.force_login(self.superuser)
+        resp = self.client.get(reverse("admin:qr_manager_qrcode_changelist"))
+        object_list = list(resp.context["cl"].queryset)
+        lib_result = next(o for o in object_list if o.pk == self.qr_lib.pk)
+        self.assertEqual(lib_result.scan_count, 3)
+        self.assertEqual(lib_result.unique_ip_count, 2)
+
+        fin_result = next(o for o in object_list if o.pk == self.qr_fin.pk)
+        self.assertEqual(fin_result.scan_count, 0)
+        self.assertEqual(fin_result.unique_ip_count, 0)
+
 
 class QRCodeAdminPermissionMethodTests(TestCase):
     """Calls has_*_permission directly (bypassing get_queryset) to
@@ -197,7 +222,7 @@ class QRCodeAdminPermissionMethodTests(TestCase):
             user=cls.fin_emp_user, given_name="Fin", family_name="Employee",
             staff_track=Employee.StaffTrack.SERVICE, service_unit=cls.finance,
         )
-        cls.qr_fin = QRCode.objects.get(employee=cls.fin_emp)
+        cls.qr_fin = QRCode.objects.create(employee=cls.fin_emp)
 
     def test_has_permission_methods_deny_other_unit_object_directly(self):
         admin_instance = admin_site._registry[QRCode]
@@ -295,6 +320,9 @@ class QRSupervisorSiteTests(TestCase):
             user=cls.fin_emp_user, given_name="Fin", family_name="Employee3",
             staff_track=Employee.StaffTrack.SERVICE, service_unit=cls.finance,
         )
+        # QR generation is supervisor-triggered only -- create explicitly.
+        QRCode.objects.create(employee=cls.lib_emp)
+        QRCode.objects.create(employee=cls.fin_emp)
 
         # Staff, has the group permissions, but no Supervisor row --
         # must be denied entry to this site entirely.
@@ -411,8 +439,8 @@ class ScanLogAdminScopingTests(TestCase):
             email="admin4@example.com", password="x"
         )
 
-        lib_qr = QRCode.objects.get(employee=cls.lib_emp)
-        fin_qr = QRCode.objects.get(employee=cls.fin_emp)
+        lib_qr = QRCode.objects.create(employee=cls.lib_emp)
+        fin_qr = QRCode.objects.create(employee=cls.fin_emp)
         cls.lib_scan = ScanLog.objects.create(qrcode=lib_qr, result=ScanLog.Result.VALID)
         cls.fin_scan = ScanLog.objects.create(qrcode=fin_qr, result=ScanLog.Result.VALID)
         cls.unknown_scan = ScanLog.objects.create(qrcode=None, result=ScanLog.Result.UNKNOWN)

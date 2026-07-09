@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib import admin, messages
+from django.db.models import Count
 
 from apps.qr_manager.models import QRCode, ScanLog, Supervisor
 from apps.qr_manager.qr_admin_site import qr_admin_site
@@ -25,6 +26,8 @@ class QRCodeAdmin(admin.ModelAdmin):
         "holder",
         "qr_type",
         "status",
+        "scan_count_display",
+        "unique_ip_count_display",
         "issued_at",
         "expires_at",
         "is_active",
@@ -68,11 +71,18 @@ class QRCodeAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         q = self._supervisor_unit_q(request, prefix="employee__")
-        if q is None:
-            return qs
         if q is False:
-            return qs.none()
-        return qs.filter(q)
+            qs = qs.none()
+        elif q is not None:
+            qs = qs.filter(q)
+        # Every scan is still logged individually in ScanLog (useful
+        # evidence -- e.g. a badge suddenly scanned from a new IP),
+        # but the changelist shouldn't make a supervisor count rows by
+        # hand to answer "how many times has this been scanned".
+        return qs.annotate(
+            scan_count=Count("scans"),
+            unique_ip_count=Count("scans__ip_address", distinct=True),
+        )
 
     def has_add_permission(self, request):
         if not super().has_add_permission(request):
@@ -133,6 +143,14 @@ class QRCodeAdmin(admin.ModelAdmin):
     @admin.display(description="Holder")
     def holder(self, obj):
         return obj.employee.full_name if obj.employee else (obj.label or "—")
+
+    @admin.display(description="Scans", ordering="scan_count")
+    def scan_count_display(self, obj):
+        return obj.scan_count
+
+    @admin.display(description="Unique IPs", ordering="unique_ip_count")
+    def unique_ip_count_display(self, obj):
+        return obj.unique_ip_count
 
     @admin.action(description="Revoke selected QR codes")
     def revoke_codes(self, request, queryset):
