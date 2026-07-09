@@ -199,7 +199,9 @@ if DEBUG:
                 'DATABASE_URL is required when USE_NEON_LOCALLY is set'
             )
         DATABASES = {
-            'default': dj_database_url.parse(_db_url, conn_max_age=600)
+            'default': dj_database_url.parse(
+                _db_url, conn_max_age=600, conn_health_checks=True
+            )
         }
     else:
         # SQLite for local development — no setup required.
@@ -211,14 +213,21 @@ if DEBUG:
         }
 else:
     # Neon Postgres in production via DATABASE_URL.
-    # conn_max_age=600 keeps connections alive for 10 minutes (connection pooling).
+    # conn_max_age=600 keeps connections alive for 10 minutes (connection
+    # pooling). conn_health_checks=True: Neon's serverless compute can
+    # auto-suspend and close idle connections server-side; without this,
+    # the next request to reuse a stale pooled connection dies with
+    # "SSL connection has been closed unexpectedly" instead of silently
+    # reconnecting.
     _db_url = os.getenv('DATABASE_URL')
     if not _db_url:
         raise RuntimeError(
             'DATABASE_URL environment variable is required in production'
         )
     DATABASES = {
-        'default': dj_database_url.parse(_db_url, conn_max_age=600)
+        'default': dj_database_url.parse(
+            _db_url, conn_max_age=600, conn_health_checks=True
+        )
     }
 
 
