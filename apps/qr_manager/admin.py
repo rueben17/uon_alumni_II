@@ -209,6 +209,8 @@ class ScanLogAdmin(admin.ModelAdmin):
         "result",
         "scanned_at",
         "ip_address",
+        "badge_scan_count_display",
+        "badge_unique_ip_count_display",
     )
     list_filter = ("result",)
     date_hierarchy = "scanned_at"
@@ -243,6 +245,14 @@ class ScanLogAdmin(admin.ModelAdmin):
             return obj.qrcode.employee.unit or "—"
         return "—"
 
+    @admin.display(description="Badge scans total", ordering="badge_scan_count")
+    def badge_scan_count_display(self, obj):
+        return obj.badge_scan_count
+
+    @admin.display(description="Badge unique IPs", ordering="badge_unique_ip_count")
+    def badge_unique_ip_count_display(self, obj):
+        return obj.badge_unique_ip_count
+
     def _is_supervisor(self, request):
         if not request.user.is_authenticated:
             return False
@@ -265,12 +275,21 @@ class ScanLogAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        if request.user.is_superuser:
-            return qs
-        q = Supervisor.unit_q_for(request.user, prefix="qrcode__employee__")
-        if q is False:
-            return qs.none()
-        return qs.filter(q)
+        if not request.user.is_superuser:
+            q = Supervisor.unit_q_for(request.user, prefix="qrcode__employee__")
+            if q is False:
+                qs = qs.none()
+            else:
+                qs = qs.filter(q)
+        # Per-row context: total scans (and unique IPs) for the same
+        # badge this row belongs to -- so "one log twice or thrice"
+        # reads as an at-a-glance count instead of manual tallying.
+        return qs.annotate(
+            badge_scan_count=Count("qrcode__scans", distinct=True),
+            badge_unique_ip_count=Count(
+                "qrcode__scans__ip_address", distinct=True
+            ),
+        )
 
     def has_add_permission(self, request):
         return False

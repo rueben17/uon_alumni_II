@@ -439,10 +439,14 @@ class ScanLogAdminScopingTests(TestCase):
             email="admin4@example.com", password="x"
         )
 
-        lib_qr = QRCode.objects.create(employee=cls.lib_emp)
-        fin_qr = QRCode.objects.create(employee=cls.fin_emp)
-        cls.lib_scan = ScanLog.objects.create(qrcode=lib_qr, result=ScanLog.Result.VALID)
-        cls.fin_scan = ScanLog.objects.create(qrcode=fin_qr, result=ScanLog.Result.VALID)
+        cls.lib_qr = QRCode.objects.create(employee=cls.lib_emp)
+        cls.fin_qr = QRCode.objects.create(employee=cls.fin_emp)
+        cls.lib_scan = ScanLog.objects.create(
+            qrcode=cls.lib_qr, result=ScanLog.Result.VALID, ip_address="10.0.0.1"
+        )
+        cls.fin_scan = ScanLog.objects.create(
+            qrcode=cls.fin_qr, result=ScanLog.Result.VALID, ip_address="10.0.0.5"
+        )
         cls.unknown_scan = ScanLog.objects.create(qrcode=None, result=ScanLog.Result.UNKNOWN)
 
     def test_main_admin_scoped_to_supervised_unit(self):
@@ -478,6 +482,39 @@ class ScanLogAdminScopingTests(TestCase):
         self.assertIn(self.lib_scan, object_list)
         self.assertIn(self.fin_scan, object_list)
         self.assertIn(self.unknown_scan, object_list)
+
+    def test_badge_scan_count_annotation_correct_and_no_row_duplication(self):
+        # 2 more scans on lib_qr: one repeats cls.lib_scan's IP
+        # (10.0.0.1), one from a distinct IP -- 3 total scans for
+        # lib_qr, 2 unique IPs.
+        ScanLog.objects.create(
+            qrcode=self.lib_qr, result=ScanLog.Result.VALID, ip_address="10.0.0.1"
+        )
+        ScanLog.objects.create(
+            qrcode=self.lib_qr, result=ScanLog.Result.VALID, ip_address="10.0.0.9"
+        )
+
+        self.client.force_login(self.superuser)
+        resp = self.client.get(reverse("admin:qr_manager_scanlog_changelist"))
+        object_list = list(resp.context["cl"].queryset)
+
+        # No self-join row multiplication: still exactly one row per
+        # ScanLog, not one per (ScanLog x sibling-scan) pair.
+        self.assertEqual(len(object_list), 5)
+
+        lib_rows = [o for o in object_list if o.qrcode_id == self.lib_qr.pk]
+        self.assertEqual(len(lib_rows), 3)
+        for row in lib_rows:
+            self.assertEqual(row.badge_scan_count, 3)
+            self.assertEqual(row.badge_unique_ip_count, 2)
+
+        fin_row = next(o for o in object_list if o.qrcode_id == self.fin_qr.pk)
+        self.assertEqual(fin_row.badge_scan_count, 1)
+        self.assertEqual(fin_row.badge_unique_ip_count, 1)
+
+        unknown_row = next(o for o in object_list if o.qrcode_id is None)
+        self.assertEqual(unknown_row.badge_scan_count, 0)
+        self.assertEqual(unknown_row.badge_unique_ip_count, 0)
 
 
 @override_settings(ROOT_URLCONF="apps.staff.site_urls")
