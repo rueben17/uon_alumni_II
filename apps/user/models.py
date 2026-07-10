@@ -49,7 +49,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     # same pattern as given_name/family_name -> Employee.first_name/last_name.
     google_photo_url = models.URLField(
         _("Google Profile Photo"),
-        max_length=500,
+        max_length=2000,
         blank=True,
         default="",
     )

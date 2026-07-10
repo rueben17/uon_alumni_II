@@ -333,7 +333,7 @@ class Employee(models.Model):
     )
     google_photo_url = models.URLField(
         _("Google Profile Photo URL"),
-        max_length=500,
+        max_length=2000,
         blank=True,
         default="",
         help_text=_("Populated from Google OAuth. Used as fallback when no custom photo is uploaded."),
