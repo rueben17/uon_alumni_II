@@ -57,11 +57,30 @@ def date_timer(request):
 
 def contacts(request):
     from django.conf import settings
+    from django.contrib import admin as default_admin
+
+    from apps.home.membership_admin_site import membership_admin_site
+    from apps.qr_manager.qr_admin_site import qr_admin_site
 
     if settings.DEBUG:
         base = 'http://lvh.me:8000'
+        staff_base = 'http://staff.lvh.me:8000'
     else:
         base = 'https://uonalumni.or.ke'
+        staff_base = 'https://staff.uonalumni.or.ke'
+
+    # Only ever computed for an authenticated user, and each entry only
+    # appears if that admin site's OWN has_permission() says yes -- so
+    # the navbar always matches what a user can actually get into,
+    # without duplicating each site's permission logic in the template.
+    admin_links = []
+    if request.user.is_authenticated:
+        if default_admin.site.has_permission(request):
+            admin_links.append({"label": "Django Admin", "url": f"{base}/2005/"})
+        if membership_admin_site.has_permission(request):
+            admin_links.append({"label": "Membership Admin", "url": f"{base}/membership-admin/"})
+        if qr_admin_site.has_permission(request):
+            admin_links.append({"label": "QR Admin", "url": f"{staff_base}/qr-admin/"})
 
     website = 'uonalumni.or.ke'
     email = 'alumni@uonbi.ac.ke'
@@ -105,4 +124,5 @@ def contacts(request):
         "url_contact":     f"{base}/uon-alumni-contact-us/",
         "url_my_profile":  url_my_profile,
         "url_membership_update": f"{base}/profile/membership/",
+        "admin_links": admin_links,
     }
