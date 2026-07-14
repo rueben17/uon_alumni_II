@@ -302,7 +302,7 @@ class Executive(models.Model):
                 return 'https://via.placeholder.com/240x240.jpg'
 
 
-    def make_avatar(self, image, size=(3648, 3648)):
+    def make_avatar(self, image, size=(1080, 1080)):
         img = Image.open(image)
         img.convert('RGB')
         img.thumbnail(size)
@@ -371,27 +371,8 @@ class Event(models.Model):
 
 
 
-class Faculty(models.Model):
-    name = models.CharField(max_length=100)
-    slug = AutoSlugField(populate_from='name',
-                        editable=True, always_update=True, null=True, blank=True)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        verbose_name = _('Faculty')
-        verbose_name_plural = _("Faculties")
-
-    def __str__(self):
-        return f"{self.name}"
-
-
-    def get_absolute_url(self):
-        return reverse("home:faculty",  args=[self.slug])
-
-
-
 class Chapter(models.Model):
-    faculty = models.ForeignKey(Faculty, related_name='chapters', on_delete=models.CASCADE, blank=True, null=True)
+    faculty = models.ForeignKey('staff.Faculty', related_name='chapters', on_delete=models.CASCADE, blank=True, null=True)
     name = models.CharField(max_length=100)
     about = models.TextField(blank=True, null=True)
     year_launched = models.DateTimeField(verbose_name=_("Launched On "),  blank=True, null=True)
@@ -415,7 +396,7 @@ class Chapter(models.Model):
 
     def get_absolute_url(self):
         if self.faculty:
-            faculty_slug = slugify(self.faculty.name)
+            faculty_slug = slugify(self.faculty.faculty_name)
             return reverse("home:uon_alumni_chapter_detail", args=[faculty_slug, self.slug])
         return reverse("home:uon_alumni_chapter_detail", args=[self.slug])
 
@@ -432,21 +413,6 @@ class Chapter(models.Model):
                 return self.thumbnail.url
             else:
                 return 'https://via.placeholder.com/240x240x.jpg'
-
-
-
-class Department(models.Model):
-    faculty = models.ForeignKey(Faculty, related_name='departments', on_delete=models.CASCADE, blank=True, null=True)
-    name = models.CharField(max_length=100)
-
-    class Meta:
-        verbose_name = _('Department')
-        verbose_name_plural = _("Departments")
-
-    def __str__(self):
-        return f"{self.name}"
-
-
 
 
 class Partner(models.Model):
@@ -617,12 +583,50 @@ class MembershipTier(models.Model):
         return start_date + timedelta(days=self.duration_months * 30)   
 
 
+def get_alumni_profile_slug(instance):
+    return slugify(f"{instance.title} {instance.first_name} {instance.surname}")
+
+
+class QualificationLevel(models.TextChoices):
+    PHD = "phd", _("Doctor of Philosophy (PhD)")
+    MASTERS = "masters", _("Master's Degree")
+    BACHELORS = "bachelors", _("Bachelor's Degree")
+    PGD = "pgd", _("Postgraduate Diploma")
+    DIPLOMA = "diploma", _("Diploma")
+    FELLOWSHIP = "fellowship", _("Fellowship")
+
+
+class Qualification(models.Model):
+    """
+    UoN degrees/diplomas/certificates conferred, as listed in the official
+    congregation booklet -- seeded via seed_qualifications management command.
+    """
+    faculty = models.ForeignKey('staff.Faculty', on_delete=models.CASCADE, related_name='qualifications')
+    level = models.CharField(max_length=20, choices=QualificationLevel.choices)
+    name = models.CharField(max_length=255)
+
+    class Meta:
+        unique_together = ('faculty', 'name')
+        ordering = ['faculty__faculty_name', 'level', 'name']
+        verbose_name = _("Qualification")
+        verbose_name_plural = _("Qualifications")
+
+    def __str__(self):
+        return f"{self.name} ({self.faculty.faculty_name})"
+
+
 class AlumniProfile(models.Model):
     TITLE_CHOICES = [
         ('Mr', 'Mr'), ('Mrs', 'Mrs'), ('Ms', 'Ms'),
         ('Dr', 'Dr'), ('Prof', 'Prof'), ('Rev', 'Rev'), ('Other', 'Other')
     ]
     GENDER_CHOICES = [('M', 'Male'), ('F', 'Female'), ('O', 'Other')]
+
+    class GraduationInstitution(models.TextChoices):
+        UON = "uon", _("University of Nairobi (Alumni)")
+        OTHER = "other", _("Other Institution")
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     # Link to Django User (One-to-One)
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='alumni_profile')
@@ -651,8 +655,17 @@ class AlumniProfile(models.Model):
 
     # Alumni specific
     graduation_year = models.IntegerField(null=True, blank=True)
-    faculty = models.ForeignKey(Faculty, on_delete=models.SET_NULL, null=True, blank=True)
+    faculty = models.ForeignKey('staff.Faculty', on_delete=models.SET_NULL, null=True, blank=True)
     student_reg_no = models.CharField(max_length=50, blank=True)
+    graduation_institution = models.CharField(max_length=10, choices=GraduationInstitution.choices, blank=True, default="")
+    other_institution_name = models.CharField(max_length=255, blank=True, default="")
+    other_institution_qualification = models.CharField(max_length=255, blank=True, default="")
+    name_at_graduation = models.CharField(max_length=300, blank=True, default="", help_text=_("Only if different from your current name"))
+    qualification = models.ForeignKey(Qualification, on_delete=models.SET_NULL, null=True, blank=True, related_name='alumni')
+
+    # Employment
+    current_employer = models.CharField(max_length=255, blank=True, default="")
+    employment_position = models.CharField(max_length=255, blank=True, default="")
 
     # Membership
     current_membership_tier = models.ForeignKey(MembershipTier, on_delete=models.SET_NULL, null=True, blank=True)
@@ -676,13 +689,35 @@ class AlumniProfile(models.Model):
     last_updated = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
 
+    slug = AutoSlugField(
+        populate_from=get_alumni_profile_slug,
+        unique=False,
+        editable=True,
+        always_update=True,
+        blank=True,
+        null=True,
+    )
+
     def __str__(self):
         return f"{self.title} {self.first_name} {self.surname}"
 
     @property
     def full_name(self):
         return f"{self.title} {self.first_name} {self.surname}"
-        
+
+    def get_absolute_url(self):
+        # Explicit urlconf: this is called from the shared navbar context
+        # processor, which runs on every subdomain -- without pinning it,
+        # reverse() would use whatever urlconf is active for the CURRENT
+        # request (e.g. apps.staff.site_urls on the staff subdomain, which
+        # has no 'home' namespace at all) instead of always resolving
+        # against the urlconf that actually defines this URL.
+        return reverse(
+            "home:alumni_detail",
+            kwargs={"slug": self.slug, "pk": self.pk},
+            urlconf="main.urls",
+        )
+
     def generate_membership_number(self):
         """Generate a unique membership number, e.g., UoNAA/001234/2025"""
         from django.utils import timezone
@@ -754,10 +789,14 @@ class AlumniProfile(models.Model):
         """Upgrade to lifetime membership"""
         if not lifetime_tier.is_lifetime():
             raise ValueError("Selected tier is not a lifetime membership")
-        
+
         self.current_membership_tier = lifetime_tier
         self.is_lifetime_member = True
         self.membership_expiry = None
+
+        if not self.membership_number:
+            self.membership_number = self.generate_membership_number()
+
         self.save()
 
 

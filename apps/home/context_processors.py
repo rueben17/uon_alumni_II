@@ -73,6 +73,17 @@ def contacts(request):
     vision = 'To be a leader in promoting active, visible leadership in the community and to foster interaction between alumni and students of the University of Nairobi and the industry.'
     name_title = 'University of Nairobi Alumni Association'
 
+    if request.user.is_authenticated:
+        alumni_profile = getattr(request.user, 'alumni_profile', None)
+        if alumni_profile:
+            url_my_profile = f"{base}{alumni_profile.get_absolute_url()}"
+        else:
+            url_my_profile = f"{base}/uon-alumni-register/"
+    else:
+        # Relative, like the Sign Out link below -- /accounts/ paths are
+        # shared across every subdomain regardless of which urlconf is active.
+        url_my_profile = "/accounts/google/login/"
+
     return {
         "name_title": name_title,
         "website": website,
@@ -92,4 +103,6 @@ def contacts(request):
         "url_scholarship": f"{base}/uon-alumni-scholarship/",
         "url_in_memoriam": f"{base}/uon-alumni-in-memoriam/",
         "url_contact":     f"{base}/uon-alumni-contact-us/",
+        "url_my_profile":  url_my_profile,
+        "url_membership_update": f"{base}/profile/membership/",
     }

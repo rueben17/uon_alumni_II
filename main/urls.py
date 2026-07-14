@@ -14,6 +14,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.sitemaps.views import sitemap
 from apps.home.sitemaps import UonAlumniStaticSitemap
+from apps.home.membership_admin_site import membership_admin_site
 
 
 sitemaps = {'static': UonAlumniStaticSitemap}
@@ -24,6 +25,9 @@ urlpatterns = [
     # (These will be overridden by middleware-based subdomain routing)
 
     path("2005/", admin.site.urls),
+    # UoNAA Secretariat's scoped-down admin -- payment confirmation,
+    # membership tier/number assignment, and #Issued Items tracking.
+    path("membership-admin/", membership_admin_site.urls),
     # qr-admin/ lives on the staff subdomain instead (apps/staff/site_urls.py)
     # -- supervisors are staff members, that's where they already work.
     path('accounts/', include('allauth.urls')),

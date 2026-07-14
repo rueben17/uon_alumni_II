@@ -454,6 +454,17 @@ else:
     CSRF_COOKIE_SECURE = False
     SECURE_SSL_REDIRECT = False
 
+# Share the session/CSRF cookies across every subdomain (staff., students.,
+# www., bare domain) so one login on the main site is recognised on the
+# staff/students subdomains too. Without this, Django scopes the cookie to
+# the exact host that set it, so hopping subdomains always looks like a
+# brand-new anonymous visit and forces a fresh Google login every time.
+# Dev note: this means testing must use a *.lvh.me:8000 host — a cookie
+# scoped to ".lvh.me" is invalid (and silently dropped by the browser) on
+# a host like bare "localhost" that isn't a subdomain of it.
+SESSION_COOKIE_DOMAIN = f".{SUBDOMAIN_DOMAIN}"
+CSRF_COOKIE_DOMAIN = f".{SUBDOMAIN_DOMAIN}"
+
 
 # ─────────────────────────────────────────────
 # CSRF trusted origins

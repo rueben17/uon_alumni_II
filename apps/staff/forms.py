@@ -2,9 +2,10 @@
 from django import forms
 
 from apps.staff.models import Employee
+from main.forms import TailwindStyledFormMixin
 
 
-class CompleteProfileForm(forms.ModelForm):
+class CompleteProfileForm(TailwindStyledFormMixin, forms.ModelForm):
     class Meta:
         model = Employee
         fields = [
@@ -80,26 +81,7 @@ class CompleteProfileForm(forms.ModelForm):
                 field.widget.attrs["placeholder"] = placeholders[name]
 
         # ---- 4. Input styling for a cleaner, consistent UI ----
-        base_input_class = (
-            "mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 "
-            "text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none "
-            "focus:ring-2 focus:ring-slate-200"
-        )
-        file_input_class = (
-            "mt-1 block w-full rounded-lg border border-dashed border-slate-300 bg-white "
-            "px-3 py-2 text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 "
-            "file:bg-slate-800 file:px-3 file:py-2 file:text-sm file:font-medium "
-            "file:text-white hover:file:bg-slate-700"
-        )
-
-        for field in self.fields.values():
-            widget = field.widget
-            existing_classes = widget.attrs.get("class", "")
-
-            if isinstance(widget, forms.ClearableFileInput):
-                widget.attrs["class"] = f"{existing_classes} {file_input_class}".strip()
-            else:
-                widget.attrs["class"] = f"{existing_classes} {base_input_class}".strip()
+        self.apply_tailwind_styling()
 
         # ---- 5. Help texts ----
         self.fields["department"].help_text = "Required if you select 'Teaching'."

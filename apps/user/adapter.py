@@ -73,6 +73,29 @@ def _ensure_employee(user):
     return employee
 
 
+def _admin_onboarding_redirect_url(user):
+    """
+    Superusers/staff (Django's is_staff/is_superuser) must have both a
+    complete Employee record and an AlumniProfile before landing in the
+    Django admin. Returns the next URL they should be sent to, or None
+    if both are already complete (caller then sends them to the admin).
+    Employee is checked first -- matches the staff-subdomain completeness
+    gate's own priority.
+    """
+    employee = _ensure_employee(user)
+    if not employee.profile_is_complete:
+        return reverse(
+            "staff:complete_profile",
+            kwargs={"uuid": employee.id},
+            urlconf=STAFF_URLCONF,
+        )
+
+    if not hasattr(user, "alumni_profile"):
+        return reverse("home:uon_alumni_register")
+
+    return None
+
+
 def _employee_exists_for_email(email):
     from apps.staff.models import Employee
 
@@ -161,6 +184,10 @@ class CustomAccountAdapter(DefaultAccountAdapter):
         logger.debug("Login redirect: subdomain=%s user=%s", subdomain, user)
 
         if user and user.is_authenticated:
+            if user.is_staff or user.is_superuser:
+                next_url = _admin_onboarding_redirect_url(user)
+                return next_url or reverse("admin:index")
+
             if subdomain == "staff":
                 employee = getattr(user, "employee", None)
                 if employee is None:
@@ -173,6 +200,10 @@ class CustomAccountAdapter(DefaultAccountAdapter):
                         urlconf=STAFF_URLCONF,
                     )
                 return employee.get_absolute_url()
+
+            elif subdomain in (None, "www"):
+                if not hasattr(user, "alumni_profile"):
+                    return reverse("home:uon_alumni_register")
 
             # ----- Students (not built yet) -----
             #
@@ -202,6 +233,10 @@ class CustomAccountAdapter(DefaultAccountAdapter):
         user = getattr(request, "user", None)
 
         if user and user.is_authenticated:
+            if user.is_staff or user.is_superuser:
+                next_url = _admin_onboarding_redirect_url(user)
+                return next_url or reverse("admin:index")
+
             if subdomain == "staff":
                 employee = getattr(user, "employee", None)
                 if employee is None:
@@ -212,6 +247,10 @@ class CustomAccountAdapter(DefaultAccountAdapter):
                     kwargs={"uuid": employee.id},
                     urlconf=STAFF_URLCONF,
                 )
+
+            elif subdomain in (None, "www"):
+                if not hasattr(user, "alumni_profile"):
+                    return reverse("home:uon_alumni_register")
 
             # ----- Students (not built yet) -----
             #

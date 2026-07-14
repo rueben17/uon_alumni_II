@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}UoN Alumni | Register{% endblock %}
+{% block title %}Update Your Alumni Profile{% endblock %}
 
 {% block content %}
 <div class="container mx-auto min-h-screen space-y-2" style="max-width: 1700px;">
@@ -9,8 +9,8 @@
 
     <section class="max-w-5xl mx-auto px-4 py-8">
         <div class="rounded-sm border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-            <h1 class="text-2xl font-bold text-slate-900">Register as a UoN Alumnus</h1>
-            <p class="mt-2 mb-8 text-slate-600">Please fill in your details below. Fields marked with * are required.</p>
+            <h1 class="text-2xl font-bold text-slate-900">Update Your Alumni Profile</h1>
+            <p class="mt-2 mb-8 text-slate-600">Keep your details up to date. Fields marked with * are required.</p>
 
             {% if form.non_field_errors %}
                 <div class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
@@ -78,15 +78,6 @@
                 </div>
 
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-900">Membership Subscription</h2>
-                    <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                        {% include "snippets/form_field.html" with field=form.membership_tier %}
-                        {% include "snippets/form_field.html" with field=form.payment_method %}
-                    </div>
-                    <p class="mt-2 text-xs text-slate-500">Payment is confirmed manually by the Secretariat after submission -- your membership shows as pending until then.</p>
-                </div>
-
-                <div>
                     <h2 class="text-lg font-semibold text-slate-900">Preferences</h2>
                     <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         {% include "snippets/form_field.html" with field=form.receive_newsletter %}
@@ -96,9 +87,9 @@
 
                 <div class="flex flex-wrap items-center gap-3 pt-2">
                     <button type="submit" class="inline-flex items-center justify-center rounded-sm bg-slate-900 px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300">
-                        Complete Registration
+                        Update Profile
                     </button>
-                    <p class="text-sm text-slate-500">Your details help us keep the alumni community connected.</p>
+                    <p class="text-sm text-slate-500">Your profile information appears on your public alumni page.</p>
                 </div>
             </form>
         </div>

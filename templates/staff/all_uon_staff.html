@@ -1,24 +1,115 @@
 {% extends "base.html" %}
 
-<title>{% block title %} {{name_title}} | Staff {% endblock %}</title>
+<title>{% block title %}UoN Staff Directory{% endblock %}</title>
 
 
 {% block content %}
 
-        <div  class="container mx-auto min-h-screen space-y-2" style="max-width: 1700px;important;">
+        <div class="container mx-auto min-h-screen space-y-2" style="max-width: 1700px;important;">
             {% include "snippets/navbar.html" %} 
             
 
             {% include "snippets/banner.html" %} 
 
-                <section id="front_page" class="max-w-8xl min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
-                    <p>Staff page</p>
+                <section class="max-w-8xl mx-auto   bg-white shadow-sm border border-solid border-gray-300 p-8 rounded-sm">
+                    <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                        <div>
+                            <h1 class="text-2xl font-semibold text-slate-900">UoN Staff Directory</h1>
+                            <p class="text-sm text-slate-600">Browse all active staff and filter by teaching, service, or research unit.</p>
+                        </div>
+
+                        <form
+                            class="grid grid-cols-1 gap-3 md:grid-cols-[1fr_220px_260px_auto] w-full md:w-auto"
+                            action="{% url 'staff:all_uon_staff' %}"
+                            method="get"
+                            x-data="{ track: '{{ selected_track|default:'' }}' }"
+                            hx-get="{% url 'staff:all_uon_staff' %}"
+                            hx-target="#staff-table-container"
+                            hx-select="#staff-table-container"
+                            hx-push-url="true"
+                            hx-trigger="keyup changed delay:350ms from:#id_q, change from:#id_track, change from:#id_unit">
+                            <div>
+                                <label for="id_q" class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-600">Search</label>
+                                <input
+                                    id="id_q"
+                                    name="q"
+                                    type="text"
+                                    value="{{ query }}"
+                                    placeholder="Search by name"
+                                    class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+                                >
+                            </div>
+
+                            <div>
+                                <label for="id_track" class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-600">Staff Track</label>
+                                <select
+                                    id="id_track"
+                                    name="track"
+                                    x-model="track"
+                                    x-on:change="const selected = $refs.unitSelect?.selectedOptions?.[0]; if (selected && selected.disabled) { $refs.unitSelect.value = ''; }"
+                                    class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+                                >
+                                    <option value="">All Tracks</option>
+                                    {% for value, label in track_choices %}
+                                        <option value="{{ value }}" {% if selected_track == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label for="id_unit" class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-600">Unit</label>
+                                <select
+                                    id="id_unit"
+                                    name="unit"
+                                    x-ref="unitSelect"
+                                    class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+                                >
+                                    <option value="">All Units</option>
+                                    <optgroup label="Teaching Departments">
+                                    {% for option in department_unit_options %}
+                                        <option value="{{ option.value }}" x-bind:disabled="track && track !== 'teaching'" {% if selected_unit == option.value %}selected{% endif %}>
+                                            {{ option.label }}
+                                        </option>
+                                    {% endfor %}
+                                    </optgroup>
+                                    <optgroup label="Service Units">
+                                    {% for option in service_unit_options %}
+                                        <option value="{{ option.value }}" x-bind:disabled="track && track !== 'service'" {% if selected_unit == option.value %}selected{% endif %}>
+                                            {{ option.label }}
+                                        </option>
+                                    {% endfor %}
+                                    </optgroup>
+                                    <optgroup label="Research Units">
+                                    {% for option in research_unit_options %}
+                                        <option value="{{ option.value }}" x-bind:disabled="track && track !== 'research'" {% if selected_unit == option.value %}selected{% endif %}>
+                                            {{ option.label }}
+                                        </option>
+                                    {% endfor %}
+                                    </optgroup>
+                                </select>
+                            </div>
+
+                            <div class="flex items-end">
+                                <div class="flex w-full items-center gap-2">
+                                    <button
+                                        type="submit"
+                                        class="inline-flex items-center justify-center rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                    >
+                                        Apply
+                                    </button>
+                                    <a
+                                        href="{% url 'staff:all_uon_staff' %}"
+                                        class="inline-flex items-center justify-center rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                    >
+                                        Reset
+                                    </a>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
                 </section>
 
-                <section id="front_page_2" class="max-w-8xl min-h-screen mx-auto  ">
-                
-                    
-                </section>
+                {% include "staff/partials/employee_table.html" %}
 
  
 
