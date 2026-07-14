@@ -1,6 +1,6 @@
 from django import forms
 
-from apps.home.models import AlumniProfile, MembershipTier, Payment
+from apps.home.models import AlumniProfile, MembershipTier, Payment, Qualification
 from main.forms import TailwindStyledFormMixin
 
 
@@ -69,6 +69,14 @@ class AlumniProfileForm(TailwindStyledFormMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        # The auto-generated ModelChoiceField queryset has no
+        # select_related, so rendering the <option> list calls
+        # Qualification.__str__ -> self.faculty.faculty_name once per
+        # row -- an N+1 query per qualification (273 of them) that's
+        # cheap on local SQLite but slow enough over a real network
+        # connection (Neon) to blow past the request timeout.
+        self.fields["qualification"].queryset = Qualification.objects.select_related("faculty")
 
         # Which unit is required depends on graduation_institution; clean()
         # enforces that, so neither branch's fields are required at the
