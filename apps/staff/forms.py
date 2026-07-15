@@ -53,6 +53,7 @@ class CompleteProfileForm(TailwindStyledFormMixin, forms.ModelForm):
             "department",
             "service_unit",
             "research_unit",
+            "academic_rank",
         ]
         for field_name in self.fields:
             self.fields[field_name].required = field_name not in optional_fields
@@ -87,6 +88,7 @@ class CompleteProfileForm(TailwindStyledFormMixin, forms.ModelForm):
         self.fields["department"].help_text = "Required if you select 'Teaching'."
         self.fields["service_unit"].help_text = "Required if you select 'Service'."
         self.fields["research_unit"].help_text = "Required if you select 'Research'."
+        self.fields["academic_rank"].help_text = "Required if you select 'Teaching'."
         self.fields["photo"].help_text = "Upload a profile photo (optional)."
 
     def clean(self):
@@ -118,5 +120,16 @@ class CompleteProfileForm(TailwindStyledFormMixin, forms.ModelForm):
         for track, (field_name, _) in track_unit_map.items():
             if track != staff_track:
                 cleaned_data[field_name] = None
+
+        # Academic rank (Lecturer, Professor, etc.) only makes sense for
+        # Teaching staff -- Service/Research staff use Position instead.
+        if staff_track == Employee.StaffTrack.TEACHING:
+            if not cleaned_data.get("academic_rank"):
+                self.add_error(
+                    "academic_rank",
+                    "Required when staff track is 'Teaching'.",
+                )
+        else:
+            cleaned_data["academic_rank"] = ""
 
         return cleaned_data
