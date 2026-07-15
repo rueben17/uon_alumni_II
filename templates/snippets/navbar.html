@@ -228,9 +228,12 @@
                 <!-- Shared trailing links (all subdomains) -->
                 <a href="https://www.uonbi.ac.ke/" target="_blank" class="tracking-wider px-3 xl:px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer whitespace-nowrap">UoN</a>
                 <a href="{{ url_contact }}" class="tracking-wider px-3 xl:px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer whitespace-nowrap">Contact Us</a>
+                {% if 'staff' not in host and 'students' not in host and request.user.is_authenticated %}
+                    <a href="{{ url_my_profile }}" class="px-3 xl:px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer whitespace-nowrap">My Profile</a>
+                {% endif %}
                 {% if admin_links %}
                     <div class="relative group">
-                        <button class="flex items-center tracking-wider px-3 xl:px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer whitespace-nowrap">
+                        <button class="flex items-center tracking-wider px-3 xl:px-4 py-1.5 transition font-light bg-black text-white hover:bg-blue-400 hover:text-white cursor-pointer whitespace-nowrap">
                             Admin
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="flex-none w-4 h-4 ml-1 -mr-1 transition duration-200 ease-out transform group-hover:rotate-180"><polyline points="6 9 12 15 18 9"></polyline></svg>
                         </button>
@@ -240,9 +243,6 @@
                             {% endfor %}
                         </div>
                     </div>
-                {% endif %}
-                {% if 'staff' not in host and 'students' not in host and request.user.is_authenticated %}
-                    <a href="{{ url_my_profile }}" class="px-3 xl:px-4 py-1 hover:bg-blue-400 hover:text-white font-light cursor-pointer whitespace-nowrap">My Profile</a>
                 {% endif %}
                 {% if request.user.is_authenticated %}
                     <form method="post" action="/accounts/logout/" class="inline">
@@ -433,9 +433,12 @@
                             <!-- Shared trailing links (all subdomains) -->
                             <a href="https://www.uonbi.ac.ke/" target="_blank" class="block px-3 py-2 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">UoN</a>
                             <a href="{{ url_contact }}" class="block px-3 py-2 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Contact Us</a>
+                            {% if 'staff' not in host and 'students' not in host and request.user.is_authenticated %}
+                                <a href="{{ url_my_profile }}" class="block px-3 py-2 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">My Profile</a>
+                            {% endif %}
                             {% if admin_links %}
                                 <div x-data="{ adminOpen: false }">
-                                    <button @click="adminOpen = !adminOpen" class="w-full text-left px-3 py-2 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer flex justify-between items-center">
+                                    <button @click="adminOpen = !adminOpen" class="w-full text-left px-3 py-2 transition font-light bg-black text-white hover:bg-blue-400 hover:text-white cursor-pointer flex justify-between items-center">
                                         Admin
                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{'rotate-180': adminOpen}" class="w-4 h-4 transition-transform"><polyline points="6 9 12 15 18 9"></polyline></svg>
                                     </button>
@@ -445,9 +448,6 @@
                                         {% endfor %}
                                     </div>
                                 </div>
-                            {% endif %}
-                            {% if 'staff' not in host and 'students' not in host and request.user.is_authenticated %}
-                                <a href="{{ url_my_profile }}" class="block px-3 py-2 transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">My Profile</a>
                             {% endif %}
                             {% if request.user.is_authenticated %}
                                 <form method="post" action="/accounts/logout/" class="block">
