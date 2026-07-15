@@ -42,6 +42,19 @@ def qr_upload_path(instance, filename):
     return f"qr_codes/{unit_slug}/{instance.pk}.png"
 
 
+def employee_photo_upload_path(instance, filename):
+    """
+    employee_photos/<employee-uuid>.<ext> — the incoming filename is
+    whatever the uploader's device assigned (e.g. a phone camera's
+    "20260217_111647.jpg"), which is both meaningless here and, once
+    rendered by Django's default ClearableFileInput as "Currently:
+    employee_photos/<name>", a long unbroken string that overflows the
+    form on narrow screens. Keep only the extension.
+    """
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "jpg"
+    return f"employee_photos/{instance.pk}.{ext}"
+
+
 # -------------------------------------------------------------------
 # 1. Faculty
 # -------------------------------------------------------------------
@@ -326,7 +339,7 @@ class Employee(models.Model):
     # Profile photo: custom upload (optional) + Google fallback URL
     photo = models.ImageField(
         _("Profile Photo"),
-        upload_to="employee_photos/",
+        upload_to=employee_photo_upload_path,
         blank=True,
         null=True,
         help_text=_("Upload a custom profile photo. If empty, Google profile photo will be used as fallback."),

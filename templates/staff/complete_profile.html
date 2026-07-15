@@ -74,8 +74,10 @@
                                 <p class="text-sm text-slate-600">Current photo on file. Upload a new file to replace it.</p>
                             </div>
                         {% endif %}
-                        {% include "snippets/form_field.html" with field=form.photo %}
-                        <p id="photo-file-name" class="mt-2 text-xs text-slate-500"></p>
+                        <div class="break-all">
+                            {% include "snippets/form_field.html" with field=form.photo %}
+                        </div>
+                        <p id="photo-file-name" class="mt-2 break-all text-xs text-slate-500"></p>
                     </div>
                 </div>
 
