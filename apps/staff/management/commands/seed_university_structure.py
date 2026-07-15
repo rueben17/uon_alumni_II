@@ -1,6 +1,6 @@
 # staff/management/commands/seed_university_structure.py
 from django.core.management.base import BaseCommand
-from apps.staff.models import Faculty, Department, ServiceUnit, ResearchUnit
+from apps.staff.models import Faculty, Department, ServiceUnit, ResearchUnit, Position
 
 # -------------------------------------------------------------------
 # 1. ACADEMIC FACULTIES AND DEPARTMENTS (UoN official)
@@ -178,6 +178,42 @@ RESEARCH_DATA = [
 ]
 
 # -------------------------------------------------------------------
+# 4. POSITIONS (generic seniority scale -- Service/Administrative and
+#    non-academic Research/Institute staff; academic staff use
+#    Employee.AcademicRank instead, so professorial titles aren't
+#    duplicated here)
+#    Scale per Position model docstring: 5-6 support/clerical,
+#    7-9 officer/administrative, 10-12 senior officer, 13-14 manager,
+#    15 executive.
+# -------------------------------------------------------------------
+POSITION_DATA = [
+    {"title": "Office Assistant", "level": 5},
+    {"title": "Support Staff", "level": 5},
+    {"title": "Clerical Officer", "level": 6},
+    {"title": "Library Assistant", "level": 6},
+    {"title": "Administrative Assistant", "level": 7},
+    {"title": "Research Assistant", "level": 7},
+    {"title": "Laboratory Technologist", "level": 7},
+    {"title": "Administrative Officer", "level": 8},
+    {"title": "Research Officer", "level": 8},
+    {"title": "ICT Officer", "level": 8},
+    {"title": "Senior Administrative Officer", "level": 9},
+    {"title": "Senior Research Officer", "level": 9},
+    {"title": "Senior Laboratory Technologist", "level": 9},
+    {"title": "Assistant Registrar", "level": 10},
+    {"title": "Assistant Director (Research)", "level": 10},
+    {"title": "Deputy Registrar", "level": 11},
+    {"title": "Deputy Director (Research)", "level": 11},
+    {"title": "Registrar", "level": 12},
+    {"title": "Principal Research Officer", "level": 12},
+    {"title": "Senior Deputy Registrar", "level": 13},
+    {"title": "Manager", "level": 13},
+    {"title": "Deputy Director", "level": 14},
+    {"title": "Director", "level": 15},
+    {"title": "Executive Director", "level": 15},
+]
+
+# -------------------------------------------------------------------
 # MANAGEMENT COMMAND
 # -------------------------------------------------------------------
 class Command(BaseCommand):
@@ -196,6 +232,7 @@ class Command(BaseCommand):
             Faculty.objects.all().delete()
             ServiceUnit.objects.all().delete()
             ResearchUnit.objects.all().delete()
+            Position.objects.all().delete()
             self.stdout.write(self.style.WARNING("Cleared all existing records."))
 
         # ---------- FACULTIES & DEPARTMENTS ----------
@@ -251,5 +288,20 @@ class Command(BaseCommand):
                 self.stdout.write(f"  Created research unit: {unit.name}")
 
         self.stdout.write(
-            self.style.SUCCESS(f"✓ Research: {research_created} units created.\nDone.")
+            self.style.SUCCESS(f"✓ Research: {research_created} units created.")
+        )
+
+        # ---------- POSITIONS ----------
+        position_created = 0
+        for item in POSITION_DATA:
+            position, created = Position.objects.get_or_create(
+                title=item["title"],
+                defaults={"level": item["level"]},
+            )
+            if created:
+                position_created += 1
+                self.stdout.write(f"  Created position: {position.title} (level {position.level})")
+
+        self.stdout.write(
+            self.style.SUCCESS(f"✓ Positions: {position_created} created.\nDone.")
         )
