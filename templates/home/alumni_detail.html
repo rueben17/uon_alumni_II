@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load l10n %}
 
 {% block title %}{{ name_title }} | {{ alumni.full_name }} | Alumni Profile{% endblock %}
 
@@ -55,7 +56,7 @@
                                 </div>
                                 <div>
                                     <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Graduation Year</p>
-                                    <p>{{ alumni.graduation_year|default:"-" }}</p>
+                                    <p>{{ alumni.graduation_year|default:"-"|unlocalize }}</p>
                                 </div>
                                 <div>
                                     <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Student Reg. No</p>
