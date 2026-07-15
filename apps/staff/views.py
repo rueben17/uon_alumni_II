@@ -1,4 +1,5 @@
 import io
+import re
 
 from django.conf import settings
 from django.contrib import messages
@@ -17,6 +18,37 @@ from reportlab.platypus import Image as RLImage, Paragraph, SimpleDocTemplate, S
 
 from apps.staff.forms import CompleteProfileForm
 from apps.staff.models import Department, Employee, ResearchUnit, ServiceUnit
+
+MOBILE_USER_AGENT_RE = re.compile(r"Mobi|Android|iPhone|iPad|iPod", re.IGNORECASE)
+
+
+def _is_mobile_request(request):
+    return bool(MOBILE_USER_AGENT_RE.search(request.META.get("HTTP_USER_AGENT", "")))
+
+
+class LinkedImage(RLImage):
+    """
+    Same as reportlab's Image flowable, but overlays a clickable link
+    annotation over the drawn image area — so tapping the QR code in a
+    PDF viewer opens `url` directly, no separate scanner app needed.
+    """
+
+    def __init__(self, filename, width, height, url):
+        super().__init__(filename, width=width, height=height)
+        self.url = url
+
+    def draw(self):
+        super().draw()
+        # Platypus has already translated the canvas so (0, 0) is this
+        # flowable's own bottom-left corner — relative=1 keeps the
+        # link rect in that local coordinate space instead of needing
+        # the image's absolute page position.
+        self.canv.linkURL(
+            self.url,
+            (0, 0, self.drawWidth, self.drawHeight),
+            relative=1,
+            thickness=0,
+        )
 
 
 def _get_or_create_staff_employee(user):
@@ -355,12 +387,26 @@ def download_staff_qr_code(request, staff_slug, pk):
     elements.append(Spacer(1, 0.25 * inch))
 
     qr_path = employee.qr_code_image.path
-    img = RLImage(qr_path, width=5 * inch, height=5 * inch)
+    qr_code = getattr(employee, "employee_qrcode", None)
+    if qr_code is not None:
+        img = LinkedImage(qr_path, width=5 * inch, height=5 * inch, url=qr_code.scan_url)
+    else:
+        img = RLImage(qr_path, width=5 * inch, height=5 * inch)
     img.hAlign = "CENTER"
     elements.append(img)
 
+    if qr_code is not None:
+        elements.append(Spacer(1, 0.1 * inch))
+        styles["Normal"].alignment = TA_CENTER
+        tap_hint = Paragraph(
+            "Tap the QR code above to open this profile.",
+            style=styles["Normal"],
+        )
+        elements.append(tap_hint)
+
     doc.build(elements)
 
+    disposition = "attachment" if _is_mobile_request(request) else "inline"
     response = HttpResponse(pdf_buffer.getvalue(), content_type="application/pdf")
-    response["Content-Disposition"] = f'inline; filename="{safe_name}_qr.pdf"'
+    response["Content-Disposition"] = f'{disposition}; filename="{safe_name}_qr.pdf"'
     return response

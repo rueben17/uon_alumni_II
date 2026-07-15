@@ -122,6 +122,17 @@ class QRCode(models.Model):
         self.is_active = False
         self.save(update_fields=["is_active"])
 
+    @property
+    def scan_url(self):
+        """
+        The exact URL encoded in the QR image (verify_scan) — reused
+        wherever something needs to link to this badge the same way a
+        camera scan would (e.g. a tap-to-open link in the printable
+        PDF), so it goes through the same token check + ScanLog entry
+        instead of bypassing straight to the profile.
+        """
+        return f"{settings.QR_SCAN_ORIGIN.rstrip('/')}/qr/{self.id}/?t={self.token}"
+
     # ---------------- image generation ----------------
 
     def generate_qr(self, force=False, save_employee=True):
@@ -155,7 +166,7 @@ class QRCode(models.Model):
             except Exception:
                 pass
 
-        full_url = f"{settings.QR_SCAN_ORIGIN.rstrip('/')}/qr/{self.id}/?t={self.token}"
+        full_url = self.scan_url
 
         qr = qrcode.QRCode(
             version=1,
