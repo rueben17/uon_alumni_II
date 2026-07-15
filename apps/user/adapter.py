@@ -73,7 +73,22 @@ def _ensure_employee(user):
     return employee
 
 
-def _admin_onboarding_redirect_url(user):
+def _staff_subdomain_url(request, path):
+    """
+    Build an absolute URL on the staff subdomain, preserving the dev
+    port. reverse(..., urlconf=STAFF_URLCONF) only returns the PATH --
+    a bare redirect to that path while the browser is on a different
+    subdomain (e.g. the main domain) never actually switches hosts, so
+    the path 404s against whichever urlconf the current host maps to.
+    """
+    domain = settings.SUBDOMAIN_DOMAIN
+    host = request.get_host()
+    port = f":{host.split(':')[1]}" if ":" in host else ""
+    scheme = "https" if request.is_secure() else "http"
+    return f"{scheme}://staff.{domain}{port}{path}"
+
+
+def _admin_onboarding_redirect_url(user, request):
     """
     Superusers/staff (Django's is_staff/is_superuser) must have both a
     complete Employee record and an AlumniProfile before landing in the
@@ -84,11 +99,12 @@ def _admin_onboarding_redirect_url(user):
     """
     employee = _ensure_employee(user)
     if not employee.profile_is_complete:
-        return reverse(
+        path = reverse(
             "staff:complete_profile",
             kwargs={"uuid": employee.id},
             urlconf=STAFF_URLCONF,
         )
+        return _staff_subdomain_url(request, path)
 
     if not hasattr(user, "alumni_profile"):
         return reverse("home:uon_alumni_register")
@@ -185,7 +201,7 @@ class CustomAccountAdapter(DefaultAccountAdapter):
 
         if user and user.is_authenticated:
             if user.is_staff or user.is_superuser:
-                next_url = _admin_onboarding_redirect_url(user)
+                next_url = _admin_onboarding_redirect_url(user, request)
                 return next_url or reverse("admin:index")
 
             if subdomain == "staff":
@@ -234,7 +250,7 @@ class CustomAccountAdapter(DefaultAccountAdapter):
 
         if user and user.is_authenticated:
             if user.is_staff or user.is_superuser:
-                next_url = _admin_onboarding_redirect_url(user)
+                next_url = _admin_onboarding_redirect_url(user, request)
                 return next_url or reverse("admin:index")
 
             if subdomain == "staff":

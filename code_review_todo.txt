@@ -128,7 +128,23 @@ ARCHITECTURE / FUTURE WORK
     decide where it lives (a shared app, or apps/user/ alongside the User
     model) before touching either existing model.
 
+14. Friendlier Google OAuth failure page + surfaced diagnostics
+    allauth renders its generic socialaccount/authentication_error.html on
+    any callback failure (e.g. the "Third-Party Login Failure" page a user
+    hit after sign-out/sign-in), and swallows the real exception in the
+    process -- only a stock message reaches the user, and nothing reaches
+    us. Two parts:
+      - Override socialaccount/authentication_error.html with a branded,
+        reassuring page (link back to /accounts/google/login/) instead of
+        allauth's default.
+      - Override CustomSocialAccountAdapter.authentication_error() (apps/
+        user/adapter.py) to logger.exception() the real error allauth
+        passes it, so it's actually diagnosable (journalctl at minimum;
+        wire to Django's AdminEmailHandler/ADMINS or a service like Sentry
+        if we want proactive notification instead of checking logs after
+        the fact -- needs SMTP configured first, which isn't set up yet).
+
 ================================================================================
 Suggested order: fix #1 and #2 first (user-facing security/breakage), then
-#3 (regression), then #4-#7, then cleanup items as time allows. Item #13 is
-a separate future initiative, not part of this review's fix order.
+#3 (regression), then #4-#7, then cleanup items as time allows. Items #13-14
+are separate future initiatives, not part of this review's fix order.
