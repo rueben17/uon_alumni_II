@@ -31,14 +31,12 @@ BUGS / CORRECTNESS (fix first)
    Fix: drop hx-select (redundant -- the response already IS the fragment)
    or switch to hx-swap="outerHTML".
 
-3. [HIGH] Navbar/banner/footer commented out on the profile-update page
+3. [FIXED 2026-08-06] Navbar/banner/footer commented out on the profile-update page
    File: templates/staff/profile_update.html (top include block ~line 7-8,
          bottom footer include ~line 92)
-   Wrapped in {% comment %} rather than removed -- reads like a debug
-   leftover, not a deliberate design choice. A signed-in staff member
-   landing here has no Sign Out control and no way back into the app except
-   the browser back button. Confirmed independently by three separate
-   review passes.
+   Was wrapped in {% comment %} rather than removed. Uncommented during the
+   nav/footer wiring pass; the page now has Sign Out and normal navigation
+   like every other page.
 
 4. [MED] Track/unit filter combo isn't cross-validated, client or server side
    Files: templates/staff/all_uon_staff.html:70, 77, 84
@@ -144,7 +142,23 @@ ARCHITECTURE / FUTURE WORK
         if we want proactive notification instead of checking logs after
         the fact -- needs SMTP configured first, which isn't set up yet).
 
+15. Session/idle timeout re-authentication on data-sensitive user-end pages
+    Alumni-facing edit views (AlumniProfileUpdateView, AlumniMembershipUpdateView
+    /renew-upgrade, AlumniProfileDeleteView -- national_id, DOB, phone, payment
+    history) currently accept a POST any time the Django session is still
+    alive, however long the tab's been sitting open with the form loaded. No
+    idle check ties the edit itself to how recently the user actually
+    authenticated.
+    Proposal: stamp request.session['auth_time'] = now() in the login/signup
+    adapter hooks (apps/user/adapter.py), then a small mixin/decorator on the
+    sensitive AlumniProfile views that, on POST, checks elapsed time against
+    a threshold (e.g. 15 min) and -- if stale -- redirects to re-auth via
+    Google (carrying `next` back to the same form) instead of accepting the
+    edit. Same "step-up re-auth" shape as GitHub's sudo mode / Django admin's
+    re-login-on-timeout, scoped only to the alumni user-end forms listed
+    above, not staff.
+
 ================================================================================
 Suggested order: fix #1 and #2 first (user-facing security/breakage), then
-#3 (regression), then #4-#7, then cleanup items as time allows. Items #13-14
-are separate future initiatives, not part of this review's fix order.
+#4-#7, then cleanup items as time allows. Items #13-15 are separate future
+initiatives, not part of this review's fix order. #3 fixed 2026-08-06.

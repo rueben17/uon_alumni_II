@@ -1,0 +1,239 @@
+CONTENT TODO — Main Site (uonalumni.or.ke / www / apps.home)
+Scope: content only (copy, media, data records). Excludes staff.* and students.* subdomains.
+Audited: apps/home/models.py, views.py, urls.py, admin.py, context_processors.py,
+templates/home/*, templates/snippets/{navbar,footer,banner}.html, templates/base.html.
+================================================================================
+
+Every planned page on the main site already has a nav entry in
+templates/snippets/navbar.html (About / Membership / Get Involved / Resources
+dropdowns) and, in most cases, a Django model + admin registration ready to
+hold the content. What's missing is the actual content itself, and in several
+cases the plumbing to display it. Grouped below by MVC layer so it's clear
+whether the blocker is "someone needs to write/upload this" (Model), "this
+page has no real content yet" (View), or "there's no route/wiring for the
+content to reach a page at all" (Controller).
+
+--------------------------------------------------------------------------------
+MODEL — content/data that needs to be authored or entered
+--------------------------------------------------------------------------------
+All of these already have an admin.py registration (editable at /2005/) unless
+noted otherwise, so this is a data-entry/copywriting task, not a dev task.
+
+1. Executive Committee (Executive model, apps/home/models.py:231)
+   Title, position, rank, bio (2500 chars), avatar per member. Needed for
+   /executive-committee/ to render anything beyond an empty list.
+
+2. Secretariat (Secretariat model, apps/home/models.py:468)
+   Same shape as Executive (title/position/bio/avatar). Zero records assumed,
+   and nothing in the codebase reads this model yet (see Controller #2).
+
+3. Mission, Vision & Core Values
+   - Mission/Vision are two hardcoded strings in
+     apps/home/context_processors.py:91-92 (not a model, not editable without
+     a code change) — decide whether to keep as static copy or move to a
+     small singleton model an admin can edit.
+   - CoreValue model (apps/home/models.py:188) is fully built (name,
+     description, SVG icon, background image/color, order) and admin-
+     registered, but has zero content and is never queried by any view.
+
+4. Chapters (Chapter model, apps/home/models.py:374)
+   Name, "about" text, year launched, thumbnail, linked Faculty. The
+   History page's own copy (templates/home/uon_alumni_history.html:37)
+   brags about "17 chapters" — none appear to exist as records yet.
+
+5. Partners (Partner model, apps/home/models.py:418)
+   Title, relation to UoNAA, thumbnail. NOT registered in admin.py at all
+   (apps/home/admin.py) — needs an admin registration before content editors
+   can even enter a partner without a Django shell.
+
+6. News / Articles (Article model, apps/home/models.py:35)
+   Richest content model in the schema — article_type (article/workshop/
+   conference/forum/training), title, body, quote, thumbnail, banner image,
+   is_feature/is_highlighted flags. The homepage literally promises "class
+   notes, distinguished alumni profiles, obituaries, institutional updates,
+   calls for mentorship, volunteer opportunities, scholarship success
+   stories" (templates/home/alumni_home.html:49) and has zero of it.
+
+7. UoN Alumni Walk (Event model, apps/home/models.py:319)
+   Title, body, thumbnail. Nav links to "UoN Alumni Walk" under Get Involved
+   (templates/snippets/navbar.html:202) — zero events entered, zero content.
+
+8. Gallery photos (Images model, apps/home/models.py:154)
+   Can attach to an Article, Chapter, or Event. Needed before the Gallery
+   page can be more than a placeholder.
+
+9. Banner imagery (Banner model, apps/home/models.py:114)
+   Per-banner top/middle/bottom/main image + logo + short text, and it's
+   already fetched into every template's context as `banner_images`
+   (apps/home/context_processors.py:9-15) — but nothing renders it (see
+   Controller #4). Needs real photography once that's wired up.
+
+10. Membership tier "benefits" copy (MembershipTier model, apps/home/models.py:551)
+    Model only stores name/fee/type/duration — there's no text field for
+    what a member actually gets at each tier. The nav's "Categories &
+    Benefits" page (#15 below) can't be written until this exists, either as
+    a new field on MembershipTier or as hardcoded per-tier copy.
+
+--------------------------------------------------------------------------------
+VIEW — page-by-page content gaps (templates that render but are empty/stubbed)
+--------------------------------------------------------------------------------
+
+11. Gallery — templates/home/uon_alumni_gallery.html:15
+    Entire body is `<p>Gallery page</p>`. Needs a real photo grid once #8 has
+    content.
+
+12. Donate — templates/home/uon_alumni_donate.html:15
+    Entire body is `<p>Donate page</p>`. No giving instructions (M-Pesa
+    paybill / bank details), no fund designations, no impact stories, no
+    receipt/tax info.
+
+13. Scholarship — templates/home/uon_alumni_scholarship.html
+    Body is completely empty below the banner. Needs: active scholarship
+    programmes, eligibility criteria, application process/deadlines, past
+    recipient stories.
+
+14. In Memoriam — templates/home/uon_alumni_in_memoriam.html:15
+    Entire body is `<p>In Memoriam page</p>`. Needs an actual obituary
+    listing (pulls from Article where article_type could support this, or a
+    dedicated section) and a "submit a tribute" path.
+
+15. Contact Us — templates/home/uon_alumni_contact_us.html:17
+    Intro paragraph under the H1 is leftover placeholder copy about
+    "decentralization... less susceptible to malicious attacks" — unrelated
+    to the Alumni Association, reads like unedited template filler. The map/
+    address/hours/phone block below it is real and fine.
+
+16. Homepage "Latest News & Updates" — templates/home/alumni_home.html:59-76, 84-90
+    The featured-article loop, highlighted-article loop, and "All News &
+    Articles" link are all wrapped in {% comment %}. Needs #6's content plus
+    the list/detail views in Controller #1 before it can be switched on.
+
+17. Homepage benefits section — templates/home/alumni_home.html:36
+    `{% include "snippets/benefits.html" %}` is commented out and the
+    partial doesn't exist — ties back to #10 (Categories & Benefits copy).
+
+18. Mission, Vision & Core Values page — no template exists
+    Nav item is live (templates/snippets/navbar.html:145-148, href="") but
+    there's no page to link it to.
+
+19. Secretariat page — no template exists
+    Nav item is live (navbar.html:137-140, href="").
+
+20. Chapters — no list or detail template exists
+    Nav item is live (navbar.html:141-144, href=""). Chapter.get_absolute_url()
+    already targets a URL name that doesn't exist yet (see Controller #1).
+
+21. Partners page — no template exists
+    Nav item is live (navbar.html:149-152, href="").
+
+22. Annual General Meeting (AGM) — no template, no model
+    Nav item is live (navbar.html:153-156, href=""). Needs at minimum: next
+    AGM date/notice, past minutes/reports, how members participate.
+
+23. Consultancy & Training — no template, no model
+    Nav item is live (navbar.html:157-160, href=""). Needs a programme
+    catalogue (topics, certification, pricing) — copy references
+    "Professional Development, Certification courses, and Supervisory skill
+    Programmes."
+
+24. Categories & Benefits — no template exists
+    Nav item is live (navbar.html:181, href=""). Blocked on #10.
+
+25. Alumni Card — no template exists
+    Nav item is live (navbar.html:183, href="#"). AlumniProfile already
+    tracks `membership_card_issued` (apps/home/models.py:677) — page should
+    explain what the card is, eligibility, and how/when it's issued.
+
+26. Corporates — no template exists
+    Nav item is live (navbar.html:185, href="#"). MembershipTier already has
+    a 'corporate' tier_type (apps/home/models.py:556) — needs partnership
+    tiers/pricing copy.
+
+27. Our Notable Alumni — no template, no model
+    Nav item is live (navbar.html:186-189, href=""), styled as a highlighted
+    CTA. Needs a showcase — either a new NotableAlumnus model or reuse of
+    Article with a dedicated article_type.
+
+28. UoN Alumni Walk — no template exists
+    Nav item is live (navbar.html:202, href=""). Blocked on #7.
+
+29. Downloads — no template, no model
+    Two separate nav entries point here: Resources dropdown (navbar.html:222,
+    href="") and footer "Site links" (footer.html:129, mislabeled
+    href="/casestudies"). Needs constitution, membership application form,
+    policy documents as downloadable files.
+
+30. Shop — no template, no model
+    Nav item is live (navbar.html:223, href=""). Content/business decision
+    needed on whether branded merchandise is actually being sold before
+    writing this page.
+
+31. News Letters — footer.html:123, href="/pricing" (mislabeled, dead link)
+    No newsletter archive exists. AlumniProfile already has a
+    `receive_newsletter` opt-in flag (apps/home/models.py:684) with nothing
+    to actually send yet.
+
+32. Careers — footer.html:126, href="/blog" (mislabeled, dead link)
+    Decide whether UoNAA/Secretariat ever posts job openings; if not, this
+    link should be removed rather than left as a mislabeled placeholder.
+
+33. Terms of Service / Privacy Policy — footer.html:132,135, href="/terms" and
+    "/privacy" (dead links, no templates)
+    Real gap: the site collects ID/passport numbers, DOB, phone numbers, and
+    takes payments (AlumniProfile, Payment models) with no published privacy
+    policy or terms anywhere. Worth prioritizing over the nice-to-have pages
+    above.
+
+34. SEO / social metadata — templates/base.html:8
+    `<meta name="description" content="">` is empty sitewide, no per-page
+    override block, and no Open Graph/Twitter Card tags anywhere. Every page
+    currently shares one meta description: none.
+
+--------------------------------------------------------------------------------
+CONTROLLER — routing/wiring gaps blocking content from reaching a page
+--------------------------------------------------------------------------------
+Flagged because content in the Model section literally cannot go live until
+these exist — not asking for a code review, just noting the dependency.
+
+1. apps/home/urls.py has no routes at all for: Secretariat, Chapters
+   (list + detail), Mission/Vision/Core Values, Partners, AGM, Consultancy &
+   Training, Categories & Benefits, Alumni Card, Corporates, Notable Alumni,
+   Alumni Walk (Event list/detail), News/Articles (list/detail), Downloads,
+   Shop, Terms, Privacy. Every "View" item above needs a url pattern +
+   view function before a template can be linked from the nav.
+
+2. Article.get_absolute_url() (models.py:78), Event.get_absolute_url()
+   (models.py:344), and Chapter.get_absolute_url() (models.py:400-401) all
+   reverse() to url names ('home:uon_alumni_article_detail',
+   'home:uon_alumni_walk_detail', 'home:uon_alumni_chapter_detail') that
+   don't exist in apps/home/urls.py yet — the moment content editors add a
+   row to any of these three models, calling get_absolute_url() will raise
+   NoReverseMatch.
+
+3. uon_alumni_exec_committee view (apps/home/views.py:37-46) renders
+   'home/uon_alumni_exec_committee.html', which does not exist anywhere
+   under templates/ — hitting the live /executive-committee/ URL will 500.
+   (Currently unreachable via nav since that link's href="" — see View #19
+   for Secretariat, same root cause pattern.)
+
+4. context_processors.contacts() (apps/home/context_processors.py:118)
+   computes `url_exec` but no template references `{{ url_exec }}` yet —
+   navbar's own "Executive Committee" link is still a hardcoded href="".
+   Same disconnect will apply to every new url_* variable added for the
+   pages above.
+
+5. snippets/banner.html is one hardcoded hero image + headline shared by
+   literally every page on the site, rather than looping over the
+   `banner_images` queryset already sitting in every template's context
+   (context_processors.py:9-15, apps/home/models.py:114 Banner model).
+   Content entered into Banner via admin currently has nowhere to appear.
+
+================================================================================
+Suggested order: legal content (#33) and the exec-committee 500 (Controller
+#3) first since they're live gaps on a real domain; then wire the missing
+url patterns (Controller #1-2) so Chapters/Partners/Secretariat/News have
+somewhere to publish to; then work through the Model section as a content
+sprint (photos + bios + copy), publishing each View item as its data lands.
+Cosmetic/low-stakes items (footer social links, "Crafted by" credit, banner
+CTA hrefs) can trail behind everything else.
+================================================================================
