@@ -16,6 +16,7 @@ django-cors-headers==4.9.0
 django-crispy-forms==2.6
 django-extensions==4.1
 django-htmx==1.27.0
+django-phonenumber-field==8.5.0
 django-resized==1.0.3
 django-sitemaps==2.0.2
 django-subdomains2==4.1.2
@@ -27,6 +28,7 @@ idna==3.18
 lxml==6.1.1
 oauthlib==3.3.1
 packaging==26.2
+phonenumbers==9.0.36
 pillow==12.2.0
 psycopg2-binary==2.9.12
 pur==7.4.0

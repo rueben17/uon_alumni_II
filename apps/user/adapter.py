@@ -34,38 +34,73 @@ STAFF_URLCONF = "apps.staff.site_urls"
 # Role record helpers
 # ─────────────────────────────────────────────
 
+def _ensure_profile(user, extra_data=None):
+    """
+    Get or create the UserProfile for a user, optionally syncing Google
+    name/photo/locale fields onto it. Person data lives once on
+    UserProfile now (docs/rebuild-schema.md), not duplicated per role —
+    this replaces what used to be separate given_name/family_name/
+    google_photo_url copies on User and on Employee.
+
+    Called with extra_data whenever a Google payload is actually in hand
+    (new signup, existing-user login) to keep it fresh; called with none
+    as a safety net wherever a role record is about to be created
+    (Employee/Student's slugs read through user.profile, so it must
+    exist before their first save — e.g. an admin session with no
+    sociallogin in scope). A no-extra_data call never overwrites real
+    data with blanks — it only creates the row if missing.
+    """
+    from apps.user.models import UserProfile
+
+    profile = getattr(user, "profile", None)
+    if profile is None:
+        defaults = {}
+        if extra_data:
+            defaults = {
+                "given_name": extra_data.get("given_name", ""),
+                "family_name": extra_data.get("family_name", ""),
+                "google_photo_url": extra_data.get("picture", ""),
+                "locale": extra_data.get("locale", ""),
+            }
+        profile, created = UserProfile.objects.get_or_create(user=user, defaults=defaults)
+        if created:
+            logger.info("Created UserProfile for user %s", user.pk)
+
+    if extra_data:
+        profile.given_name = extra_data.get("given_name", profile.given_name)
+        profile.family_name = extra_data.get("family_name", profile.family_name)
+        profile.google_photo_url = extra_data.get("picture", profile.google_photo_url)
+        profile.locale = extra_data.get("locale", profile.locale)
+        profile.save()
+
+    # Cache on the instance so later hooks in the same request
+    # (redirect resolution, Employee's slug computation) don't hit the
+    # DB again.
+    user.profile = profile
+    return profile
+
+
 def _ensure_employee(user):
     """
-    Get or create the Employee record for a user, syncing Google
-    profile fields onto it. Called on every staff-subdomain login,
-    so a user who signed up elsewhere still gets a record the first
-    time they authenticate on staff. Idempotent.
+    Get or create the Employee record for a user. Called on every
+    staff-subdomain login, so a user who signed up elsewhere still gets
+    a record the first time they authenticate on staff. Idempotent.
 
-    Names are passed as creation defaults so the very first save
-    already has content for AutoSlugField to slugify — otherwise the
-    initial save logs "Failed to populate slug" (harmless, but noisy).
+    _ensure_profile() runs first (even with no Google data in hand) so
+    there is always a UserProfile row before Employee's first save — its
+    AutoSlugField reads instance.user.profile, and that failing on a
+    brand-new record is a RelatedObjectDoesNotExist, not a harmless
+    "failed to populate slug" warning.
     """
     from apps.staff.models import Employee
 
+    _ensure_profile(user)
+
     employee = getattr(user, "employee", None)
     if employee is None:
-        employee, created = Employee.objects.get_or_create(
-            user=user,
-            defaults={
-                "given_name": user.given_name,
-                "family_name": user.family_name,
-                "google_photo_url": user.google_photo_url,
-            },
-        )
+        employee, created = Employee.objects.get_or_create(user=user)
         if created:
             logger.info("Created Employee record for user %s", user.pk)
-
-    # Sync display fields from the User (covers the existing-record
-    # case and keeps Google data fresh on every login).
-    employee.given_name = user.given_name
-    employee.family_name = user.family_name
-    employee.google_photo_url = user.google_photo_url
-    employee.save()
 
     # Cache on the instance so later hooks in the same request
     # (redirect resolution) don't hit the DB again.
@@ -305,8 +340,16 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
     """
 
     def pre_social_login(self, request, sociallogin):
-        # 1. Domain restriction — applies to every subdomain.
-        if RESTRICT_GOOGLE_LOGIN_DOMAINS:
+        subdomain = getattr(request, "subdomain", None)
+
+        # 1. Domain restriction — staff only. Staff identity is verified
+        # via an institutional email, so this stays meaningful there.
+        # The main site is a public alumni association: most alumni
+        # lose @uonbi.ac.ke access at graduation, so gating it here too
+        # (the previous behaviour -- "applies to every subdomain") just
+        # silently blocked ordinary alumni from ever registering. Any
+        # Google account may sign in on the main/students subdomains.
+        if subdomain == "staff" and RESTRICT_GOOGLE_LOGIN_DOMAINS:
             email = sociallogin.account.extra_data.get("email", "")
             domain = email.split("@")[-1].lower()
 
@@ -317,7 +360,6 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
                 )
                 raise ImmediateHttpResponse(redirect("account_login"))
 
-        subdomain = getattr(request, "subdomain", None)
         process = sociallogin.state.get("process", "login")
 
         # On the staff subdomain, treat login and signup as different entry
@@ -366,6 +408,7 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         if sociallogin.is_existing:
             subdomain = getattr(request, "subdomain", None)
             user = sociallogin.user
+            _ensure_profile(user, sociallogin.account.extra_data)
 
             if subdomain == "staff":
                 _ensure_employee(user)
@@ -391,13 +434,14 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
 
         user.google_sub = extra.get("sub")
         user.email_verified = extra.get("email_verified", False)
-        user.locale = extra.get("locale", "")
-        user.hd = extra.get("hd", "")
-        user.google_photo_url = extra.get("picture", "")
         user.auth_provider = User.AuthProvider.GOOGLE
-        user.given_name = extra.get("given_name", "")
-        user.family_name = extra.get("family_name", "")
         user.save()
+
+        # Name/photo/locale live on UserProfile now, not User (docs/
+        # rebuild-schema.md). `hd` (Google Workspace domain) is dropped
+        # outright — already in sociallogin.account.extra_data, a model
+        # column would just be a second copy that goes stale.
+        _ensure_profile(user, extra)
 
         subdomain = getattr(request, "subdomain", None)
 

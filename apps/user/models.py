@@ -1,8 +1,20 @@
-# apps/accounts/models.py
+import uuid
+
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.utils import timezone
+from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
+from phonenumber_field.modelfields import PhoneNumberField
+
+
+def profile_photo_path(instance, filename):
+    """profile_photos/<user-uuid>.<ext> — stable, immutable, no PII in the
+    filename itself. Mirrors apps/staff/models.py's employee_photo_upload_path
+    (commit e9bdd48), keyed to the user rather than the (now photo-less)
+    Employee row."""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "jpg"
+    return f"profile_photos/{instance.user_id}.{ext}"
 
 
 class UserManager(BaseUserManager):
@@ -32,28 +44,48 @@ class UserManager(BaseUserManager):
         return self.create_user(email, password, **extra_fields)
 
 
+class Honorific(models.TextChoices):
+    """Canonical title vocabulary — replaces the four overlapping
+    vocabularies that used to live on AlumniProfile, Employee, and the
+    home app's Executive/Secretariat display models."""
+
+    MR = "mr", _("Mr")
+    MRS = "mrs", _("Mrs")
+    MS = "ms", _("Ms")
+    MISS = "miss", _("Miss")
+    DR = "dr", _("Dr")
+    PROF = "prof", _("Prof")
+    REV = "rev", _("Rev")
+    HON = "hon", _("Hon")
+    ESQ = "esq", _("Esq")
+
+
+class Gender(models.TextChoices):
+    MALE = "M", _("Male")
+    FEMALE = "F", _("Female")
+    OTHER = "O", _("Other")
 
 
 class User(AbstractBaseUser, PermissionsMixin):
+    """Auth only. Everything that describes the *person* lives on
+    UserProfile — see the guiding rule in docs/rebuild-schema.md."""
 
     class AuthProvider(models.TextChoices):
-        EMAIL  = "email",  _("Email")
+        EMAIL = "email", _("Email")
         GOOGLE = "google", _("Google")
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # ---- Handles: the things you can log in with ----
     email = models.EmailField(_("Email Address"), unique=True)
-    given_name = models.CharField(_("Given Name"), max_length=150, blank=True)
-    family_name = models.CharField(_("Family Name"), max_length=150, blank=True)
+    email_verified = models.BooleanField(_("Email Verified by Google"), default=False)
+    # Nullable at the DB level despite being mandatory by policy: Google
+    # OAuth creates the User row before any phone has been collected.
+    # Requiredness is enforced at the onboarding gate, not the column.
+    phone = PhoneNumberField(region="KE", unique=True, null=True, blank=True)
+    phone_verified = models.BooleanField(default=False)
 
-    # Profile photo URL from Google (populated by the allauth adapter on
-    # sign-up/login). Copied to Employee.google_photo_url by the signal,
-    # same pattern as given_name/family_name -> Employee.first_name/last_name.
-    google_photo_url = models.URLField(
-        _("Google Profile Photo"),
-        max_length=2000,
-        blank=True,
-        default="",
-    )
-
+    # ---- Credential provenance ----
     auth_provider = models.CharField(
         max_length=20,
         choices=AuthProvider.choices,
@@ -61,21 +93,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name=_("Auth Provider"),
         help_text=_("How this account was created — useful for support/debugging."),
     )
-
-    # Template/view-level convenience flag (e.g. {% if user.is_admin %} to
-    # show an admin nav section). NOT a Django permission flag — that's
-    # is_staff / is_superuser, both provided below / via PermissionsMixin.
-    is_admin = models.BooleanField(
-        default=False,
-        verbose_name=_("Is Admin (UI flag)"),
-        help_text=_("Controls admin-only UI sections in templates. Does not affect Django permissions."),
-    )
-
-    is_staff   = models.BooleanField(default=False, verbose_name=_("Staff Status"))
-    is_active  = models.BooleanField(default=True,  verbose_name=_("Active"))
-    date_joined = models.DateTimeField(default=timezone.now, verbose_name=_("Date Joined"))
-
-    # ========== New fields to store all basic Google userinfo data ==========
     google_sub = models.CharField(
         _("Google Unique ID (sub)"),
         max_length=255,
@@ -85,26 +102,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         help_text=_("Google's immutable user ID from the sub claim. Used to link Google accounts."),
     )
 
-    email_verified = models.BooleanField(
-        _("Email Verified by Google"),
-        default=False,
-        help_text=_("Whether Google has verified the user's email address."),
-    )
-
-    locale = models.CharField(
-        _("Locale"),
-        max_length=10,
-        blank=True,
-        help_text=_("User's preferred language (e.g., 'en', 'fr', 'de')."),
-    )
-
-    hd = models.CharField(
-        _("Hosted Domain (Google Workspace)"),
-        max_length=255,
-        blank=True,
-        help_text=_("Only present for Google Workspace accounts – the user's organisation domain."),
-    )
-    # =======================================================================
+    # ---- Authorization (is_superuser/groups/user_permissions via mixin) ----
+    is_staff = models.BooleanField(default=False, verbose_name=_("Staff Status"))
+    is_active = models.BooleanField(default=True, verbose_name=_("Active"))
+    date_joined = models.DateTimeField(default=timezone.now, verbose_name=_("Date Joined"))
 
     objects = UserManager()
 
@@ -119,8 +120,90 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.email or ""
 
+    @cached_property
+    def roles(self) -> frozenset:
+        """{"staff", "student", "alumnus"} — resolved from role rows, never
+        stored. Denormalizing this into a column would drift the moment a
+        role record is created outside the one code path that maintains it."""
+        names = set()
+        if hasattr(self, "employee"):
+            names.add("staff")
+        if hasattr(self, "student"):
+            names.add("student")
+        if hasattr(self, "alumni_profile"):
+            names.add("alumnus")
+        return frozenset(names)
+
+    def has_role(self, name: str) -> bool:
+        return name in self.roles
+
     def get_full_name(self) -> str:
-        return f"{self.given_name} {self.family_name}".strip()
+        profile = getattr(self, "profile", None)
+        return profile.full_name if profile else self.email
 
     def get_short_name(self) -> str:
-        return self.given_name or self.email
+        profile = getattr(self, "profile", None)
+        return profile.given_name if profile else self.email
+
+
+class UserProfile(models.Model):
+    """The person, stored once. primary_key=True on the O2O: the profile's
+    pk *is* the user's pk — no surrogate id, 1:1 enforced structurally."""
+
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="profile", primary_key=True
+    )
+
+    honorific = models.CharField(max_length=10, choices=Honorific.choices, blank=True)
+    given_name = models.CharField(max_length=255)
+    middle_name = models.CharField(max_length=255, blank=True)
+    family_name = models.CharField(max_length=255)
+    maiden_name = models.CharField(max_length=100, blank=True)
+    gender = models.CharField(max_length=1, choices=Gender.choices, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+    national_id = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    nationality = models.CharField(max_length=100, default="Kenyan")
+
+    photo = models.ImageField(upload_to=profile_photo_path, null=True, blank=True)
+    google_photo_url = models.URLField(max_length=2000, blank=True, default="")
+
+    alt_phone = PhoneNumberField(region="KE", blank=True)
+    postal_address = models.CharField(max_length=200, blank=True)
+    postal_code = models.CharField(max_length=20, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+
+    locale = models.CharField(max_length=10, blank=True)
+
+    # DPA 2019 — consent exists before data is collected, never bolted on
+    # later. Both default False: consent cannot be pre-granted.
+    sms_opt_in = models.BooleanField(default=False)
+    email_opt_in = models.BooleanField(default=False)
+    consent_given_at = models.DateTimeField(null=True, blank=True)
+    privacy_notice_version = models.CharField(max_length=20, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("User Profile")
+        verbose_name_plural = _("User Profiles")
+
+    def __str__(self):
+        return self.full_name or self.user.email
+
+    @property
+    def full_name(self) -> str:
+        parts = [self.given_name, self.middle_name, self.family_name]
+        return " ".join(filter(None, parts)).strip()
+
+    @property
+    def display_name(self) -> str:
+        """Honorific + full name — e.g. 'Prof. Jane Doe'."""
+        prefix = f"{self.get_honorific_display()}." if self.honorific else ""
+        return " ".join(filter(None, [prefix, self.full_name]))
+
+    @property
+    def display_photo_url(self) -> str:
+        if self.photo:
+            return self.photo.url
+        return self.google_photo_url or ""

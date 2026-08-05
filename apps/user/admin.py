@@ -1,10 +1,17 @@
 # apps/accounts/admin.py
+#
+# NOTE (docs/rebuild-schema.md, 2026-08-05): personal fields moved off User
+# onto UserProfile. This is the minimal fix to keep the admin importable
+# after that split — todo.md 0.5 ("chase every call-site") still owns the
+# fuller admin pass (staff/AlumniProfile admin, membership_admin_site).
 from django import forms
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.forms import UserChangeForm as BaseUserChangeForm
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
+
+from apps.user.models import UserProfile
 
 User = get_user_model()
 
@@ -23,7 +30,7 @@ class UserCreationForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ("email", "given_name", "family_name", "is_active")
+        fields = ("email", "phone", "is_active")
 
     def clean_password2(self):
         p1 = self.cleaned_data.get("password1")
@@ -56,11 +63,17 @@ class UserChangeForm(BaseUserChangeForm):
     class Meta(BaseUserChangeForm.Meta):
         model = User
         fields = (
-            "email", "given_name", "family_name", "google_photo_url",
-            "google_sub", "email_verified", "locale", "hd",
-            "auth_provider", "is_admin", "is_active", "is_staff", "is_superuser",
+            "email", "phone", "phone_verified",
+            "google_sub", "email_verified", "auth_provider",
+            "is_active", "is_staff", "is_superuser",
             "groups", "user_permissions",
         )
+
+
+class UserProfileInline(admin.StackedInline):
+    model = UserProfile
+    can_delete = False
+    fk_name = "user"
 
 
 # -------------------------------------------------------------------
@@ -72,30 +85,31 @@ class UserAdmin(BaseUserAdmin):
     model = User
     add_form = UserCreationForm
     form = UserChangeForm
+    inlines = [UserProfileInline]
 
     list_display = [
-        "email", "given_name", "family_name", "auth_provider",
-        "google_sub", "email_verified", "locale", "hd",
-        "is_admin", "is_active", "is_staff", "date_joined", "photo_preview"
+        "email", "phone", "auth_provider",
+        "email_verified", "phone_verified",
+        "is_active", "is_staff", "date_joined",
     ]
-    list_filter = ["is_active", "is_staff", "is_superuser", "is_admin", "auth_provider", "email_verified", "hd"]
-    search_fields = ["email", "given_name", "family_name", "google_sub"]
+    list_filter = ["is_active", "is_staff", "is_superuser", "auth_provider", "email_verified", "phone_verified"]
+    search_fields = ["email", "phone", "google_sub"]
     ordering = ["email"]
     readonly_fields = [
-        "last_login", "date_joined", "photo_preview",
-        "google_sub", "email_verified", "auth_provider", "hd"
+        "last_login", "date_joined",
+        "google_sub", "email_verified", "auth_provider",
     ]
 
     fieldsets = (
         (None, {"fields": ("email", "password")}),
-        (_("Personal Info"), {"fields": ("given_name", "family_name", "google_photo_url", "photo_preview")}),
+        (_("Contact"), {"fields": ("phone", "phone_verified")}),
         (_("Google Data"), {
-            "fields": ("google_sub", "email_verified", "locale", "hd", "auth_provider"),
+            "fields": ("google_sub", "email_verified", "auth_provider"),
             "classes": ("wide",),
             "description": _("Data received from Google OAuth (read-only where applicable)."),
         }),
-        (_("UI / Permissions"), {
-            "fields": ("is_admin", "is_active", "is_staff", "is_superuser", "groups", "user_permissions"),
+        (_("Permissions"), {
+            "fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions"),
             "classes": ("wide",),
         }),
         (_("Important Dates"), {"fields": ("last_login", "date_joined")}),
@@ -104,19 +118,15 @@ class UserAdmin(BaseUserAdmin):
     add_fieldsets = (
         (None, {
             "classes": ("wide",),
-            "fields": ("email", "given_name", "family_name", "password1", "password2", "is_active"),
+            "fields": ("email", "phone", "password1", "password2", "is_active"),
         }),
     )
 
     # BaseUserAdmin's filter_horizontal expects these by default — keep them
     filter_horizontal = ("groups", "user_permissions")
 
-    @admin.display(description=_("Photo"))
-    def photo_preview(self, obj):
-        from django.utils.html import format_html
-        if obj.google_photo_url:
-            return format_html(
-                '<img src="{}" style="height:40px; width:40px; border-radius:50%; object-fit:cover;" />',
-                obj.google_photo_url,
-            )
-        return "—"
+    def get_inline_instances(self, request, obj=None):
+        # No UserProfile row exists yet for a brand-new (not-yet-saved) User.
+        if obj is None:
+            return []
+        return super().get_inline_instances(request, obj)

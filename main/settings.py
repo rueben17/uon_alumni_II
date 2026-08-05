@@ -94,6 +94,11 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.sitemaps',
+    # Slug link rot fix (todo.md 0.3b): Article/Event/Chapter slugs no
+    # longer auto-update on every title edit, but an editor can still
+    # change one manually -- this is what keeps the old URL alive instead
+    # of a silent 404. Requires django.contrib.sites (already below).
+    'django.contrib.redirects',
 
     # django-allauth
     'django.contrib.sites',
@@ -110,6 +115,7 @@ INSTALLED_APPS = [
     'django_htmx',
     'cloudinary_storage',
     'django_extensions',
+    'phonenumber_field',
 
     # Project apps
     'apps.home',
@@ -118,6 +124,18 @@ INSTALLED_APPS = [
     'apps.student',
     'apps.qr_manager',
 ]
+
+# ─────────────────────────────────────────────
+# Phone numbers (todo.md 0.2)
+# ─────────────────────────────────────────────
+# Storage is E.164 with the leading '+' (+254712345678). Pinned explicitly
+# even though E164 is the library default: apps/user/phone.py guarantees a
+# byte-identical canonical string, and a silent change to this setting would
+# break both the unique constraint and phone-based login. KE is the region
+# bare national input ("0712345678") is interpreted against.
+PHONENUMBER_DEFAULT_REGION = 'KE'
+PHONENUMBER_DEFAULT_FORMAT = 'E164'
+
 
 # Custom user model — must be set before the first migration.
 AUTH_USER_MODEL = 'user.User'
@@ -148,6 +166,9 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Last resort: only triggers on an otherwise-404, so it can't mask a
+    # real routing bug. Catches the case a manual slug edit orphans a link.
+    'django.contrib.redirects.middleware.RedirectFallbackMiddleware',
 ]
 
 ROOT_URLCONF = 'main.urls'
@@ -390,21 +411,27 @@ SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
 
 # If the Google email matches an existing User, log into that account
 # and auto-connect the social account instead of showing the signup
-# form (the ACCOUNT_UNIQUE_EMAIL conflict case). Safe because only
-# Google-verified UoN addresses get this far.
+# form (the ACCOUNT_UNIQUE_EMAIL conflict case). Safe regardless of
+# domain restriction below -- it's Google's own OAuth verification that
+# guarantees the requester owns this exact email, not which domain it's on.
 SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
 SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
 
-# Email domains allowed to sign in via Google, enforced in
-# apps/user/adapter.py across all subdomains (main, staff, students).
+# Email domains allowed to sign in via Google -- enforced in
+# apps/user/adapter.py's pre_social_login(), staff subdomain ONLY. Staff
+# identity is verified via an institutional email, so this stays
+# meaningful there. The main/students subdomains accept any Google
+# account: most alumni lose @uonbi.ac.ke access at graduation, so gating
+# the public alumni site the same way just blocks ordinary registration.
 # Add 'alumni.uonbi.ac.ke' to the env var once the ICT Directorate issues
 # that extension — no code change needed, just update .env and redeploy.
 ALLOWED_GOOGLE_LOGIN_DOMAINS = split_env_list(
     os.getenv('ALLOWED_GOOGLE_LOGIN_DOMAINS', 'uonbi.ac.ke')
 )
 
-# Toggle domain restriction for local development/testing.
-# Set RESTRICT_GOOGLE_LOGIN_DOMAINS=False in .env to allow any Google account.
+# Toggle the staff-subdomain domain restriction for local development/
+# testing. Set RESTRICT_GOOGLE_LOGIN_DOMAINS=False in .env to allow any
+# Google account onto staff too (main/students already do, always).
 RESTRICT_GOOGLE_LOGIN_DOMAINS = os.getenv('RESTRICT_GOOGLE_LOGIN_DOMAINS', 'True') == 'True'
 
 # ----- Google provider -----
