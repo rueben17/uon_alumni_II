@@ -17,7 +17,7 @@ class EmployeeChoiceField(forms.ModelChoiceField):
 
     def label_from_instance(self, obj):
         unit = obj.unit or "no unit"
-        return f"{obj.full_name} — {obj.email} — {unit}"
+        return f"{obj.user.profile.full_name} — {obj.user.email} — {unit}"
 
 
 @admin.register(QRCode)
@@ -34,8 +34,8 @@ class QRCodeAdmin(admin.ModelAdmin):
     )
     list_filter = ("qr_type", "is_active")
     search_fields = (
-        "employee__given_name",
-        "employee__family_name",
+        "employee__user__profile__given_name",
+        "employee__user__profile__family_name",
         "employee__staff_id",
         "label",
     )
@@ -120,7 +120,7 @@ class QRCodeAdmin(admin.ModelAdmin):
             obj.generate_qr(force=True)
             self.message_user(
                 request,
-                f"QR badge image generated for {obj.employee.full_name}.",
+                f"QR badge image generated for {obj.employee.user.profile.full_name}.",
                 messages.SUCCESS,
             )
 
@@ -129,8 +129,8 @@ class QRCodeAdmin(admin.ModelAdmin):
         # the rich labels from firing 4 queries per employee.
         if db_field.name == "employee":
             queryset = Employee.objects.select_related(
-                "user", "department", "service_unit", "research_unit"
-            ).order_by("family_name", "given_name")
+                "user", "user__profile", "department", "service_unit", "research_unit"
+            ).order_by("user__profile__family_name", "user__profile__given_name")
             q = self._supervisor_unit_q(request)
             if q is False:
                 queryset = queryset.none()
@@ -142,7 +142,7 @@ class QRCodeAdmin(admin.ModelAdmin):
 
     @admin.display(description="Holder")
     def holder(self, obj):
-        return obj.employee.full_name if obj.employee else (obj.label or "—")
+        return obj.employee.user.profile.full_name if obj.employee else (obj.label or "—")
 
     @admin.display(description="Scans", ordering="scan_count")
     def scan_count_display(self, obj):
@@ -215,12 +215,13 @@ class ScanLogAdmin(admin.ModelAdmin):
     list_filter = ("result",)
     date_hierarchy = "scanned_at"
     search_fields = (
-        "qrcode__employee__given_name",
-        "qrcode__employee__family_name",
+        "qrcode__employee__user__profile__given_name",
+        "qrcode__employee__user__profile__family_name",
         "qrcode__employee__user__email",
     )
     list_select_related = (
         "qrcode__employee__user",
+        "qrcode__employee__user__profile",
         "qrcode__employee__department",
     )
     readonly_fields = [f.name for f in ScanLog._meta.fields]
@@ -228,7 +229,7 @@ class ScanLogAdmin(admin.ModelAdmin):
     @admin.display(description="Scanned badge of")
     def holder(self, obj):
         if obj.qrcode and obj.qrcode.employee:
-            return obj.qrcode.employee.full_name
+            return obj.qrcode.employee.user.profile.full_name
         if obj.qrcode:
             return obj.qrcode.label or "unassigned"
         return "— unknown QR —"
@@ -346,10 +347,10 @@ class SupervisorEmployeeAdmin(admin.ModelAdmin):
     on holding a Supervisor row rather than Django's 'staff' app
     permissions — this site is intentionally self-contained."""
 
-    list_display = ("full_name", "staff_id", "unit", "has_qr_code", "is_active")
-    search_fields = ("given_name", "family_name", "staff_id", "user__email")
-    list_select_related = ("user", "department", "service_unit", "research_unit")
-    ordering = ("family_name", "given_name")
+    list_display = ("display_name", "staff_id", "unit", "has_qr_code", "is_active")
+    search_fields = ("user__profile__given_name", "user__profile__family_name", "staff_id", "user__email")
+    list_select_related = ("user", "user__profile", "department", "service_unit", "research_unit")
+    ordering = ("user__profile__family_name", "user__profile__given_name")
 
     def _is_supervisor(self, request):
         if not request.user.is_authenticated:
@@ -383,6 +384,10 @@ class SupervisorEmployeeAdmin(admin.ModelAdmin):
     @admin.display(description="Has QR Code", boolean=True)
     def has_qr_code(self, obj):
         return bool(obj.qr_code_image)
+
+    @admin.display(description="Name")
+    def display_name(self, obj):
+        return obj.user.profile.display_name if hasattr(obj.user, "profile") else "—"
 
 
 qr_admin_site.register(QRCode, QRCodeAdmin)

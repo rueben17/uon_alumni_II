@@ -2,41 +2,70 @@
 from django import forms
 
 from apps.staff.models import Employee
+from apps.user.models import Honorific, User, UserProfile
+from apps.user.phone import InvalidPhoneNumber, normalize_phone
 from main.forms import TailwindStyledFormMixin
 
 
 class CompleteProfileForm(TailwindStyledFormMixin, forms.ModelForm):
+    """
+    Employee's one-screen onboarding form. Employee itself only holds
+    appointment data now (docs/rebuild-schema.md) -- honorific/name/DOB/
+    national ID/photo live on UserProfile, and phone is the primary login
+    handle on User, not the profile. The onboarding UX still edits all
+    three in one screen, so __init__/save() fan the extra fields out to
+    the right model instead of a single ModelForm.Meta.fields list.
+    """
+
+    honorific = forms.ChoiceField(choices=Honorific.choices, required=False)
+    given_name = forms.CharField(max_length=255)
+    family_name = forms.CharField(max_length=255)
+    date_of_birth = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+    national_id = forms.CharField(max_length=50, required=False)
+    phone = forms.CharField(max_length=20)
+    alt_phone = forms.CharField(max_length=20, required=False)
+    photo = forms.ImageField(required=False, widget=forms.ClearableFileInput(attrs={"accept": "image/*"}))
+
     class Meta:
         model = Employee
         fields = [
-            "honorific",
             "academic_rank",
-            "given_name",
-            # "middle_name",
-            "family_name",
-            "date_of_birth",
-            "national_id",
             "staff_id",
-            "alt_email_address",
-            "phone_number",
-            "alt_phone_number",
             "staff_track",
             "department",
             "service_unit",
             "research_unit",
             "position",
             "employment_type",
-            "date_joined",
-            "photo",
+            "employed_on",
         ]
         widgets = {
-            "date_of_birth": forms.DateInput(attrs={"type": "date"}),
-            "date_joined": forms.DateInput(attrs={"type": "date"}),
-            "photo": forms.ClearableFileInput(attrs={"accept": "image/*"}),
+            "employed_on": forms.DateInput(attrs={"type": "date"}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        # Seed the profile/user fields from existing data on the edit path
+        # (a brand-new Employee has no data to prefill). NOTE: Employee.id
+        # is a UUIDField(default=uuid.uuid4), so a freshly-instantiated,
+        # unsaved instance already has a non-null pk -- `self.instance.pk`
+        # is NOT a valid "does this exist in the DB" check here, unlike an
+        # auto-increment pk. `_state.adding` is the check that actually
+        # means that. (In practice this form is only ever used as an
+        # UpdateView, so self.instance always has a real DB row already —
+        # fixed for correctness/defensiveness regardless.)
+        if self.instance and not self.instance._state.adding:
+            profile = getattr(self.instance.user, "profile", None)
+            if profile is not None:
+                self.fields["honorific"].initial = profile.honorific
+                self.fields["given_name"].initial = profile.given_name
+                self.fields["family_name"].initial = profile.family_name
+                self.fields["date_of_birth"].initial = profile.date_of_birth
+                self.fields["national_id"].initial = profile.national_id
+                self.fields["alt_phone"].initial = profile.alt_phone
+                self.fields["photo"].initial = profile.photo
+            self.fields["phone"].initial = self.instance.user.phone
 
         # ---- 1. Field-level required ----
         # The three unit fields are NOT required here: which one is
@@ -46,14 +75,14 @@ class CompleteProfileForm(TailwindStyledFormMixin, forms.ModelForm):
         # so the form never reaches Django and no errors ever render.
         optional_fields = [
             "photo",
-            "middle_name",
-            "alt_email_address",
-            "alt_phone_number",
+            "national_id",
+            "alt_phone",
             "position",
             "department",
             "service_unit",
             "research_unit",
             "academic_rank",
+            "honorific",
         ]
         for field_name in self.fields:
             self.fields[field_name].required = field_name not in optional_fields
@@ -65,17 +94,15 @@ class CompleteProfileForm(TailwindStyledFormMixin, forms.ModelForm):
             "honorific": "e.g. Dr., Prof., Mr., Ms.",
             "academic_rank": "e.g. Lecturer, Professor",
             "given_name": "Your first name",
-            "middle_name": "Middle name (optional)",
             "family_name": "Your surname",
             "date_of_birth": "YYYY-MM-DD",
             "national_id": "National ID number",
             "staff_id": "UoN staff ID",
-            "alt_email_address": "Alternate email (optional)",
-            "phone_number": "e.g. +254712345678",
-            "alt_phone_number": "Alternate phone (optional)",
+            "phone": "e.g. +254712345678",
+            "alt_phone": "Alternate phone (optional)",
             "position": "e.g. Head of Department (optional)",
             "employment_type": "e.g. Permanent, Contract",
-            "date_joined": "YYYY-MM-DD",
+            "employed_on": "YYYY-MM-DD",
         }
         for name, field in self.fields.items():
             if name in placeholders:
@@ -85,11 +112,52 @@ class CompleteProfileForm(TailwindStyledFormMixin, forms.ModelForm):
         self.apply_tailwind_styling()
 
         # ---- 5. Help texts ----
+        help_texts = {
+            "honorific": "How you'd like to be addressed (optional).",
+            "given_name": "Your first name.",
+            "family_name": "Your surname.",
+            "date_of_birth": "Used to verify your identity.",
+            "national_id": "Your national ID number (optional, but helps confirm your identity).",
+            "phone": "Your primary contact number and login ID -- must be unique to your account.",
+            "alt_phone": "An alternate number we can reach you on, if different (optional).",
+            "photo": "Upload a profile photo (optional).",
+            "staff_id": "Your official University of Nairobi staff ID number.",
+            "staff_track": "Choose the track that matches your role -- this determines which unit you'll be assigned to below.",
+            "employment_type": "Your employment arrangement with the University.",
+            "employed_on": "The date your appointment began.",
+        }
+        for name, field in self.fields.items():
+            if name in help_texts:
+                field.help_text = help_texts[name]
+
+        # Conditional-requirement messages win over the generic ones above.
         self.fields["department"].help_text = "Required if you select 'Teaching'."
         self.fields["service_unit"].help_text = "Required if you select 'Service'."
         self.fields["research_unit"].help_text = "Required if you select 'Research'."
         self.fields["academic_rank"].help_text = "Required if you select 'Teaching'."
-        self.fields["photo"].help_text = "Upload a profile photo (optional)."
+
+    def clean_phone(self):
+        raw = self.cleaned_data.get("phone")
+        try:
+            normalized = normalize_phone(raw)
+        except InvalidPhoneNumber as exc:
+            raise forms.ValidationError(exc.messages[0])
+
+        owner = User.objects.filter(phone=normalized)
+        if self.instance.user_id:
+            owner = owner.exclude(pk=self.instance.user_id)
+        if owner.exists():
+            raise forms.ValidationError("This phone number is already registered to another account.")
+        return normalized
+
+    def clean_alt_phone(self):
+        raw = self.cleaned_data.get("alt_phone")
+        if not raw:
+            return ""
+        try:
+            return normalize_phone(raw)
+        except InvalidPhoneNumber as exc:
+            raise forms.ValidationError(exc.messages[0])
 
     def clean(self):
         cleaned_data = super().clean()
@@ -133,3 +201,25 @@ class CompleteProfileForm(TailwindStyledFormMixin, forms.ModelForm):
             cleaned_data["academic_rank"] = ""
 
         return cleaned_data
+
+    def save(self, commit=True):
+        employee = super().save(commit=False)
+        user = employee.user
+        profile = getattr(user, "profile", None) or UserProfile(user=user)
+
+        profile.honorific = self.cleaned_data["honorific"]
+        profile.given_name = self.cleaned_data["given_name"]
+        profile.family_name = self.cleaned_data["family_name"]
+        profile.date_of_birth = self.cleaned_data["date_of_birth"]
+        profile.national_id = self.cleaned_data.get("national_id") or None
+        profile.alt_phone = self.cleaned_data.get("alt_phone", "")
+        if self.cleaned_data.get("photo"):
+            profile.photo = self.cleaned_data["photo"]
+
+        user.phone = self.cleaned_data["phone"]
+
+        if commit:
+            profile.save()
+            user.save(update_fields=["phone"])
+            employee.save()
+        return employee

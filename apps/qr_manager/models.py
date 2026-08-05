@@ -71,7 +71,7 @@ class QRCode(models.Model):
         verbose_name_plural = "QR codes"
 
     def __str__(self):
-        holder = self.employee.full_name if self.employee else (self.label or "unassigned")
+        holder = self.employee.user.profile.full_name if self.employee else (self.label or "unassigned")
         return f"{holder} — {self.get_qr_type_display()}"
 
     # ---------------- validity ----------------

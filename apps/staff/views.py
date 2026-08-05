@@ -52,20 +52,12 @@ class LinkedImage(RLImage):
 
 
 def _get_or_create_staff_employee(user):
-    employee = getattr(user, "employee", None)
-    if employee is not None:
-        return employee
+    # Delegates to the adapter's version so there's exactly one place
+    # that knows Employee needs a UserProfile to exist first (its slug
+    # reads through user.profile).
+    from apps.user.adapter import _ensure_employee
 
-    employee, _ = Employee.objects.get_or_create(
-        user=user,
-        defaults={
-            "given_name": user.given_name,
-            "family_name": user.family_name,
-            "google_photo_url": user.google_photo_url,
-        },
-    )
-    user.employee = employee
-    return employee
+    return _ensure_employee(user)
 
 
 def staff_dashboard(request):
@@ -118,19 +110,19 @@ class EmployeeListView(LoginRequiredMixin, ListView):
             Employee.objects
             .filter(is_active=True)
             .select_related(
-                "user", "department", "service_unit",
+                "user", "user__profile", "department", "service_unit",
                 "research_unit", "position",
             )
-            .order_by("family_name", "given_name")
+            .order_by("user__profile__family_name", "user__profile__given_name")
         )
 
         # Live search: ?q=jane+doe
         query = self.request.GET.get("q", "").strip()
         if query:
             qs = qs.filter(
-                Q(given_name__icontains=query)
-                | Q(family_name__icontains=query)
-                | Q(middle_name__icontains=query)
+                Q(user__profile__given_name__icontains=query)
+                | Q(user__profile__family_name__icontains=query)
+                | Q(user__profile__middle_name__icontains=query)
             )
 
         # Unified unit filter:
@@ -279,7 +271,7 @@ class EmployeeDetailView(DetailView):
         return get_object_or_404(
             Employee.objects
             .select_related(
-                "user", "department", "service_unit",
+                "user", "user__profile", "department", "service_unit",
                 "research_unit", "position",
             )
             .filter(is_active=True),
@@ -305,8 +297,11 @@ class EmployeeDetailView(DetailView):
         return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
+        from allauth.account.models import EmailAddress
+
         context = super().get_context_data(**kwargs)
         employee = self.object
+        context["alt_email"] = EmailAddress.objects.filter(user=employee.user, primary=False).first()
 
         if hasattr(employee, "publications"):
             context["publications"] = employee.publications.all()[:5]
@@ -354,7 +349,7 @@ def download_staff_qr_code(request, staff_slug, pk):
     if not employee.qr_code_image:
         return HttpResponse("QR code not found", status=404)
     
-    safe_name = slugify(employee.display_name) or "staff"
+    safe_name = slugify(employee.user.profile.display_name) or "staff"
     file_format = request.GET.get("format", "pdf").lower()
 
     if file_format == "png":
@@ -366,7 +361,8 @@ def download_staff_qr_code(request, staff_slug, pk):
         return response
 
     pdf_buffer = io.BytesIO()
-    pdf_title = f"{employee.display_name} QR Code"
+    display_name = employee.user.profile.display_name
+    pdf_title = f"{display_name} QR Code"
     doc = SimpleDocTemplate(
         pdf_buffer,
         pagesize=letter,
@@ -377,7 +373,7 @@ def download_staff_qr_code(request, staff_slug, pk):
 
     styles = getSampleStyleSheet()
     styles["Title"].alignment = TA_CENTER
-    name_title = Paragraph(employee.display_name, style=styles["Title"])
+    name_title = Paragraph(display_name, style=styles["Title"])
     elements.append(name_title)
     elements.append(Spacer(1, 0.12 * inch))
 

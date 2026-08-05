@@ -1,10 +1,10 @@
-# apps/staff/admin.py — updated to the CURRENT Employee model.
-# Structure and conveniences kept from your old admin (date_hierarchy,
-# autocomplete, counts, fieldsets); every dead field reference fixed:
-#   title → honorific          first_name → given_name
-#   last_name → family_name    qr_image → qr_code_image
-#   email_address, address_line_1/2, supervisor, editable full_name → removed
-# Position keeps .title (confirmed by system check).
+# apps/staff/admin.py
+#
+# NOTE (docs/rebuild-schema.md, 2026-08-05): Employee no longer holds
+# personal data (honorific/name/DOB/national ID/photo) -- that's on
+# UserProfile now. EmployeeAdmin edits it via a UserProfile inline
+# instead of Employee's own fields. Position keeps .title (confirmed by
+# system check).
 
 from django.contrib import admin, messages
 from django.db.models import Count
@@ -100,10 +100,8 @@ class EmployeeAdmin(admin.ModelAdmin):
 
     list_display = (
         "staff_id",
-        "user__email",
-        "honorific",
-        "given_name",
-        "family_name",
+        "user",
+        "display_name",
         "staff_track",
         "unit",
         "qr_code_tag",
@@ -119,12 +117,12 @@ class EmployeeAdmin(admin.ModelAdmin):
     )
     search_fields = (
         "staff_id",
-        "given_name",
-        "middle_name",
-        "family_name",
+        "user__profile__given_name",
+        "user__profile__middle_name",
+        "user__profile__family_name",
         "user__email",
     )
-    ordering = ("family_name", "given_name")
+    ordering = ("user__profile__family_name", "user__profile__given_name")
     autocomplete_fields = (
         "department",
         "service_unit",
@@ -133,6 +131,7 @@ class EmployeeAdmin(admin.ModelAdmin):
     )
     list_select_related = (
         "user",
+        "user__profile",
         "department",
         "service_unit",
         "research_unit",
@@ -143,21 +142,8 @@ class EmployeeAdmin(admin.ModelAdmin):
         ("Basic Information", {
             "fields": (
                 "user",
-                "honorific",
-                "given_name",
-                "middle_name",
-                "family_name",
-                "national_id",
                 "staff_id",
                 "employment_type",
-                "photo",
-            ),
-        }),
-        ("Contact Information", {
-            "fields": (
-                "alt_email_address",
-                "phone_number",
-                "alt_phone_number",
             ),
         }),
         ("Organizational Structure", {
@@ -171,7 +157,7 @@ class EmployeeAdmin(admin.ModelAdmin):
             ),
         }),
         ("Dates", {
-            "fields": ("date_joined", "date_of_birth"),
+            "fields": ("employed_on",),
         }),
         ("Status", {
             "fields": ("is_active", "profile_is_complete"),
@@ -183,6 +169,13 @@ class EmployeeAdmin(admin.ModelAdmin):
 
     readonly_fields = ("profile_is_complete", "qr_code_tag")
     actions = ("generate_qr_badge",)
+    # Personal data (name/DOB/national ID/photo) is edited via the User
+    # admin's UserProfile inline, not here -- UserProfile has no FK to
+    # Employee to inline against (only to User).
+
+    @admin.display(description="Name")
+    def display_name(self, obj):
+        return obj.user.profile.display_name if hasattr(obj.user, "profile") else "—"
 
     # ─────────── QR badge ───────────
 

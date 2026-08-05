@@ -24,11 +24,14 @@ def get_employee_slug(instance):
     """
     Produces: honorific-firstname-lastname
     e.g. prof-jane-doe
-    The UUID is a separate URL segment (see apps/qr_manager/urls.py), not
-    part of the slug itself -- the slug is purely cosmetic.
+    Reads through UserProfile — Employee no longer holds name/honorific
+    itself (docs/rebuild-schema.md). The UUID is a separate URL segment
+    (see apps/qr_manager/urls.py), not part of the slug itself -- the slug
+    is purely cosmetic.
     """
-    honorific = instance.get_honorific_display() if instance.honorific else ""
-    return slugify(f"{honorific} {instance.given_name} {instance.family_name}")
+    profile = instance.user.profile
+    honorific = profile.get_honorific_display() if profile.honorific else ""
+    return slugify(f"{honorific} {profile.given_name} {profile.family_name}")
 
 
 def qr_upload_path(instance, filename):
@@ -40,19 +43,6 @@ def qr_upload_path(instance, filename):
     unit = instance.unit
     unit_slug = unit.slug if unit and unit.slug else "unassigned"
     return f"qr_codes/{unit_slug}/{instance.pk}.png"
-
-
-def employee_photo_upload_path(instance, filename):
-    """
-    employee_photos/<employee-uuid>.<ext> — the incoming filename is
-    whatever the uploader's device assigned (e.g. a phone camera's
-    "20260217_111647.jpg"), which is both meaningless here and, once
-    rendered by Django's default ClearableFileInput as "Currently:
-    employee_photos/<name>", a long unbroken string that overflows the
-    form on narrow screens. Keep only the extension.
-    """
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "jpg"
-    return f"employee_photos/{instance.pk}.{ext}"
 
 
 # -------------------------------------------------------------------
@@ -250,17 +240,11 @@ class Position(models.Model):
 # staff/models.py (or wherever Employee lives)
 
 class Employee(models.Model):
-
-    # ------------------------------------------------------------------
-    # Honorific titles — shown in slug and name display
-    # ------------------------------------------------------------------
-    class HonorificChoices(models.TextChoices):
-        MR   = "mr",   _("Mr")
-        MRS  = "mrs",  _("Mrs")
-        MS   = "ms",   _("Ms")
-        MISS = "miss", _("Miss")
-        DR   = "dr",   _("Dr")
-        PROF = "prof", _("Prof")
+    """Appointment only. Personal data (name, honorific, DOB, photo, national
+    ID, contact) lives on UserProfile — see docs/rebuild-schema.md. Access
+    it through self.user.profile.* at call sites, not a delegation property
+    here (todo.md guiding decision: "access-through, no delegation
+    properties")."""
 
     # ------------------------------------------------------------------
     # Academic titles — shown in slug and name display
@@ -307,22 +291,6 @@ class Employee(models.Model):
     staff_id = models.CharField(
         max_length=50, unique=True, null=True, blank=True, verbose_name=_("Staff ID")
     )
-    national_id = models.CharField(
-        max_length=50, unique=True, null=True, blank=True, verbose_name=_("National ID")
-    )
-
-    # ------------------------------------------------------------------
-    # Personal details (renamed and new fields)
-    # ------------------------------------------------------------------
-    # Personal details
-    honorific = models.CharField(
-        max_length=10,
-        choices=HonorificChoices.choices,
-        blank=True,
-        default="",
-        verbose_name=_("Honorific"),
-        help_text=_("Courtesy title (e.g., Mr, Mrs, Dr, Prof). If empty, system may derive from academic rank."),
-    )
 
     academic_rank = models.CharField(
         max_length=50,
@@ -331,43 +299,6 @@ class Employee(models.Model):
         default="",
         verbose_name=_("Academic Rank"),
         help_text=_("Formal academic rank: Lecturer, Senior Lecturer, Associate Professor, Professor, etc."),
-    )
-
-    given_name = models.CharField(max_length=255, verbose_name=_("Given Name"))
-    middle_name = models.CharField(max_length=255, blank=True, default="", verbose_name=_("Middle Name"))
-    family_name = models.CharField(max_length=255, verbose_name=_("Family Name"))   
-    # Profile photo: custom upload (optional) + Google fallback URL
-    photo = models.ImageField(
-        _("Profile Photo"),
-        upload_to=employee_photo_upload_path,
-        blank=True,
-        null=True,
-        help_text=_("Upload a custom profile photo. If empty, Google profile photo will be used as fallback."),
-    )
-    google_photo_url = models.URLField(
-        _("Google Profile Photo URL"),
-        max_length=2000,
-        blank=True,
-        default="",
-        help_text=_("Populated from Google OAuth. Used as fallback when no custom photo is uploaded."),
-    )
-    
-    date_of_birth = models.DateField(verbose_name=_("Date of Birth"), null=True, blank=True)
-
-    # ------------------------------------------------------------------
-    # Contact
-    # ------------------------------------------------------------------
-    alt_email_address = models.EmailField(
-        _("Alternate Email Address"),
-        unique=True,
-        null=True,
-        blank=True,
-    )
-    phone_number = models.CharField(
-        _("Phone Number"), max_length=20, null=True, blank=True
-    )
-    alt_phone_number = models.CharField(
-        _("Alternate Phone Number"), max_length=20, blank=True, default=""
     )
 
     # ------------------------------------------------------------------
@@ -435,7 +366,9 @@ class Employee(models.Model):
     # ------------------------------------------------------------------
     # Dates / status
     # ------------------------------------------------------------------
-    date_joined = models.DateField(verbose_name=_("Date Joined"), null=True, blank=True)
+    # NOT date_joined — that's User.date_joined (account creation). This is
+    # the appointment start date; the two used to collide under one name.
+    employed_on = models.DateField(verbose_name=_("Employed On"), null=True, blank=True)
     is_active   = models.BooleanField(default=True, verbose_name=_("Is Active"))
 
     # ------------------------------------------------------------------
@@ -473,43 +406,19 @@ class Employee(models.Model):
         verbose_name        = _("Employee")
         verbose_name_plural = _("Employees")
         indexes = [
-            models.Index(fields=["family_name", "given_name"], name="staff_name_idx"),  # updated
-            models.Index(fields=["staff_track"],              name="staff_track_idx"),
-            models.Index(fields=["is_active"],                name="active_staff_idx"),
+            models.Index(fields=["staff_track"], name="staff_track_idx"),
+            models.Index(fields=["is_active"],   name="active_staff_idx"),
         ]
 
     # ------------------------------------------------------------------
     # Properties
     # ------------------------------------------------------------------
     @property
-    def full_name(self) -> str:
-        """Given + middle (if any) + family."""
-        parts = [self.given_name, self.family_name]
-        return " ".join(filter(None, parts)) or "N/A"
-
-    @property
-    def display_name(self) -> str:
-        """Honorific + full name — e.g. 'Prof. Jane Doe'."""
-        prefix = f"{self.get_honorific_display()}." if self.honorific else ""
-        return " ".join(filter(None, [prefix, self.full_name]))
-
-    @property
-    def display_photo_url(self) -> str:
-        """Returns the custom photo URL if exists, otherwise Google photo URL, else empty string."""
-        if self.photo and self.photo.url:
-            return self.photo.url
-        return self.google_photo_url or ""
-
-    @property
-    def email(self) -> str:
-        """Primary email — always from the linked User account."""
-        return self.user.email
-
-    @property
     def profile_is_complete(self) -> bool:
         """Minimum viable profile before a QR code is generated."""
-        # Required fields: staff_id, staff_track, date_of_birth, and appropriate unit FK
-        if not (self.staff_id and self.staff_track and self.date_of_birth):
+        # Required fields: staff_id, staff_track, date_of_birth (on the
+        # profile now), and appropriate unit FK.
+        if not (self.staff_id and self.staff_track and self.user.profile.date_of_birth):
             return False
         if self.staff_track == self.StaffTrack.TEACHING and not self.department_id:
             return False
@@ -580,4 +489,6 @@ class Employee(models.Model):
             )
 
     def __str__(self):
-        return f"{self.display_name} ({self.staff_id})" if self.staff_id else self.email
+        if self.staff_id:
+            return f"{self.user.profile.display_name} ({self.staff_id})"
+        return self.user.email

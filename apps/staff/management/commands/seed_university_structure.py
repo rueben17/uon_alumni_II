@@ -257,7 +257,7 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"✓ Academic: {faculties_created} faculties, {departments_created} departments created."
+                f"Academic: {faculties_created} faculties, {departments_created} departments created."
             )
         )
 
@@ -273,7 +273,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"  Created service unit: {unit.name}")
 
         self.stdout.write(
-            self.style.SUCCESS(f"✓ Service: {service_created} units created.")
+            self.style.SUCCESS(f"Service: {service_created} units created.")
         )
 
         # ---------- RESEARCH UNITS ----------
@@ -288,7 +288,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"  Created research unit: {unit.name}")
 
         self.stdout.write(
-            self.style.SUCCESS(f"✓ Research: {research_created} units created.")
+            self.style.SUCCESS(f"Research: {research_created} units created.")
         )
 
         # ---------- POSITIONS ----------
@@ -303,5 +303,5 @@ class Command(BaseCommand):
                 self.stdout.write(f"  Created position: {position.title} (level {position.level})")
 
         self.stdout.write(
-            self.style.SUCCESS(f"✓ Positions: {position_created} created.\nDone.")
+            self.style.SUCCESS(f"Positions: {position_created} created.\nDone.")
         )
