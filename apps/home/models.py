@@ -1,13 +1,13 @@
+from django.conf import settings
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from cloudinary_storage.storage import RawMediaCloudinaryStorage
 from django_resized import ResizedImageField
 from autoslug import AutoSlugField
 from shortuuid.django_fields import ShortUUIDField
 import uuid
 from django.utils.text import slugify
 from django.urls import reverse
-from io import BytesIO
-from PIL import Image
 from django.utils.timezone import now
 from django.utils import timezone
 from django.core.validators import RegexValidator
@@ -17,8 +17,9 @@ from decimal import Decimal
 import random
 import string
 from datetime import datetime
-from django.core.files import File
 from django.contrib.auth import get_user_model
+
+from apps.user.models import Honorific
 
 User = get_user_model()
 # Create your models here.
@@ -32,20 +33,80 @@ class Title(models.CharField):
         return str(value).title()
 
 
-class Article(models.Model):
+class ThumbnailMixin(models.Model):
+    """Shared `get_thumbnail()` for every content model with a single
+    image field. Replaces six copy-pasted get_thumbnail/make_thumbnail/
+    get_avatar/make_avatar implementations (Article, Event, Chapter,
+    Partner, Executive, Secretariat).
 
-    ARTICLE_TYPE_CHOICES = [
-        ('article', _('Article')),
-        ('workshop', _('Workshop')),
-        ('conference', _('Conference')),
-        ('forum', _('Forum')),
-        ('training', _('Training')),
-    ]
-    article_type = models.CharField(
-        max_length=50,
-        choices=ARTICLE_TYPE_CHOICES,
-        default='article',
-        verbose_name=_("Article Type")
+    The old per-model `make_thumbnail()` was dead code in all of them:
+    `if self.thumbnail: ...  else: if self.thumbnail: <call
+    make_thumbnail>` -- that inner check is the same test as the outer
+    one, inside the branch where it's already known false, so it could
+    never run. Dropped rather than ported forward.
+
+    Placeholder fixed too: the old fallback was a typo'd
+    `via.placeholder.com/240x240x.jpg` (stray trailing "x"), a third
+    party in the render path regardless.
+    """
+
+    thumbnail_field_name = "thumbnail"
+    thumbnail_placeholder = "https://via.placeholder.com/240x240.jpg"
+
+    class Meta:
+        abstract = True
+
+    def get_thumbnail(self):
+        image = getattr(self, self.thumbnail_field_name)
+        return image.url if image else self.thumbnail_placeholder
+
+
+class Article(ThumbnailMixin, models.Model):
+
+    class ArticleType(models.TextChoices):
+        PAGE = "page", _("Standing Page")
+        NEWS = "news", _("News")
+        FEATURE = "feature", _("Feature")
+        NOTICE = "notice", _("Notice")
+
+    class PageKey(models.TextChoices):
+        HISTORY = "history", _("History")
+        DONATE = "donate", _("Donate")
+        SCHOLARSHIP = "scholarship", _("Scholarship")
+        CONTACT = "contact", _("Contact Us")
+        CATEGORIES_BENEFITS = "categories-benefits", _("Categories & Benefits")
+        ALUMNI_CARD = "alumni-card", _("Alumni Card")
+        CORPORATES = "corporates", _("Corporates")
+        NOTABLE_ALUMNI = "notable-alumni", _("Our Notable Alumni")
+        AGM = "agm", _("Annual General Meeting")
+        CONSULTANCY_TRAINING = "consultancy-training", _("Consultancy & Training")
+        TERMS = "terms", _("Terms of Service")
+        PRIVACY = "privacy", _("Privacy Policy")
+        SHOP = "shop", _("Shop")
+
+    type = models.CharField(
+        max_length=20,
+        choices=ArticleType.choices,
+        default=ArticleType.NEWS,
+        verbose_name=_("Type"),
+        help_text=_(
+            "'Standing Page' + a Page Key below makes this the admin-editable "
+            "copy for a fixed site page (History, Donate, ...). Everything "
+            "else is ordinary published content."
+        ),
+    )
+    # unique=True + null=True (not blank default '') is what guarantees at
+    # most one Article per standing page at the DB level -- Postgres treats
+    # multiple NULLs as distinct, so non-page articles (null) never collide,
+    # while two 'history' rows would.
+    page_key = models.CharField(
+        max_length=20,
+        choices=PageKey.choices,
+        unique=True,
+        null=True,
+        blank=True,
+        verbose_name=_("Page Key"),
+        help_text=_("Set only for Type='Standing Page'. Fetch pages by this, never by slug."),
     )
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='articles')
@@ -53,16 +114,23 @@ class Article(models.Model):
     title =  Title(_("Title"), help_text=_("Required"), max_length=250)
     body = models.TextField()
     quote = models.TextField(max_length=1000,  blank=True, null=True)
-    thumbnail = models.ImageField(upload_to='articles/images/', blank=True, null=True)
-    article_banner_image = models.ImageField(upload_to='articles/banners/', blank=True, null=True)
-    thumbnail_url = models.URLField(blank=True, null=True)
+    thumbnail = ResizedImageField(size=[1600, 1600], quality=85,
+                        upload_to='articles/images/', blank=True, null=True)
+    article_banner_image = ResizedImageField(size=[2200, 2200], quality=85,
+                        upload_to='articles/banners/', blank=True, null=True)
     created_at = models.DateTimeField(verbose_name=_("Created at"), default=timezone.now, blank=True)
     date_updated = models.DateTimeField(auto_now=True, verbose_name="date updated", blank=True)
     slug = AutoSlugField(populate_from='title',
                         unique_with=['created_at', ],
-                        editable=True, always_update=True)
+                        editable=True, always_update=False)
     is_feature = models.BooleanField(default=False)
     is_highlighted = models.BooleanField(default=False)
+
+    # Draft/publish/schedule. Default True keeps today's "saving publishes
+    # instantly" behaviour for anyone who ignores the field; unchecking it
+    # is what lets an editor draft next month's news without it going live.
+    is_published = models.BooleanField(default=True)
+    published_at = models.DateTimeField(null=True, blank=True)
 
 
     def __str__(self):
@@ -73,35 +141,16 @@ class Article(models.Model):
         ordering = ['-created_at']
         unique_together = ('title', 'created_at')
 
+    def save(self, *args, **kwargs):
+        # Stamp published_at the first time this goes live -- never
+        # overwritten on later edits, so it stays "when this was first
+        # published," not "when it was last saved."
+        if self.is_published and self.published_at is None:
+            self.published_at = timezone.now()
+        super().save(*args, **kwargs)
 
     def get_absolute_url(self):
         return reverse("home:uon_alumni_article_detail", args=[self.slug])
-    
-    def get_thumbnail(self):
-        if self.thumbnail:
-            return self.thumbnail.url
-        else:
-            if self.thumbnail:
-                self.thumbnail = self.make_thumbnail(self.thumbnail)
-                self.save()
-
-                return self.thumbnail.url
-            else:
-                return 'https://via.placeholder.com/240x240x.jpg'
-
-
-    def make_thumbnail(self, image, size=(3648, 3648)):
-        img = Image.open(image)
-        img.convert('RGB')
-        img.thumbnail(size)
-
-        thumb_io = BytesIO()
-        img.save(thumb_io, 'JPEG', quality=95)
-
-        thumbnail = File(thumb_io, name=image.name)
-
-        return thumbnail
-
 
     def get_article_banner_image(self):
         """Return the URL for the article banner image or a placeholder."""
@@ -119,23 +168,23 @@ class Banner(models.Model):
         null=True,
         blank=True,
     )
-    top_banner = ResizedImageField(size=[1400, 1400], quality=95, 
+    top_banner = ResizedImageField(size=[2200, 2200], quality=85,
                         upload_to='banner/top_banner/%Y/%m/%d/',
                         help_text=_("Upload your item images "), blank=True, null=True)
-    middle_banner = ResizedImageField(size=[1400, 1400], quality=95, 
+    middle_banner = ResizedImageField(size=[2200, 2200], quality=85,
                         upload_to='banner/middle_banner/%Y/%m/%d/',
                         help_text=_("Upload your item images "), blank=True, null=True)
-    
-    bottom_banner = ResizedImageField(size=[1400, 1400], quality=95, 
+
+    bottom_banner = ResizedImageField(size=[2200, 2200], quality=85,
                         upload_to='banner/bottom_banner/%Y/%m/%d/',
                         help_text=_("Upload your item images "), blank=True, null=True)
 
-    image = ResizedImageField(size=[1400, 1400], quality=95, 
+    image = ResizedImageField(size=[2200, 2200], quality=85,
                         upload_to='banner/image/%Y/%m/%d/',
                         help_text=_("Upload banner images "), blank=True, null=True)
-    logo = ResizedImageField(size=[400, 400], quality=95, 
+    logo = ResizedImageField(size=[500, 500], quality=90,
                         upload_to='banner/logo/%Y/%m/%d/',
-                        help_text=_("Upload your item images "), blank=True, null=True)   
+                        help_text=_("Upload your item images "), blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True, editable=False)
     updated_at = models.DateTimeField(auto_now=True)
@@ -152,10 +201,21 @@ class Banner(models.Model):
 
 
 class Images(models.Model):
+    """Multi-image gallery, one row per photo. Kept separate from each
+    model's own single named image field (thumbnail/cover/photo) rather
+    than replacing them (todo.md 0.3b: 'Do NOT fold the singular images
+    into Images' -- a named field is the only thing guaranteeing exactly
+    one thumbnail; this FK-per-model shape is deliberately not a single
+    generic FK, for the same reason -- one more column here is cheaper
+    than a `role` discriminator that re-invents the field name as
+    unvalidated data)."""
+
     article = models.ForeignKey(Article, on_delete=models.CASCADE, related_name="images",  blank=True, null=True)
     chapter = models.ForeignKey('Chapter', on_delete=models.CASCADE, related_name="images",  blank=True, null=True)
     event = models.ForeignKey('Event', on_delete=models.CASCADE, related_name="images",  blank=True, null=True)
-    image = ResizedImageField(size=[1400, 1400], quality=95, 
+    publication = models.ForeignKey('Publication', on_delete=models.CASCADE, related_name="images", blank=True, null=True)
+    in_memoriam = models.ForeignKey('InMemoriam', on_delete=models.CASCADE, related_name="images", blank=True, null=True)
+    image = ResizedImageField(size=[2200, 2200], quality=85,
                         upload_to='gallery/image-uploads',
                         help_text=_("Upload your image "),
                         blank=True, null=True)
@@ -177,10 +237,11 @@ class Images(models.Model):
 
 
     def __str__(self):
-        try:
-            return f"{self.article.title}: {self.alt_text[:30]}"
-        except:
-            return f"No Article Title : {self.created_at}"
+        parent = self.article or self.chapter or self.event or self.publication or self.in_memoriam
+        if parent is None:
+            return f"Unattached image: {self.created_at}"
+        label = self.alt_text[:30] if self.alt_text else ""
+        return f"{parent}: {label}"
 
 
 
@@ -199,9 +260,10 @@ class CoreValue(models.Model):
     is_active = models.BooleanField(default=True)
     
     # For background image per value
-    background_image = models.ImageField(
-        upload_to='core_values/bg/', 
-        blank=True, 
+    background_image = ResizedImageField(
+        size=[2200, 2200], quality=85,
+        upload_to='core_values/bg/',
+        blank=True,
         null=True,
         help_text="Background image for this core value"
     )
@@ -228,8 +290,10 @@ class CoreValue(models.Model):
 
 
 
-class Executive(models.Model):
-    
+class Executive(ThumbnailMixin, models.Model):
+
+    thumbnail_field_name = "avatar"
+
     TITLE = (
         ('DR.', 'DR.'),
         ('ESQ.', 'ESQ.'),
@@ -277,7 +341,7 @@ class Executive(models.Model):
     middle_name = models.CharField(_('Middle Name'), max_length=150, blank=True)
     surname = models.CharField(_('Surname'), max_length=150, blank=True)
     bio = models.TextField(_("Bio"), max_length=2500, blank=True, null=True)
-    avatar = models.ImageField(upload_to='gallery/executive/', blank=True, null=True)
+    avatar = ResizedImageField(size=[1200, 1200], quality=85, upload_to='gallery/executive/', blank=True, null=True)
 
 
     class Meta:
@@ -288,46 +352,37 @@ class Executive(models.Model):
     def __str__(self):
         return f"{self.position}: {self.title}. {self.surname}"
 
-
-
-    def get_avatar(self):
-        if self.avatar:
-            return self.avatar.url
-        else:
-            if self.avatar:
-                self.avatar = self.make_avatar(self.avatar)
-                self.save()
-                return self.avatar.url
-            else:
-                return 'https://via.placeholder.com/240x240.jpg'
-
-
-    def make_avatar(self, image, size=(1080, 1080)):
-        img = Image.open(image)
-        img.convert('RGB')
-        img.thumbnail(size)
-
-        thumb_io = BytesIO()
-        img.save(thumb_io, 'JPEG', quality=95)
-
-        avatar = File(thumb_io, name=image.name)
-
-        return avatar
+    # "Avatar" reads more naturally than "thumbnail" for a person's photo.
+    get_avatar = ThumbnailMixin.get_thumbnail
 
 
 
-class Event(models.Model):
+class Event(ThumbnailMixin, models.Model):
+    """Something that *happens* at a time -- as opposed to Article, which
+    is something *published* at a time. `event_type` absorbs
+    workshop/conference/forum/training, moved off Article's own type
+    field (todo.md 0.3b): Article.created_at was the wrong axis for
+    scheduling, and Phase 4 RSVPs hang off this model, not Article."""
+
+    class EventType(models.TextChoices):
+        WALK = "walk", _("Alumni Walk")
+        WORKSHOP = "workshop", _("Workshop")
+        CONFERENCE = "conference", _("Conference")
+        FORUM = "forum", _("Forum")
+        TRAINING = "training", _("Training")
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event_type = models.CharField(max_length=20, choices=EventType.choices, default=EventType.WALK)
     title =  Title(_("Title"), help_text=_("Required"), max_length=250)
     body = models.TextField()
-    thumbnail = ResizedImageField(size=[3648, 3648], quality=95, 
-                        upload_to='walk/images/', 
+    thumbnail = ResizedImageField(size=[2200, 2200], quality=85,
+                        upload_to='walk/images/',
                         blank=True, null=True)
     created_at = models.DateTimeField(verbose_name=_("Created at"), default=timezone.now, blank=True)
     date_updated = models.DateTimeField(auto_now=True, verbose_name="date updated", blank=True)
     slug = AutoSlugField(populate_from='title',
                         unique_with=['created_at', ],
-                        editable=True, always_update=True)
+                        editable=True, always_update=False)
 
 
 
@@ -344,42 +399,16 @@ class Event(models.Model):
         return reverse("home:uon_alumni_walk_detail", args=[self.slug])
 
 
-    def get_thumbnail(self):
-        if self.thumbnail:
-            return self.thumbnail.url
-        else:
-            if self.thumbnail:
-                self.thumbnail = self.make_thumbnail(self.thumbnail)
-                self.save()
 
-                return self.thumbnail.url
-            else:
-                return 'https://via.placeholder.com/240x240x.jpg'
-
-
-    def make_thumbnail(self, image, size=(3648, 3648)):
-        img = Image.open(image)
-        img.convert('RGB')
-        img.thumbnail(size)
-
-        thumb_io = BytesIO()
-        img.save(thumb_io, 'JPEG', quality=95)
-
-        thumbnail = File(thumb_io, name=image.name)
-
-        return thumbnail
-
-
-
-class Chapter(models.Model):
+class Chapter(ThumbnailMixin, models.Model):
     faculty = models.ForeignKey('staff.Faculty', related_name='chapters', on_delete=models.CASCADE, blank=True, null=True)
     name = models.CharField(max_length=100)
     about = models.TextField(blank=True, null=True)
     year_launched = models.DateTimeField(verbose_name=_("Launched On "),  blank=True, null=True)
     slug = AutoSlugField(populate_from='name',
                          unique_with=['year_launched', ],
-                         editable=True, always_update=True, blank=True, null=True)
-    thumbnail = ResizedImageField(size=[1080, 1080], quality=95, 
+                         editable=True, always_update=False, blank=True, null=True)
+    thumbnail = ResizedImageField(size=[1600, 1600], quality=85,
                         upload_to='chapter/uploads/%Y/%m/%d/',
                         help_text=_("Chapter banner "),
                         blank=True, null=True)
@@ -401,21 +430,7 @@ class Chapter(models.Model):
         return reverse("home:uon_alumni_chapter_detail", args=[self.slug])
 
 
-
-    def get_thumbnail(self):
-        if self.thumbnail:
-            return self.thumbnail.url
-        else:
-            if self.thumbnail:
-                self.thumbnail = self.make_thumbnail(self.thumbnail)
-                self.save()
-
-                return self.thumbnail.url
-            else:
-                return 'https://via.placeholder.com/240x240x.jpg'
-
-
-class Partner(models.Model):
+class Partner(ThumbnailMixin, models.Model):
     title =  Title(_("Title"), help_text=_("Required"), max_length=250)
     relation = models.CharField(
                     verbose_name=_("Partner Relation"),
@@ -424,11 +439,11 @@ class Partner(models.Model):
                     null=True,
                     blank=True,
                 )
-    thumbnail = ResizedImageField(size=[3648, 3648], quality=95, 
-                        upload_to='gallery/partners/', 
+    thumbnail = ResizedImageField(size=[1600, 1600], quality=85,
+                        upload_to='gallery/partners/',
                         blank=True, null=True)
     created_at = models.DateTimeField(verbose_name=_("Created at"), default=timezone.now, blank=True)
-   
+
     def __str__(self):
         return f"{self.title}: {self.created_at}"
 
@@ -438,34 +453,7 @@ class Partner(models.Model):
         unique_together = ('title', 'created_at')
 
 
-    def get_thumbnail(self):
-        if self.thumbnail:
-            return self.thumbnail.url
-        else:
-            if self.thumbnail:
-                self.thumbnail = self.make_thumbnail(self.thumbnail)
-                self.save()
-
-                return self.thumbnail.url
-            else:
-                return 'https://via.placeholder.com/240x240x.jpg'
-
-
-    def make_thumbnail(self, image, size=(3648, 3648)):
-        img = Image.open(image)
-        img.convert('RGB')
-        img.thumbnail(size)
-
-        thumb_io = BytesIO()
-        img.save(thumb_io, 'JPEG', quality=95)
-
-        thumbnail = File(thumb_io, name=image.name)
-
-        return thumbnail
-
-
-
-class Secretariat(models.Model):
+class Secretariat(ThumbnailMixin, models.Model):
 
     TITLE = (
         ('DR.', 'DR.'),
@@ -503,6 +491,8 @@ class Secretariat(models.Model):
         ('10', '10'),
     )
 
+    thumbnail_field_name = "avatar"
+
     title =  models.CharField(max_length=10, choices=TITLE, )
     first_name = models.CharField(_('First Name'), max_length=150, blank=True)
     middle_name = models.CharField(_('Middle Name'), max_length=150, blank=True)
@@ -510,7 +500,7 @@ class Secretariat(models.Model):
     position = models.CharField(_('Secretariat Position'), help_text=_("Secretariat Position"), max_length=255, choices=SECRETARIAT_POSITION, null=True, blank=True)
     rank = models.CharField(_('Secretariat Rank'), help_text=_("Secretariat Rank"), max_length=255, choices=RANK, null=True, blank=True)
     bio = models.TextField(_("Bio"), max_length=2500, blank=True, null=True)
-    avatar = models.ImageField(upload_to='gallery/secretariat/', blank=True, null=True)
+    avatar = ResizedImageField(size=[1200, 1200], quality=85, upload_to='gallery/secretariat/', blank=True, null=True)
 
 
     class Meta:
@@ -521,31 +511,154 @@ class Secretariat(models.Model):
     def __str__(self):
         return f"{self.position}: {self.title}. {self.surname}"
 
-
-    def get_avatar(self):
-        if self.avatar:
-            return self.avatar.url
-        else:
-            if self.avatar:
-                self.avatar = self.make_avatar(self.avatar)
-                self.save()
-                return self.avatar.url
-            else:
-                return 'https://via.placeholder.com/240x240.jpg'
+    # "Avatar" reads more naturally than "thumbnail" for a person's photo.
+    get_avatar = ThumbnailMixin.get_thumbnail
 
 
-    def make_avatar(self, image, size=(3648, 3648)):
-        img = Image.open(image)
-        img.convert('RGB')
-        img.thumbnail(size)
+class Publication(models.Model):
+    """Newsletters, committee minutes, annual reports, policies, financial
+    statements, forms (todo.md 0.3b). `visibility=members` is the first
+    membership benefit the system can actually deliver on day one --
+    1.6's other benefits are physical (card/cert/badge) or aspirational."""
 
-        thumb_io = BytesIO()
-        img.save(thumb_io, 'JPEG', quality=95)
+    class Category(models.TextChoices):
+        NEWSLETTER = "newsletter", _("Newsletter")
+        MINUTES = "minutes", _("Committee Minutes")
+        ANNUAL_REPORT = "annual_report", _("Annual Report")
+        POLICY = "policy", _("Policy")
+        FINANCIAL_STATEMENT = "financial_statement", _("Financial Statement")
+        FORM = "form", _("Form")
 
-        avatar = File(thumb_io, name=image.name)
+    class Visibility(models.TextChoices):
+        PUBLIC = "public", _("Public")
+        MEMBERS = "members", _("Members Only")
+        COMMITTEE = "committee", _("Committee Only")
 
-        return avatar
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=255)
+    category = models.CharField(max_length=30, choices=Category.choices)
+    visibility = models.CharField(max_length=20, choices=Visibility.choices, default=Visibility.PUBLIC)
+    # Meeting or issue date -- distinct from created_at (when it was uploaded).
+    document_date = models.DateField()
+    volume = models.CharField(max_length=20, blank=True)
+    issue_number = models.CharField(max_length=20, blank=True)
+    # Minutes exist as draft before being approved at the next meeting.
+    is_approved = models.BooleanField(default=False)
+    # NOT the default storage. DEFAULT_FILE_STORAGE is MediaCloudinaryStorage
+    # in production (main/settings.py:286), which treats every upload as an
+    # image and will mangle a PDF -- RawMediaCloudinaryStorage is the
+    # correct one regardless of environment, not just here-and-now while
+    # DEBUG happens to fall back to local filesystem. Local dev needs real
+    # (or sandbox) Cloudinary credentials in .env for uploads to this field
+    # to actually work -- verify before building UI on top (todo.md 0.3b).
+    file = models.FileField(upload_to='publications/%Y/%m/', storage=RawMediaCloudinaryStorage)
+    cover_image = ResizedImageField(size=[1600, 1600], quality=85, upload_to='publications/covers/', blank=True, null=True)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='publications'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        ordering = ['-document_date']
+        verbose_name = _("Publication")
+        verbose_name_plural = _("Publications")
+
+    def __str__(self):
+        return f"{self.title} ({self.get_category_display()})"
+
+
+class InMemoriam(models.Model):
+    """A person registry, not article bodies -- as free text you could
+    never list alphabetically, show a photo grid, or filter by year
+    (todo.md 0.3b). Reuses apps.user.models.Honorific rather than
+    inventing a fifth title vocabulary (todo.md's own guiding decision:
+    'One Honorific TextChoices ... replaces all four existing title
+    vocabularies')."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    honorific = models.CharField(max_length=10, choices=Honorific.choices, blank=True)
+    given_name = models.CharField(max_length=150)
+    family_name = models.CharField(max_length=150)
+    birth_year = models.PositiveIntegerField(null=True, blank=True)
+    death_year = models.PositiveIntegerField(null=True, blank=True)
+    graduation_year = models.PositiveIntegerField(null=True, blank=True)
+    faculty = models.ForeignKey(
+        'staff.Faculty', on_delete=models.SET_NULL, null=True, blank=True, related_name='in_memoriam_entries'
+    )
+    photo = ResizedImageField(size=[1200, 1200], quality=85, upload_to='in_memoriam/', blank=True, null=True)
+    tribute = models.TextField(blank=True)
+    published = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['family_name', 'given_name']
+        verbose_name = _("In Memoriam Entry")
+        verbose_name_plural = _("In Memoriam")
+
+    def __str__(self):
+        if self.birth_year and self.death_year:
+            return f"{self.given_name} {self.family_name} ({self.birth_year}–{self.death_year})"
+        return f"{self.given_name} {self.family_name}"
+
+
+class JobPosting(models.Model):
+    """Members-only, moderated, with an expiry date. 1.6 sells
+    'internship/job access via the network' as the student tier's
+    *primary* draw and nothing currently delivers it (todo.md 0.3b) --
+    either this gets built and routed, or the Association stops
+    advertising it (see todo.md C.7)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=255)
+    company = models.CharField(max_length=255)
+    location = models.CharField(max_length=255, blank=True)
+    description = models.TextField()
+    application_url = models.URLField(blank=True)
+    application_email = models.EmailField(blank=True)
+    posted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='job_postings'
+    )
+    # Moderated -- visible only once a Secretariat member approves it.
+    is_approved = models.BooleanField(default=False)
+    expires_on = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = _("Job Posting")
+        verbose_name_plural = _("Job Postings")
+
+    def __str__(self):
+        return f"{self.title} @ {self.company}"
+
+    @property
+    def is_live(self):
+        return self.is_approved and self.expires_on >= timezone.now().date()
+
+
+class ContactMessage(models.Model):
+    """Persisted regardless of whether email delivery succeeds (todo.md
+    C.1: 'A contact page that silently discards messages is worse than
+    none'). EMAIL_BACKEND isn't configured yet (no SMTP settings in
+    main/settings.py) -- this row is what guarantees the message survives
+    that, not the best-effort notification email sent alongside it."""
+
+    name = models.CharField(max_length=150)
+    email = models.EmailField()
+    subject = models.CharField(max_length=200, blank=True)
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = _("Contact Message")
+        verbose_name_plural = _("Contact Messages")
+
+    def __str__(self):
+        return f"{self.name} <{self.email}>: {self.subject or self.message[:40]}"
 
 
 class MembershipTier(models.Model):
@@ -554,6 +667,7 @@ class MembershipTier(models.Model):
         ('annual', 'Annual Member'),
         ('honorary', 'Honorary Member'),
         ('corporate', 'Corporate Partner'),
+        ('student', 'Student Member'),
     ]
     name = models.CharField(max_length=50)  # "Gold Life Member"
     fee = models.DecimalField(max_digits=10, decimal_places=2)
@@ -561,6 +675,11 @@ class MembershipTier(models.Model):
     duration_months = models.IntegerField(default=0, help_text="0 = lifetime")
     is_active = models.BooleanField(default=True)
     order = models.IntegerField(default=0)  # for display order
+    # Monotonic upgrade path (todo.md 0.1: Annual -> Bronze -> Silver ->
+    # Gold -> Corporate). Null = off the ladder (e.g. Honorary, Student).
+    # Phase 2.6's installment upgrades resolve "the next rung's price" off
+    # this -- `order` is display-only and can't carry that.
+    ladder_rank = models.PositiveSmallIntegerField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.name} - KES {self.fee}"
@@ -584,7 +703,11 @@ class MembershipTier(models.Model):
 
 
 def get_alumni_profile_slug(instance):
-    return slugify(f"{instance.title} {instance.first_name} {instance.surname}")
+    """Reads through UserProfile, same pattern as apps/staff/models.py's
+    get_employee_slug — AlumniProfile no longer holds name data itself
+    (docs/rebuild-schema.md)."""
+    profile = instance.user.profile
+    return slugify(f"{profile.honorific} {profile.given_name} {profile.family_name}")
 
 
 class QualificationLevel(models.TextChoices):
@@ -616,11 +739,9 @@ class Qualification(models.Model):
 
 
 class AlumniProfile(models.Model):
-    TITLE_CHOICES = [
-        ('Mr', 'Mr'), ('Mrs', 'Mrs'), ('Ms', 'Ms'),
-        ('Dr', 'Dr'), ('Prof', 'Prof'), ('Rev', 'Rev'), ('Other', 'Other')
-    ]
-    GENDER_CHOICES = [('M', 'Male'), ('F', 'Female'), ('O', 'Other')]
+    """Academic and external-employment data only. Personal data lives on
+    UserProfile; membership data lives on Membership (both split out per
+    docs/rebuild-schema.md, D3 in docs/0.1-identity-decisions.md)."""
 
     class GraduationInstitution(models.TextChoices):
         UON = "uon", _("University of Nairobi (Alumni)")
@@ -631,31 +752,12 @@ class AlumniProfile(models.Model):
     # Link to Django User (One-to-One)
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='alumni_profile')
 
-    # Personal details
-    title = models.CharField(max_length=10, choices=TITLE_CHOICES)
-    surname = models.CharField(max_length=100)
-    first_name = models.CharField(max_length=100)
-    middle_name = models.CharField(max_length=100, blank=True)
-    maiden_name = models.CharField(max_length=100, blank=True)
-    gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
-    date_of_birth = models.DateField()
-    id_passport_no = models.CharField(max_length=50, unique=True)
-    nationality = models.CharField(max_length=100, default='Kenyan')
-
-    # Contact details
-    postal_address = models.CharField(max_length=200, blank=True)
-    postal_code = models.CharField(max_length=20, blank=True)
-    city = models.CharField(max_length=100, blank=True)
-    phone_mobile = models.CharField(
-        max_length=15,
-        validators=[RegexValidator(r'^\+?254\d{9}$', message='Enter a valid Kenyan phone number (e.g., 2547XXXXXXXX)')]
-    )
-    phone_alt = models.CharField(max_length=15, blank=True)
-    email = models.EmailField(unique=False, blank=True, null=True)
-
     # Alumni specific
     graduation_year = models.IntegerField(null=True, blank=True)
     faculty = models.ForeignKey('staff.Faculty', on_delete=models.SET_NULL, null=True, blank=True)
+    # Reg-no source for alumni who register directly and never had a
+    # Student row (everyone pre-dating the system). Students who came
+    # through apps.student.models.Student have it there instead.
     student_reg_no = models.CharField(max_length=50, blank=True)
     graduation_institution = models.CharField(max_length=10, choices=GraduationInstitution.choices, blank=True, default="")
     other_institution_name = models.CharField(max_length=255, blank=True, default="")
@@ -663,26 +765,10 @@ class AlumniProfile(models.Model):
     name_at_graduation = models.CharField(max_length=300, blank=True, default="", help_text=_("Only if different from your current name"))
     qualification = models.ForeignKey(Qualification, on_delete=models.SET_NULL, null=True, blank=True, related_name='alumni')
 
-    # Employment
+    # Employment (external -- distinct from apps.staff.Employee, which is
+    # the internal UoN appointment; a staff-alumnus legitimately has both)
     current_employer = models.CharField(max_length=255, blank=True, default="")
     employment_position = models.CharField(max_length=255, blank=True, default="")
-
-    # Membership
-    current_membership_tier = models.ForeignKey(MembershipTier, on_delete=models.SET_NULL, null=True, blank=True)
-    membership_expiry = models.DateField(null=True, blank=True)
-    is_lifetime_member = models.BooleanField(default=False)
-    membership_number = models.CharField(max_length=20, unique=True, null=True, blank=True)
-
-    # Issued items
-    membership_card_issued = models.BooleanField(default=False)
-    certificate_issued = models.BooleanField(default=False)
-    certificate_sent = models.BooleanField(default=False)
-    certificate_generated_at = models.DateTimeField(null=True, blank=True)
-    lapel_badge_issued = models.BooleanField(default=False)
-
-    # Preferences
-    receive_newsletter = models.BooleanField(default=True)
-    receive_sms_alerts = models.BooleanField(default=True)
 
     # Meta
     registration_date = models.DateTimeField(auto_now_add=True)
@@ -699,11 +785,7 @@ class AlumniProfile(models.Model):
     )
 
     def __str__(self):
-        return f"{self.title} {self.first_name} {self.surname}"
-
-    @property
-    def full_name(self):
-        return f"{self.title} {self.first_name} {self.surname}"
+        return self.user.profile.full_name
 
     def get_absolute_url(self):
         # Explicit urlconf: this is called from the shared navbar context
@@ -718,90 +800,115 @@ class AlumniProfile(models.Model):
             urlconf="main.urls",
         )
 
-    def generate_membership_number(self):
-        """Generate a unique membership number, e.g., UoNAA/001234/2025"""
-        from django.utils import timezone
-        
-        year = timezone.now().year
-        # Count existing membership numbers for this year
-        last = AlumniProfile.objects.filter(
-            membership_number__endswith=f"/{year}"
-        ).count()
-        new_num = last + 1
-        return f"UoNAA/{new_num:06d}/{year}"
+
+class MembershipManager(models.Manager):
+    def current_for(self, user):
+        """Most recent membership row for a user, active or otherwise --
+        the manager method todo.md 0.1 asks for instead of a denormalized
+        pointer. Ordered by Meta.ordering (-created_at), so "current"
+        means "most recently requested," which is also "most recently
+        activated" under the one-row-per-request pattern each request
+        view uses (see apps/home/views.py)."""
+        return self.filter(user=user).first()
+
+
+class Membership(models.Model):
+    """FK (not O2O) to User so history accumulates -- todo.md 1.4 wants
+    renewal/upgrade history visible, and Phase 2.6's installment upgrades
+    need a row to accumulate against. A free Student tier has no
+    AlumniProfile to attach to (that's the whole reason this moved off
+    AlumniProfile -- see D3 in docs/0.1-identity-decisions.md), so it
+    anchors on User instead. "Current" membership is a manager method,
+    never a denormalized pointer.
+
+    Each renewal/upgrade request creates its own row, pending from the
+    start (apps/home/views.py) -- PaymentAdmin.mark_completed() finds
+    that row and calls activate() on it, rather than mutating one
+    long-lived row in place. Simple enough to build tonight without
+    guessing at the real Phase 1.3 service layer's shape (that still
+    owns renew-in-place vs. new-row semantics, if they ever diverge from
+    this)."""
+
+    objects = MembershipManager()
+
+    class Status(models.TextChoices):
+        PENDING = "pending", _("Pending")
+        ACTIVE = "active", _("Active")
+        EXPIRED = "expired", _("Expired")
+        CANCELLED = "cancelled", _("Cancelled")
+
+    class PaymentFrequency(models.TextChoices):
+        ONCE = "once", _("Once")
+        MONTHLY = "monthly", _("Monthly")
+        QUARTERLY = "quarterly", _("Quarterly")
+        ANNUALLY = "annually", _("Annually")
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="memberships")
+    tier = models.ForeignKey(MembershipTier, on_delete=models.PROTECT, related_name="memberships")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+
+    started_on = models.DateField(null=True, blank=True)
+    expires_on = models.DateField(null=True, blank=True)  # null once active = lifetime
+    is_lifetime = models.BooleanField(default=False)
+    membership_number = models.CharField(max_length=20, unique=True, null=True, blank=True)
+    payment_frequency = models.CharField(max_length=20, choices=PaymentFrequency.choices, default=PaymentFrequency.ONCE)
+
+    # Issued items follow the membership, not the person.
+    card_issued = models.BooleanField(default=False)
+    certificate_issued = models.BooleanField(default=False)
+    certificate_sent = models.BooleanField(default=False)
+    certificate_generated_at = models.DateTimeField(null=True, blank=True)
+    lapel_badge_issued = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = _("Membership")
+        verbose_name_plural = _("Memberships")
+
+    def __str__(self):
+        return f"{self.user.email} — {self.tier.name} ({self.get_status_display()})"
 
     @property
-    def is_membership_valid(self):
-        """Check if current membership is valid"""
-        if self.is_lifetime_member:
+    def is_valid(self):
+        """Single source of truth for membership validity."""
+        if self.status != self.Status.ACTIVE:
+            return False
+        if self.is_lifetime:
             return True
-        if self.membership_expiry:
-            return self.membership_expiry >= timezone.now().date()
-        return False
+        return bool(self.expires_on and self.expires_on >= timezone.now().date())
 
-    def assign_membership_tier(self, tier, payment_date=None):
-        """Assign a membership tier to the alumni"""
-        from django.utils import timezone
-        
-        if payment_date is None:
-            payment_date = timezone.now().date()
-        
-        self.current_membership_tier = tier
-        
-        # Use the is_lifetime method from MembershipTier
-        self.is_lifetime_member = tier.is_lifetime()
-        
-        # Set expiry date if not lifetime
-        if not self.is_lifetime_member:
-            self.membership_expiry = tier.get_expiry_date(payment_date)
-        else:
-            self.membership_expiry = None
-        
-        # Generate membership number if not exists
-        if not self.membership_number:
-            self.membership_number = self.generate_membership_number()  # Now this works as a method call
-        
-        self.save()
+    def generate_membership_number(self):
+        """UoNAA/001234/2025 -- unique per calendar year of activation."""
+        year = timezone.now().year
+        last = Membership.objects.filter(membership_number__endswith=f"/{year}").count()
+        return f"UoNAA/{last + 1:06d}/{year}"
 
-    def renew_membership(self, tier, payment_date=None):
-        """Renew or upgrade membership"""
-        from django.utils import timezone
-        from datetime import timedelta
-        
-        if payment_date is None:
-            payment_date = timezone.now().date()
-        
-        # If renewing same tier, extend expiry
-        if self.current_membership_tier == tier and not tier.is_lifetime():
-            if self.membership_expiry and self.membership_expiry > payment_date:
-                # Extend from current expiry
-                self.membership_expiry = self.membership_expiry + timedelta(days=tier.duration_months * 30)
-            else:
-                # Start from payment date
-                self.membership_expiry = tier.get_expiry_date(payment_date)
-        else:
-            # New tier assignment
-            self.assign_membership_tier(tier, payment_date)
-        
-        self.save()
+    def activate(self, payment_date=None):
+        """Stamp dates/number off self.tier and mark active.
 
-    def upgrade_to_lifetime(self, lifetime_tier):
-        """Upgrade to lifetime membership"""
-        if not lifetime_tier.is_lifetime():
-            raise ValueError("Selected tier is not a lifetime membership")
-
-        self.current_membership_tier = lifetime_tier
-        self.is_lifetime_member = True
-        self.membership_expiry = None
-
+        Deliberately an instance method, not yet the module-level "one
+        door" todo.md 1.3 asks for (renew_membership() /
+        upgrade_to_lifetime() / assign_membership_tier(), callable from
+        admin now and payment callbacks later without fragmenting state
+        changes). That's real sequencing/business-rule work -- e.g.
+        whether a renewal extends this row or opens a new one -- not a
+        mechanical rename, so it isn't built here. This method is what
+        that service layer will call.
+        """
+        payment_date = payment_date or timezone.now().date()
+        self.status = self.Status.ACTIVE
+        self.is_lifetime = self.tier.is_lifetime()
+        self.started_on = self.started_on or payment_date
+        self.expires_on = None if self.is_lifetime else self.tier.get_expiry_date(payment_date)
         if not self.membership_number:
             self.membership_number = self.generate_membership_number()
-
         self.save()
 
 
-
-        
 class Payment(models.Model):
     PAYMENT_METHODS = [
         ('mpesa', 'M-Pesa'),
@@ -877,7 +984,7 @@ class Payment(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.alumni.full_name} - {self.amount} - {self.payment_status}"
+        return f"{self.alumni.user.profile.full_name} - {self.amount} - {self.payment_status}"
     
     # ---------- Internal logging helper ----------
     def _log_transaction(self, trans_type, request_data=None, response_data=None, error_msg=None):

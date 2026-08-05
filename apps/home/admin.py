@@ -1,33 +1,69 @@
 from django.contrib import admin
 from apps.home.models import*
 from django.db.models import Count
-from django.contrib.auth.models import User
 from django.utils.html import format_html
 
 from apps.home.membership_admin_site import membership_admin_site
 # Register your models here.
 
+# ─────────────────────────────────────────────
+# Gallery inlines -- Images has one FK per attachable model (todo.md
+# 0.3b: deliberately not a single generic FK). fk_name is explicit per
+# subclass so each parent's admin only ever creates/edits rows through
+# its own FK, never leaves the other four null-by-omission.
+# ─────────────────────────────────────────────
+
+class ImagesInline(admin.TabularInline):
+    model = Images
+    extra = 1
+    fields = ['image', 'alt_text']
+
+
+class ArticleImagesInline(ImagesInline):
+    fk_name = 'article'
+
+
+class EventImagesInline(ImagesInline):
+    fk_name = 'event'
+
+
+class ChapterImagesInline(ImagesInline):
+    fk_name = 'chapter'
+
+
+class PublicationImagesInline(ImagesInline):
+    fk_name = 'publication'
+
+
+class InMemoriamImagesInline(ImagesInline):
+    fk_name = 'in_memoriam'
+
+
 @admin.register(Article)
 class ArticleAdmin(admin.ModelAdmin):
-    list_display = ['title', 'chapter', 'created_at', 'slug', 'is_feature', 'is_highlighted']
+    list_display = ['title', 'type', 'page_key', 'chapter', 'is_published', 'created_at', 'slug', 'is_feature', 'is_highlighted']
     prepopulated_fields = { 'slug': ('title',), }
-    list_filter = ['created_at', 'is_feature', 'is_highlighted', 'chapter']
+    list_filter = ['type', 'is_published', 'created_at', 'is_feature', 'is_highlighted', 'chapter']
     search_fields = ['title', 'body']
+    readonly_fields = ['published_at']
     list_per_page = 6
+    inlines = [ArticleImagesInline]
 
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
-    list_display = ['title', 'created_at', 'date_updated']
+    list_display = ['title', 'event_type', 'created_at', 'date_updated']
+    list_filter = ['event_type']
     prepopulated_fields = { 'slug': ('title',), }
     list_per_page = 6
+    inlines = [EventImagesInline]
 
 
 
 @admin.register(Images)
 class ImagesAdmin(admin.ModelAdmin):
-    list_display = ['chapter', 'article', 'image', 'created_at']
-    search_fields = ['article__title',]
-    list_filter = [ 'chapter', 'created_at' ] #, 
+    list_display = ['__str__', 'chapter', 'article', 'event', 'publication', 'in_memoriam', 'image', 'created_at']
+    search_fields = ['article__title', 'chapter__name', 'event__title', 'publication__title']
+    list_filter = [ 'chapter', 'created_at' ] #,
 
 
 @admin.register(Banner)
@@ -58,7 +94,8 @@ class CoreValueAdmin(admin.ModelAdmin):
 class ChapterAdmin(admin.ModelAdmin):
     list_display = ['name', 'faculty','year_launched', 'slug']
     list_filter = [ 'faculty' ] #,
-    prepopulated_fields = { 'slug': ('name',)} 
+    prepopulated_fields = { 'slug': ('name',)}
+    inlines = [ChapterImagesInline]
 
 @admin.register(Executive)
 class ExecutiveAdmin(admin.ModelAdmin):
@@ -67,6 +104,62 @@ class ExecutiveAdmin(admin.ModelAdmin):
 @admin.register(Secretariat)
 class SecretariatAdmin(admin.ModelAdmin):
     list_display = ['title', 'position', 'first_name', 'middle_name', 'surname' ]
+
+@admin.register(Partner)
+class PartnerAdmin(admin.ModelAdmin):
+    # Was not registered at all before -- content editors had no way to
+    # enter a partner without a Django shell (content_todo.txt #5).
+    list_display = ['title', 'relation', 'created_at']
+    search_fields = ['title', 'relation']
+
+
+@admin.register(Publication)
+class PublicationAdmin(admin.ModelAdmin):
+    list_display = ['title', 'category', 'visibility', 'document_date', 'is_approved']
+    list_filter = ['category', 'visibility', 'is_approved']
+    search_fields = ['title', 'volume', 'issue_number']
+    date_hierarchy = 'document_date'
+    readonly_fields = ['created_at', 'updated_at']
+    inlines = [PublicationImagesInline]
+
+
+@admin.register(InMemoriam)
+class InMemoriamAdmin(admin.ModelAdmin):
+    list_display = ['given_name', 'family_name', 'birth_year', 'death_year', 'graduation_year', 'published']
+    list_filter = ['published', 'faculty']
+    search_fields = ['given_name', 'family_name']
+    readonly_fields = ['created_at', 'updated_at']
+    inlines = [InMemoriamImagesInline]
+
+
+@admin.register(JobPosting)
+class JobPostingAdmin(admin.ModelAdmin):
+    list_display = ['title', 'company', 'is_approved', 'expires_on', 'is_live']
+    list_filter = ['is_approved']
+    search_fields = ['title', 'company']
+    readonly_fields = ['created_at']
+
+    @admin.display(description='Live', boolean=True)
+    def is_live(self, obj):
+        return obj.is_live
+
+
+@admin.register(ContactMessage)
+class ContactMessageAdmin(admin.ModelAdmin):
+    list_display = ['name', 'email', 'subject', 'is_read', 'created_at']
+    list_filter = ['is_read']
+    search_fields = ['name', 'email', 'subject', 'message']
+    readonly_fields = ['name', 'email', 'subject', 'message', 'created_at']
+    actions = ['mark_read']
+
+    @admin.action(description="Mark selected messages as read")
+    def mark_read(self, request, queryset):
+        count = queryset.update(is_read=True)
+        self.message_user(request, f"{count} message(s) marked read.")
+
+    def has_add_permission(self, request):
+        return False
+
 
 @admin.register(MembershipTier)
 class MembershipTierAdmin(admin.ModelAdmin):
@@ -85,72 +178,81 @@ class PaymentInline(admin.TabularInline):
 
 @admin.register(AlumniProfile)
 class AlumniProfileAdmin(admin.ModelAdmin):
-    list_display = ['id', 'first_name', 'surname', 'email']
-    list_filter = ['current_membership_tier', 'is_lifetime_member', 'membership_card_issued', 'graduation_year']
-    search_fields = ['first_name', 'surname', 'email', 'id_passport_no', 'student_reg_no', 'membership_number']
+    # Personal data (name/DOB/national ID/contact) lives on UserProfile
+    # now, edited via the User admin's inline -- not here. Membership
+    # data (tier/status/expiry/issued items) lives on Membership,
+    # registered separately below.
+    list_display = ['id', 'display_name', 'user_email', 'current_membership_display']
+    list_filter = ['graduation_institution', 'graduation_year']
+    search_fields = [
+        'user__profile__given_name', 'user__profile__family_name', 'user__email',
+        'user__profile__national_id', 'student_reg_no',
+    ]
     readonly_fields = ['registration_date', 'last_updated']
-    actions = ['issue_membership_card', 'mark_as_lifetime']
     list_per_page = 20
     fieldsets = (
         ('User Account', {
             'fields': ('user',)
         }),
-        ('Personal Information', {
-            'fields': ('title', 'surname', 'first_name', 'middle_name', 'maiden_name',
-                       'gender', 'date_of_birth', 'id_passport_no', 'nationality')
-        }),
-        ('Contact Details', {
-            'fields': ('postal_address', 'postal_code', 'city', 'phone_mobile', 'phone_alt', 'email')
-        }),
         ('Alumni Details', {
-            'fields': ('graduation_year', 'faculty', 'student_reg_no')
+            'fields': (
+                'graduation_year', 'faculty', 'qualification', 'graduation_institution',
+                'other_institution_name', 'other_institution_qualification',
+                'name_at_graduation', 'student_reg_no',
+            )
         }),
-        ('Membership', {
-            'fields': ('current_membership_tier', 'membership_expiry', 'is_lifetime_member', 'membership_number',
-                       'membership_card_issued', 'certificate_issued', 'certificate_sent', 'certificate_generated_at', 'lapel_badge_issued')
+        ('Employment', {
+            'fields': ('current_employer', 'employment_position')
         }),
-        ('Preferences & Meta', {
-            'fields': ('receive_newsletter', 'receive_sms_alerts', 'is_active', 'registration_date', 'last_updated')
+        ('Meta', {
+            'fields': ('is_active', 'registration_date', 'last_updated')
         }),
     )
     inlines = [PaymentInline]
 
-    def user_link(self, obj):
-        return format_html('<a href="/admin/auth/user/{}/change/">{}</a>', obj.user.id, obj.user.username)
-    user_link.short_description = 'Username'
+    @admin.display(description='Name')
+    def display_name(self, obj):
+        return obj.user.profile.display_name if hasattr(obj.user, 'profile') else '—'
 
-    def membership_valid_badge(self, obj):
-        if obj.is_membership_valid:
-            return format_html('<span style="color:green;">✓ Valid</span>')
-        return format_html('<span style="color:red;">✗ Expired</span>')
-    membership_valid_badge.short_description = 'Membership Status'
+    @admin.display(description='Email')
+    def user_email(self, obj):
+        return obj.user.email
 
+    @admin.display(description='Current Membership')
+    def current_membership_display(self, obj):
+        membership = Membership.objects.current_for(obj.user)
+        if membership is None:
+            return '—'
+        return f"{membership.tier.name} ({membership.get_status_display()})"
+
+
+@admin.register(Membership)
+class MembershipAdmin(admin.ModelAdmin):
+    list_display = ['user', 'tier', 'status', 'is_lifetime', 'expires_on', 'membership_number']
+    list_filter = ['status', 'is_lifetime', 'tier']
+    search_fields = ['user__email', 'user__profile__given_name', 'user__profile__family_name', 'membership_number']
+    readonly_fields = ['created_at', 'updated_at']
+    actions = ['issue_membership_card', 'mark_as_lifetime']
+
+    @admin.action(description="Issue membership card to selected")
     def issue_membership_card(self, request, queryset):
-        """
-        This method runs when you select "Issue membership card to selected"
-        `queryset` contains all the selected AlumniProfile objects
-        """
-        count = queryset.update(membership_card_issued=True)
+        count = queryset.update(card_issued=True)
         self.message_user(request, f"{count} membership card(s) marked as issued.")
-    
-    # This is the label that appears in the dropdown
-    issue_membership_card.short_description = "Issue membership card to selected"
 
+    @admin.action(description="Mark as lifetime members")
     def mark_as_lifetime(self, request, queryset):
-        """
-        This method runs when you select "Mark as lifetime members"
-        """
-        count = queryset.update(is_lifetime_member=True, membership_expiry=None)
+        count = queryset.update(is_lifetime=True, expires_on=None)
         self.message_user(request, f"{count} member(s) marked as lifetime.")
-    
-    mark_as_lifetime.short_description = "Mark as lifetime members"
 
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
     list_display = ['id', 'alumni', 'amount', 'payment_method', 'payment_status', 'payment_date']
     list_filter = ['payment_status', 'payment_method']
-    search_fields = ['transaction_reference', 'alumni__first_name', 'alumni__surname', 'alumni__email']
+    search_fields = [
+        'transaction_reference', 'alumni__user__profile__given_name',
+        'alumni__user__profile__family_name', 'alumni__user__email',
+    ]
     readonly_fields = ['transaction_reference', 'created_at', 'updated_at']
     actions = ['mark_completed', 'mark_failed', 'mark_pending_verification', 'mark_refunded']
     fieldsets = (
@@ -182,24 +284,29 @@ class PaymentAdmin(admin.ModelAdmin):
 
     def mark_completed(self, request, queryset):
         """
-        Confirm payment, then actually apply the membership change the
-        payment was for -- assigns/renews the tier (and, for a new or
-        different tier, generates the membership number) via the
-        AlumniProfile methods the money is meant to unlock. Skips
+        Confirm payment, then activate the Membership row the payment was
+        for. Each registration/renewal/upgrade request already created
+        its own pending Membership row (apps/home/views.py) -- this finds
+        that row and calls Membership.activate() on it, rather than
+        mutating fields directly (that's the one door todo.md 1.3 wants,
+        stated once on the model -- see apps/home/models.py). Skips
         payments with no membership_tier set (shouldn't happen given how
         Payment rows are created, but nothing to apply if it is).
         """
         updated = 0
-        for payment in queryset.select_related('alumni', 'membership_tier'):
+        for payment in queryset.select_related('alumni__user', 'membership_tier'):
             payment.mark_as_completed()
             tier = payment.membership_tier
             if not tier:
                 continue
-            alumni = payment.alumni
-            if tier.is_lifetime() and alumni.current_membership_tier_id != tier.id:
-                alumni.upgrade_to_lifetime(tier)
-            else:
-                alumni.renew_membership(tier)
+            user = payment.alumni.user
+            membership = Membership.objects.filter(
+                user=user, tier=tier, status=Membership.Status.PENDING
+            ).order_by('-created_at').first()
+            if membership is None:
+                membership = Membership.objects.create(user=user, tier=tier)
+            payment_date = payment.payment_date.date() if payment.payment_date else None
+            membership.activate(payment_date=payment_date)
             updated += 1
         self.message_user(request, f"{updated} payment(s) marked completed and membership updated.")
     mark_completed.short_description = "Mark selected payments as completed (and update membership)"
@@ -246,4 +353,5 @@ class PaymentTransactionAdmin(admin.ModelAdmin):
 membership_admin_site.register(Payment, PaymentAdmin)
 membership_admin_site.register(MembershipTier, MembershipTierAdmin)
 membership_admin_site.register(AlumniProfile, AlumniProfileAdmin)
+membership_admin_site.register(Membership, MembershipAdmin)
 membership_admin_site.register(PaymentTransaction, PaymentTransactionAdmin)
