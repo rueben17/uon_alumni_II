@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}{{ name_title }} | Chapters{% endblock %}
+
+{% block content %}
+
+        <div class="container mx-auto min-h-screen space-y-1" style="max-width: 1700px;">
+            {% include "snippets/navbar.html" %}
+
+            <section class="max-w-full min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
+                <div class="px-4 py-8 mx-auto md:px-12 max-w-7xl">
+                    <h1 class="text-4xl font-semibold tracking-wide text-gray-900 lg:text-5xl text-balance">Chapters</h1>
+
+                    {% if chapters %}
+                        <div class="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                            {% for chapter in chapters %}
+                                <a href="{{ chapter.get_absolute_url }}" class="block rounded-sm border border-slate-200 overflow-hidden hover:shadow-md transition">
+                                    <div class="aspect-video bg-slate-100">
+                                        <img src="{{ chapter.get_thumbnail }}" alt="{{ chapter.name }}" class="w-full h-full object-cover">
+                                    </div>
+                                    <div class="p-4">
+                                        <h2 class="text-lg font-semibold text-gray-900">{{ chapter.name }}</h2>
+                                        {% if chapter.faculty %}
+                                            <p class="mt-1 text-sm text-gray-500">{{ chapter.faculty.faculty_name }}</p>
+                                        {% endif %}
+                                        {% if chapter.year_launched %}
+                                            <p class="mt-1 text-xs text-gray-400">Launched {{ chapter.year_launched|date:"Y" }}</p>
+                                        {% endif %}
+                                    </div>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="mt-8 text-gray-500">No chapters entered yet — check back soon.</p>
+                    {% endif %}
+                </div>
+            </section>
+
+            {% include "snippets/footer.html" %}
+        </div>
+
+{% endblock content %}

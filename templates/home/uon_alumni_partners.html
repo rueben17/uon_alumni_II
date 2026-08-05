@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}{{ name_title }} | Partners{% endblock %}
+
+{% block content %}
+
+        <div class="container mx-auto min-h-screen space-y-1" style="max-width: 1700px;">
+            {% include "snippets/navbar.html" %}
+
+            <section class="max-w-full min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
+                <div class="px-4 py-8 mx-auto md:px-12 max-w-7xl">
+                    <h1 class="text-4xl font-semibold tracking-wide text-gray-900 lg:text-5xl text-balance">Partners</h1>
+                    <p class="mt-4 text-lg font-light text-black text-balance">Organisations we work with.</p>
+
+                    {% if partners %}
+                        <div class="mt-8 grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4">
+                            {% for partner in partners %}
+                                <div class="rounded-sm border border-slate-200 p-4 text-center">
+                                    <img src="{{ partner.get_thumbnail }}" alt="{{ partner.title }}" class="mx-auto h-24 w-24 object-contain">
+                                    <h2 class="mt-3 text-sm font-semibold text-gray-900">{{ partner.title }}</h2>
+                                    {% if partner.relation %}
+                                        <p class="mt-1 text-xs text-gray-500">{{ partner.relation }}</p>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="mt-8 text-gray-500">No partners entered yet — check back soon.</p>
+                    {% endif %}
+                </div>
+            </section>
+
+            {% include "snippets/footer.html" %}
+        </div>
+
+{% endblock content %}

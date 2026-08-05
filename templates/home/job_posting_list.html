@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}{{ name_title }} | Careers{% endblock %}
+
+{% block content %}
+
+        <div class="container mx-auto min-h-screen space-y-1" style="max-width: 1700px;">
+            {% include "snippets/navbar.html" %}
+
+            <section class="max-w-full min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
+                <div class="px-4 py-8 mx-auto md:px-12 max-w-4xl">
+                    <h1 class="text-4xl font-semibold tracking-wide text-gray-900 lg:text-5xl text-balance">Careers</h1>
+                    <p class="mt-4 text-lg font-light text-black text-balance">Opportunities shared through the alumni network.</p>
+
+                    {% if job_postings %}
+                        <div class="mt-8 space-y-4">
+                            {% for job in job_postings %}
+                                <div class="rounded-sm border border-slate-200 p-5">
+                                    <h2 class="text-lg font-semibold text-gray-900">{{ job.title }}</h2>
+                                    <p class="text-sm text-gray-600">{{ job.company }}{% if job.location %} &middot; {{ job.location }}{% endif %}</p>
+                                    <p class="mt-3 text-sm text-gray-700 whitespace-pre-line">{{ job.description }}</p>
+                                    <p class="mt-3 text-xs text-gray-400">Closes {{ job.expires_on }}</p>
+                                    {% if job.application_url %}
+                                        <a href="{{ job.application_url }}" target="_blank" rel="noopener" class="mt-3 inline-flex items-center rounded-sm bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500">Apply</a>
+                                    {% elif job.application_email %}
+                                        <a href="mailto:{{ job.application_email }}" class="mt-3 inline-flex items-center rounded-sm bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500">Apply by email</a>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        {% if is_paginated %}
+                            <div class="mt-8 flex justify-center gap-4">
+                                {% if page_obj.has_previous %}
+                                    <a href="?page={{ page_obj.previous_page_number }}" class="px-4 py-2 text-sm rounded-sm border border-slate-300 hover:bg-slate-50">Previous</a>
+                                {% endif %}
+                                <span class="px-4 py-2 text-sm text-gray-500">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                                {% if page_obj.has_next %}
+                                    <a href="?page={{ page_obj.next_page_number }}" class="px-4 py-2 text-sm rounded-sm border border-slate-300 hover:bg-slate-50">Next</a>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <p class="mt-8 text-gray-500">No openings posted right now — check back soon.</p>
+                    {% endif %}
+                </div>
+            </section>
+
+            {% include "snippets/footer.html" %}
+        </div>
+
+{% endblock content %}

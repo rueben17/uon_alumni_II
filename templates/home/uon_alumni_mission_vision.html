@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}{{ name_title }} | Mission, Vision & Core Values{% endblock %}
+
+{% block content %}
+
+        <div class="container mx-auto min-h-screen space-y-1" style="max-width: 1700px;">
+            {% include "snippets/navbar.html" %}
+
+            <section class="max-w-full min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
+                <div class="px-4 py-8 mx-auto md:px-12 max-w-4xl">
+                    <h1 class="text-4xl font-semibold tracking-wide text-gray-900 lg:text-5xl text-balance">Mission, Vision &amp; Core Values</h1>
+
+                    <div class="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
+                        <div class="rounded-sm border border-slate-200 p-5">
+                            <h2 class="text-lg font-semibold text-gray-900">Mission</h2>
+                            <p class="mt-2 text-gray-700">{{ mission }}</p>
+                        </div>
+                        <div class="rounded-sm border border-slate-200 p-5">
+                            <h2 class="text-lg font-semibold text-gray-900">Vision</h2>
+                            <p class="mt-2 text-gray-700">{{ vision }}</p>
+                        </div>
+                    </div>
+
+                    {% if core_values %}
+                        <h2 class="mt-12 text-2xl font-semibold text-gray-900">Core Values</h2>
+                        <div class="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                            {% for value in core_values %}
+                                <div class="rounded-sm border border-slate-200 p-5" style="background-color: {{ value.background_color }};">
+                                    <h3 class="text-lg font-semibold text-gray-900">{{ value.name }}</h3>
+                                    <p class="mt-2 text-sm text-gray-700">{{ value.description }}</p>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </section>
+
+            {% include "snippets/footer.html" %}
+        </div>
+
+{% endblock content %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}{{ name_title }} | {{ event.title }}{% endblock %}
+
+{% block content %}
+
+        <div class="container mx-auto min-h-screen space-y-1" style="max-width: 1700px;">
+            {% include "snippets/navbar.html" %}
+
+            <section class="max-w-full min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
+                <article class="px-4 py-8 mx-auto md:px-12 max-w-3xl">
+                    {% if event.thumbnail %}
+                        <img src="{{ event.get_thumbnail }}" alt="{{ event.title }}" class="w-full rounded-sm mb-6 object-cover">
+                    {% endif %}
+
+                    <h1 class="text-3xl font-semibold tracking-wide text-gray-900 lg:text-4xl text-balance">{{ event.title }}</h1>
+                    <p class="mt-2 text-sm text-gray-500">{{ event.created_at }}</p>
+
+                    <div class="mt-6 prose max-w-none text-gray-800 whitespace-pre-line">{{ event.body }}</div>
+
+                    {% if event.images.exists %}
+                        <div class="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                            {% for img in event.images.all %}
+                                {% if img.image %}
+                                    <a href="{{ img.image.url }}" data-lightbox="walk-gallery">
+                                        <img src="{{ img.image.url }}" alt="{{ img.alt_text }}" class="w-full aspect-square object-cover rounded-sm">
+                                    </a>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <div class="mt-8">
+                        <a href="{% url 'home:uon_alumni_walk_list' %}" class="text-sm font-semibold text-blue-700 hover:underline">&larr; Back to UoN Alumni Walk</a>
+                    </div>
+                </article>
+            </section>
+
+            {% include "snippets/footer.html" %}
+        </div>
+
+{% endblock content %}

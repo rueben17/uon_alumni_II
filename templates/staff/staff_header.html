@@ -2,10 +2,10 @@
     <div class="grid grid-cols-1 gap-4 md:gap-6 xl:grid-cols-12 xl:items-start">
             <div class="xl:col-span-3">
                 <div class="mx-auto w-full max-w-55 sm:max-w-65 lg:max-w-75 xl:max-w-full">
-                    {% if employee.photo %}
-                        <img src="{{ employee.photo.url }}" alt="{{ employee.full_name }}" class="aspect-square w-full rounded-xl object-cover ring-1 ring-slate-200">
-                    {% elif employee.google_photo_url %}
-                        <img src="{{ employee.google_photo_url }}" alt="{{ employee.full_name }}" class="aspect-square w-full rounded-xl object-cover ring-1 ring-slate-200">
+                    {% if employee.user.profile.photo %}
+                        <img src="{{ employee.user.profile.photo.url }}" alt="{{ employee.user.profile.full_name }}" class="aspect-square w-full rounded-xl object-cover ring-1 ring-slate-200">
+                    {% elif employee.user.profile.google_photo_url %}
+                        <img src="{{ employee.user.profile.google_photo_url }}" alt="{{ employee.user.profile.full_name }}" class="aspect-square w-full rounded-xl object-cover ring-1 ring-slate-200">
                     {% else %}
                         <div class="flex aspect-square w-full items-center justify-center rounded-xl bg-slate-100 text-sm text-slate-500">No profile photo</div>
                     {% endif %}
@@ -15,7 +15,7 @@
                 <div class="flex flex-col gap-3">
 
                     <div class="flex flex-wrap items-center gap-2">
-                        <h1 class="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{{employee.display_name}}</h1>
+                        <h1 class="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{{ employee.user.profile.display_name }}</h1>
                         {% if employee.staff_id %}
                             <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase text-slate-700">Staff ID: {{ employee.staff_id }}</span>
                         {% endif %}
@@ -28,15 +28,15 @@
                         </div>
                         <div>
                             <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Alt. Email</p>
-                            <p class="break-all">{{ employee.alt_email_address|default:"-" }}</p>
+                            <p class="break-all">{{ alt_email.email|default:"-" }}</p>
                         </div>
                         <div>
                             <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Phone Number</p>
-                            <p>{{ employee.phone_number|default:"-" }}</p>
+                            <p>{{ employee.user.phone|default:"-" }}</p>
                         </div>
                         <div>
                             <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Alt. Phone Number</p>
-                            <p>{{ employee.alt_phone_number|default:"-" }}</p>
+                            <p>{{ employee.user.profile.alt_phone|default:"-" }}</p>
                         </div>
                     </div>
 
@@ -62,7 +62,7 @@
             <div class="xl:col-span-3 text-center">
                 {% if employee.qr_code_image %}
                     <div class="mx-auto w-full max-w-55 sm:max-w-65 lg:max-w-75 xl:max-w-full">
-                        <img src="{{ employee.qr_code_image.url }}" alt="{{ employee.full_name }} QR" class="mx-auto aspect-square w-full rounded-xl border border-slate-200 bg-white p-1 object-contain">
+                        <img src="{{ employee.qr_code_image.url }}" alt="{{ employee.user.profile.full_name }} QR" class="mx-auto aspect-square w-full rounded-xl border border-slate-200 bg-white p-1 object-contain">
                         <div class="mt-3 flex flex-col gap-2 text-sm sm:flex-row sm:justify-center sm:gap-3">
                             <a href="{% url 'staff:download_staff_qr_pdf' employee.slug employee.id %}?format=pdf" target="_blank" class="inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-100">Download PDF</a>
                             <a href="{% url 'staff:download_staff_qr_pdf' employee.slug employee.id %}?format=png" class="inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-100">Download PNG</a>

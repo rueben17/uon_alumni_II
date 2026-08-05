@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}{{ name_title }} | {{ chapter.name }} Chapter{% endblock %}
+
+{% block content %}
+
+        <div class="container mx-auto min-h-screen space-y-1" style="max-width: 1700px;">
+            {% include "snippets/navbar.html" %}
+
+            <section class="max-w-full min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
+                <article class="px-4 py-8 mx-auto md:px-12 max-w-3xl">
+                    {% if chapter.thumbnail %}
+                        <img src="{{ chapter.get_thumbnail }}" alt="{{ chapter.name }}" class="w-full rounded-sm mb-6 object-cover">
+                    {% endif %}
+
+                    <h1 class="text-3xl font-semibold tracking-wide text-gray-900 lg:text-4xl text-balance">{{ chapter.name }} Chapter</h1>
+                    {% if chapter.faculty %}
+                        <p class="mt-2 text-sm text-gray-500">{{ chapter.faculty.faculty_name }}</p>
+                    {% endif %}
+                    {% if chapter.year_launched %}
+                        <p class="mt-1 text-xs text-gray-400">Launched {{ chapter.year_launched|date:"Y" }}</p>
+                    {% endif %}
+
+                    {% if chapter.about %}
+                        <div class="mt-6 prose max-w-none text-gray-800 whitespace-pre-line">{{ chapter.about }}</div>
+                    {% endif %}
+
+                    {% if chapter.images.exists %}
+                        <div class="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                            {% for img in chapter.images.all %}
+                                {% if img.image %}
+                                    <a href="{{ img.image.url }}" data-lightbox="chapter-gallery">
+                                        <img src="{{ img.image.url }}" alt="{{ img.alt_text }}" class="w-full aspect-square object-cover rounded-sm">
+                                    </a>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    {% if chapter.articles.exists %}
+                        <div class="mt-10">
+                            <h2 class="text-xl font-semibold text-gray-900">News from this Chapter</h2>
+                            <ul class="mt-3 space-y-2">
+                                {% for article in chapter.articles.all %}
+                                    {% if article.is_published %}
+                                        <li><a href="{{ article.get_absolute_url }}" class="text-blue-700 hover:underline">{{ article.title }}</a></li>
+                                    {% endif %}
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+
+                    <div class="mt-8">
+                        <a href="{% url 'home:uon_alumni_chapter_list' %}" class="text-sm font-semibold text-blue-700 hover:underline">&larr; Back to Chapters</a>
+                    </div>
+                </article>
+            </section>
+
+            {% include "snippets/footer.html" %}
+        </div>
+
+{% endblock content %}

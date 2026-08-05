@@ -6,25 +6,34 @@
 {% block content %}
 
         <div  class="container mx-auto min-h-screen space-y-2" style="max-width: 1700px;important;">
-            {% include "snippets/navbar.html" %} 
-            
+            {% include "snippets/navbar.html" %}
+
 
             {% include "snippets/banner.html" %}
 
-                <section id="front_page" class="max-w-8xl min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
-                    <p>Gallery page</p>
+                <section id="front_page" class="max-w-full min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
+                    <div class="px-4 py-8 mx-auto md:px-12 max-w-7xl">
+                        <h1 class="text-4xl font-semibold tracking-wide text-gray-900 lg:text-5xl text-balance">Gallery</h1>
+
+                        {% if images %}
+                            <div class="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                                {% for img in images %}
+                                    <a href="{{ img.image.url }}" data-lightbox="alumni-gallery" data-title="{{ img.alt_text }}">
+                                        <img src="{{ img.image.url }}" alt="{{ img.alt_text }}" class="w-full aspect-square object-cover rounded-sm hover:opacity-90 transition">
+                                    </a>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="mt-8 text-gray-500">No photos uploaded yet — check back soon.</p>
+                        {% endif %}
+                    </div>
                 </section>
 
-                <section id="front_page_2" class="max-w-7xl min-h-screen mx-auto  ">
-                
-                    
-                </section> 
 
- 
 
-            {% include "snippets/footer.html" %} 
+            {% include "snippets/footer.html" %}
         </div>
 
-    
+
 
 {% endblock content %}

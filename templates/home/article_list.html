@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}{{ name_title }} | News & Articles{% endblock %}
+
+{% block content %}
+
+        <div class="container mx-auto min-h-screen space-y-1" style="max-width: 1700px;">
+            {% include "snippets/navbar.html" %}
+
+            <section class="max-w-full min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
+                <div class="px-4 py-8 mx-auto md:px-12 max-w-7xl">
+                    <h1 class="text-4xl font-semibold tracking-wide text-gray-900 lg:text-5xl text-balance">News &amp; Articles</h1>
+
+                    {% if articles %}
+                        <div class="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                            {% for article in articles %}
+                                <a href="{{ article.get_absolute_url }}" class="block rounded-sm border border-slate-200 overflow-hidden hover:shadow-md transition">
+                                    <div class="aspect-video bg-slate-100">
+                                        <img src="{{ article.get_thumbnail }}" alt="{{ article.title }}" class="w-full h-full object-cover">
+                                    </div>
+                                    <div class="p-4">
+                                        <span class="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold uppercase text-blue-700">{{ article.get_type_display }}</span>
+                                        <h2 class="mt-2 text-lg font-semibold text-gray-900">{{ article.title }}</h2>
+                                        <p class="mt-1 text-sm text-gray-500">{{ article.published_at|default:article.created_at }}</p>
+                                    </div>
+                                </a>
+                            {% endfor %}
+                        </div>
+
+                        {% if is_paginated %}
+                            <div class="mt-8 flex justify-center gap-4">
+                                {% if page_obj.has_previous %}
+                                    <a href="?page={{ page_obj.previous_page_number }}" class="px-4 py-2 text-sm rounded-sm border border-slate-300 hover:bg-slate-50">Previous</a>
+                                {% endif %}
+                                <span class="px-4 py-2 text-sm text-gray-500">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                                {% if page_obj.has_next %}
+                                    <a href="?page={{ page_obj.next_page_number }}" class="px-4 py-2 text-sm rounded-sm border border-slate-300 hover:bg-slate-50">Next</a>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <p class="mt-8 text-gray-500">Nothing published yet — check back soon.</p>
+                    {% endif %}
+                </div>
+            </section>
+
+            {% include "snippets/footer.html" %}
+        </div>
+
+{% endblock content %}
