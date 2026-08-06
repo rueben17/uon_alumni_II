@@ -579,6 +579,16 @@ actually *see* — but it must not consume the time self-service needs.
   2026-08-06: leave unwired.** Core focus is alumni onboarding + self-service;
   staff is internal and can wait. Revisit only if the Association explicitly
   asks for a staff portal, not as a byproduct of wiring the main site's nav.
+- **Site-wide background image (visual polish).** Tried a fixed, cover-sized
+  Cloudinary photo on `<body>` in `base.html` (shows through via template
+  inheritance on every page) plus a transparent navbar, to cut down on how
+  much flat white space the site reads as. Verified working live via a
+  scrolled-viewport screenshot. **Parked, not merged** — sits on its own
+  branch `aesthetic/site-background-image`, reverted out of
+  `feature/google-auth-qr-redirect` 2026-08-06. Purely cosmetic; revisit once
+  core functionality (Phase 0.4/1) is further along, and check text
+  legibility against the photo (some sections have no card behind their
+  copy) before shipping it.
 
 **Also pending — not technical, but blocking "done":** the Association must
 ratify the open *policy* items — final tier benefit values (1.6), Platinum and
