@@ -181,7 +181,9 @@
                                 <a href="{{ url_categories_benefits }}" class="px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Categories & Benefits</a>
                                 <a href="{{ url_register }}" class="px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Register</a>
                                 <a href="{{ url_alumni_card }}" class="px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Alumni Card</a>
-                                <a href="{{ url_membership_update }}" class="px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Upgrade Membership</a>
+                                {% if url_membership_update %}
+                                    <a href="{{ url_membership_update }}" class="px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Upgrade Membership</a>
+                                {% endif %}
                                 <a href="{{ url_corporates }}" class="px-3 py-2 transition hover:bg-blue-400 hover:text-white cursor-pointer">Corporates</a>
                                 <a href="{{ url_notable_alumni }}" class="flex items-center justify-center p-3 transition bg-yellow-400 text-slate-700 hover:bg-blue-400 hover:text-black cursor-pointer">
                                     Our Notable Alumni
@@ -390,7 +392,9 @@
                                         <a href="{{ url_register }}" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Register</a>
                                         <a href="{{ url_categories_benefits }}" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Categories & Benefits</a>
                                         <a href="{{ url_alumni_card }}" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Alumni Card</a>
-                                        <a href="{{ url_membership_update }}" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Upgrade Membership</a>
+                                        {% if url_membership_update %}
+                                            <a href="{{ url_membership_update }}" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Upgrade Membership</a>
+                                        {% endif %}
                                         <a href="{{ url_notable_alumni }}" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Our Notable Alumni</a>
                                         <a href="{{ url_corporates }}" class="block px-3 py-2 text-sm transition font-light hover:bg-blue-400 hover:text-white cursor-pointer">Corporate</a>
                                     </div>
