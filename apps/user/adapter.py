@@ -80,6 +80,25 @@ def _ensure_profile(user, extra_data=None):
     return profile
 
 
+def _sync_google_account_fields(user, extra_data):
+    """
+    Sets google_sub/email_verified/auth_provider from a Google payload.
+
+    Bug fixed 2026-08-07: this used to live inline in save_user() only,
+    which runs exclusively for brand-new signups. An EXISTING account
+    logging in again (e.g. one created before this code existed, or
+    created directly rather than through a Google signup) went through
+    pre_social_login()'s is_existing branch instead, which called
+    _ensure_profile() but never this -- so those three fields stayed
+    permanently blank no matter how many times the user logged in via
+    Google. Now called from both places.
+    """
+    user.google_sub = extra_data.get("sub")
+    user.email_verified = extra_data.get("email_verified", False)
+    user.auth_provider = User.AuthProvider.GOOGLE
+    user.save(update_fields=["google_sub", "email_verified", "auth_provider"])
+
+
 def _ensure_employee(user):
     """
     Get or create the Employee record for a user. Called on every
@@ -125,12 +144,22 @@ def _staff_subdomain_url(request, path):
 
 def _admin_onboarding_redirect_url(user, request):
     """
-    Superusers/staff (Django's is_staff/is_superuser) must have both a
-    complete Employee record and an AlumniProfile before landing in the
-    Django admin. Returns the next URL they should be sent to, or None
-    if both are already complete (caller then sends them to the admin).
-    Employee is checked first -- matches the staff-subdomain completeness
-    gate's own priority.
+    is_staff (non-superuser) accounts must have both a complete Employee
+    record and an AlumniProfile before landing in the Django admin --
+    presumed to be real UoN staff granted limited admin access, so the
+    same completeness gate as the staff subdomain applies. Returns the
+    next URL they should be sent to, or None if both are already
+    complete (caller then sends them to the admin). Employee is checked
+    first -- matches the staff-subdomain completeness gate's own
+    priority.
+
+    NOT called for is_superuser accounts (2026-08-07) -- see the
+    is_superuser bypass in get_login_redirect_url()/get_signup_
+    redirect_url() below. A Django superuser is a dev/admin concept,
+    not evidence the account belongs to actual UoN staff; routing it
+    through here auto-created an empty Employee stub on every login and
+    then blocked on completing it, unrelated to why a superuser needs
+    admin access.
     """
     employee = _ensure_employee(user)
     if not employee.profile_is_complete:
@@ -235,7 +264,16 @@ class CustomAccountAdapter(DefaultAccountAdapter):
         logger.debug("Login redirect: subdomain=%s user=%s", subdomain, user)
 
         if user and user.is_authenticated:
-            if user.is_staff or user.is_superuser:
+            # Superusers skip the staff-onboarding gate entirely (2026-08-07):
+            # is_superuser is a Django/dev-admin concept, not "this person is
+            # UoN staff" -- gating it on Employee completeness was auto-
+            # creating an empty Employee stub for every superuser login and
+            # then blocking on it, which has nothing to do with why a
+            # superuser needs admin access in the first place.
+            if user.is_superuser:
+                return reverse("admin:index")
+
+            if user.is_staff:
                 next_url = _admin_onboarding_redirect_url(user, request)
                 return next_url or reverse("admin:index")
 
@@ -284,7 +322,11 @@ class CustomAccountAdapter(DefaultAccountAdapter):
         user = getattr(request, "user", None)
 
         if user and user.is_authenticated:
-            if user.is_staff or user.is_superuser:
+            # Same superuser bypass as get_login_redirect_url() above.
+            if user.is_superuser:
+                return reverse("admin:index")
+
+            if user.is_staff:
                 next_url = _admin_onboarding_redirect_url(user, request)
                 return next_url or reverse("admin:index")
 
@@ -409,6 +451,7 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
             subdomain = getattr(request, "subdomain", None)
             user = sociallogin.user
             _ensure_profile(user, sociallogin.account.extra_data)
+            _sync_google_account_fields(user, sociallogin.account.extra_data)
 
             if subdomain == "staff":
                 _ensure_employee(user)
@@ -432,10 +475,7 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
 
         extra = sociallogin.account.extra_data
 
-        user.google_sub = extra.get("sub")
-        user.email_verified = extra.get("email_verified", False)
-        user.auth_provider = User.AuthProvider.GOOGLE
-        user.save()
+        _sync_google_account_fields(user, extra)
 
         # Name/photo/locale live on UserProfile now, not User (docs/
         # rebuild-schema.md). `hd` (Google Workspace domain) is dropped
