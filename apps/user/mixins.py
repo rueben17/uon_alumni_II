@@ -1,11 +1,24 @@
 from functools import wraps
 
+from django.contrib.auth.mixins import UserPassesTestMixin
 from django.shortcuts import redirect
 from django.urls import reverse
 
 
 def _is_admin_user(user):
     return user.is_authenticated and (user.is_staff or user.is_superuser)
+
+
+class StaffOrSuperuserRequiredMixin(UserPassesTestMixin):
+    """Gate for staff/superadmin-only views (e.g. membership analytics) --
+    same is_staff/is_superuser check as _is_admin_user above, inverted:
+    this DENIES anyone who isn't one, rather than redirecting them away
+    from an alumni-facing view. Raises Django's standard 403 (via
+    UserPassesTestMixin's default) for anyone else, including anonymous
+    users -- not a silent redirect, since this gates actual data."""
+
+    def test_func(self):
+        return _is_admin_user(self.request.user)
 
 
 class AdminRedirectMixin:
