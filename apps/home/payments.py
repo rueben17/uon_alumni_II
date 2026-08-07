@@ -31,8 +31,8 @@ class PaymentGateway:
 
 class ManualGateway(PaymentGateway):
     """
-    No online processing -- the Payment stays 'pending' (cash/bank_transfer/
-    cheque) or 'pending_verification' until a supervisor confirms it.
+    No online processing -- the Payment stays 'pending' (mpesa/credit_card/
+    bank_transfer) or 'pending_verification' until a supervisor confirms it.
     """
 
     def initiate(self, payment):
@@ -50,8 +50,6 @@ GATEWAYS = {
     "mpesa": ManualGateway,
     "credit_card": ManualGateway,
     "bank_transfer": ManualGateway,
-    "cash": ManualGateway,
-    "cheque": ManualGateway,
 }
 
 
