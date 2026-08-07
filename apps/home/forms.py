@@ -1,6 +1,8 @@
+from decimal import Decimal
+
 from django import forms
 
-from apps.home.models import AlumniProfile, ContactMessage, MembershipTier, Payment, Qualification
+from apps.home.models import AlumniProfile, ContactMessage, Membership, MembershipTier, Payment, Qualification
 from apps.user.models import Gender, Honorific, User, UserProfile
 from apps.user.phone import InvalidPhoneNumber, normalize_phone
 from main.forms import TailwindStyledFormMixin
@@ -353,6 +355,52 @@ class AlumniRegistrationForm(AlumniProfileForm):
         choices=Payment.PAYMENT_METHODS,
         label="Payment Method",
     )
+    # Installment plans (2026-08-07): payment_frequency already existed on
+    # Membership but nothing let a member actually choose it. "Once" pays
+    # the full tier fee now; anything else starts a plan -- membership
+    # activates on this first payment regardless of amount (Association
+    # decision), the rest tracked as a running balance and confirmed
+    # manually by the Secretariat like every other payment here.
+    payment_frequency = forms.ChoiceField(
+        choices=Membership.PaymentFrequency.choices,
+        initial=Membership.PaymentFrequency.ONCE,
+        label="Payment Frequency",
+        help_text="Choose Once to pay the full fee now, or a recurring option to pay in installments.",
+    )
+    installment_amount = forms.DecimalField(
+        required=False, min_value=Decimal("0.01"), max_digits=10, decimal_places=2,
+        label="Amount for this installment",
+        help_text="Only needed if Payment Frequency above isn't 'Once' -- leave blank to pay the full fee.",
+    )
+    # DPA 2019 consent gate -- required=True means the form itself refuses
+    # to validate without it, not just a UI nicety. AlumniRegisterView
+    # stamps consent_given_at/privacy_notice_version once this (and
+    # everything else) passes. Not a model field: nothing to save here
+    # directly, it only gates submission.
+    privacy_consent = forms.BooleanField(
+        required=True,
+        label="I have read and agree to the Privacy Policy",
+        help_text="Required under the Data Protection Act, 2019. Read it first: /uon-alumni-page/privacy/",
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        frequency = cleaned_data.get("payment_frequency")
+        installment_amount = cleaned_data.get("installment_amount")
+        if frequency and frequency != Membership.PaymentFrequency.ONCE and not installment_amount:
+            self.add_error("installment_amount", "Required when Payment Frequency isn't 'Once'.")
+
+        # M-Pesa gated per-tier (2026-08-07): available up to Gold's fee,
+        # everything above must go through bank transfer -- see
+        # MembershipTier.allows_mpesa for why this is fee-based, not
+        # ladder_rank-based.
+        tier = cleaned_data.get("membership_tier")
+        if tier and cleaned_data.get("payment_method") == "mpesa" and not tier.allows_mpesa:
+            self.add_error(
+                "payment_method",
+                f"M-Pesa isn't available for {tier.name} -- please choose Bank Transfer instead.",
+            )
+        return cleaned_data
 
 
 class MembershipUpdateForm(TailwindStyledFormMixin, forms.Form):
@@ -374,7 +422,33 @@ class MembershipUpdateForm(TailwindStyledFormMixin, forms.Form):
         label="Payment Method",
         help_text="How you'll be paying.",
     )
+    payment_frequency = forms.ChoiceField(
+        choices=Membership.PaymentFrequency.choices,
+        initial=Membership.PaymentFrequency.ONCE,
+        label="Payment Frequency",
+        help_text="Choose Once to pay the full fee now, or a recurring option to pay in installments.",
+    )
+    installment_amount = forms.DecimalField(
+        required=False, min_value=Decimal("0.01"), max_digits=10, decimal_places=2,
+        label="Amount for this installment",
+        help_text="Only needed if Payment Frequency above isn't 'Once' -- leave blank to pay the full fee.",
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.apply_tailwind_styling()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        frequency = cleaned_data.get("payment_frequency")
+        installment_amount = cleaned_data.get("installment_amount")
+        if frequency and frequency != Membership.PaymentFrequency.ONCE and not installment_amount:
+            self.add_error("installment_amount", "Required when Payment Frequency isn't 'Once'.")
+
+        tier = cleaned_data.get("membership_tier")
+        if tier and cleaned_data.get("payment_method") == "mpesa" and not tier.allows_mpesa:
+            self.add_error(
+                "payment_method",
+                f"M-Pesa isn't available for {tier.name} -- please choose Bank Transfer instead.",
+            )
+        return cleaned_data

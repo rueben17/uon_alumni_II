@@ -2,9 +2,136 @@ from django.contrib import admin
 from apps.home.models import*
 from django.db.models import Count
 from django.utils.html import format_html
+from import_export import resources, fields
+from import_export.admin import ExportMixin
 
 from apps.home.membership_admin_site import membership_admin_site
 # Register your models here.
+
+# ─────────────────────────────────────────────
+# Spreadsheet export (todo.md 1.8) -- staff/superadmin only by construction:
+# this lives inside Django admin, which already requires is_staff=True to
+# log in at all, same gate as every other screen here. Export-only for now
+# (ExportMixin, not ImportMixin) -- the real legacy-membership *import* is
+# its own Resource, still blocked on seeing the actual data file.
+# ─────────────────────────────────────────────
+
+class MembershipResource(resources.ModelResource):
+    email = fields.Field(column_name='Email')
+    full_name = fields.Field(column_name='Full Name')
+    phone = fields.Field(column_name='Phone')
+    tier_name = fields.Field(column_name='Tier')
+    faculty = fields.Field(column_name='Faculty')
+
+    class Meta:
+        model = Membership
+        fields = (
+            'membership_number', 'email', 'full_name', 'phone', 'tier_name',
+            'faculty', 'status', 'is_lifetime', 'started_on', 'expires_on',
+            'subscription_amount', 'payment_frequency', 'legacy_signed',
+            'card_issued', 'certificate_issued', 'created_at',
+        )
+        export_order = fields
+
+    def dehydrate_email(self, obj):
+        return obj.user.email
+
+    def dehydrate_full_name(self, obj):
+        profile = getattr(obj.user, 'profile', None)
+        return profile.display_name if profile else ''
+
+    def dehydrate_phone(self, obj):
+        return str(obj.user.phone) if obj.user.phone else ''
+
+    def dehydrate_tier_name(self, obj):
+        return obj.tier.name if obj.tier_id else ''
+
+    def dehydrate_faculty(self, obj):
+        alumni = getattr(obj.user, 'alumni_profile', None)
+        return alumni.faculty.faculty_name if alumni and alumni.faculty_id else ''
+
+
+class AlumniProfileResource(resources.ModelResource):
+    email = fields.Field(column_name='Email')
+    full_name = fields.Field(column_name='Full Name')
+    phone = fields.Field(column_name='Phone')
+    faculty_name = fields.Field(column_name='Faculty')
+    qualification_name = fields.Field(column_name='Qualification')
+    current_membership = fields.Field(column_name='Current Membership')
+
+    class Meta:
+        model = AlumniProfile
+        fields = (
+            'email', 'full_name', 'phone', 'faculty_name', 'qualification_name',
+            'graduation_year', 'current_employer', 'employment_position',
+            'current_membership', 'is_active', 'registration_date',
+        )
+        export_order = fields
+
+    def dehydrate_email(self, obj):
+        return obj.user.email
+
+    def dehydrate_full_name(self, obj):
+        return obj.user.profile.display_name if hasattr(obj.user, 'profile') else ''
+
+    def dehydrate_phone(self, obj):
+        return str(obj.user.phone) if obj.user.phone else ''
+
+    def dehydrate_faculty_name(self, obj):
+        return obj.faculty.faculty_name if obj.faculty_id else ''
+
+    def dehydrate_qualification_name(self, obj):
+        return obj.qualification.name if obj.qualification_id else ''
+
+    def dehydrate_current_membership(self, obj):
+        membership = Membership.objects.current_for(obj.user)
+        return f"{membership.tier.name} ({membership.get_status_display()})" if membership else ''
+
+# ─────────────────────────────────────────────
+# Faculty / Department -- moved from apps.staff.admin (2026-08-06), same
+# move as the models themselves. See apps/home/models.py's docstring.
+# ─────────────────────────────────────────────
+
+class DepartmentInline(admin.TabularInline):
+    model = Department
+    extra = 0
+    fields = ("name",)
+    show_change_link = True
+
+
+@admin.register(Faculty)
+class FacultyAdmin(admin.ModelAdmin):
+    list_display = ("faculty_name", "department_count")
+    search_fields = ("faculty_name",)
+    ordering = ("faculty_name",)
+    inlines = [DepartmentInline]
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(
+            dept_count=Count("departments")
+        )
+
+    @admin.display(description="Departments")
+    def department_count(self, obj):
+        return obj.dept_count
+
+
+@admin.register(Department)
+class DepartmentAdmin(admin.ModelAdmin):
+    list_display = ("name", "faculty", "employee_count")
+    list_filter = ("faculty",)
+    search_fields = ("name", "faculty__faculty_name")
+    ordering = ("faculty__faculty_name", "name")
+    autocomplete_fields = ("faculty",)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(
+            emp_count=Count("employees")
+        )
+
+    @admin.display(description="Employees")
+    def employee_count(self, obj):
+        return obj.emp_count
 
 # ─────────────────────────────────────────────
 # Gallery inlines -- Images has one FK per attachable model (todo.md
@@ -176,8 +303,21 @@ class PaymentInline(admin.TabularInline):
     can_delete = False
 
 
+class AlumniQualificationInline(admin.TabularInline):
+    model = AlumniQualification
+    extra = 0
+    fields = ['order', 'legacy_college', 'faculty', 'qualification', 'course_name_raw', 'graduation_year']
+
+
+class AlumniEmploymentRecordInline(admin.TabularInline):
+    model = AlumniEmploymentRecord
+    extra = 0
+    fields = ['order', 'organization', 'position']
+
+
 @admin.register(AlumniProfile)
-class AlumniProfileAdmin(admin.ModelAdmin):
+class AlumniProfileAdmin(ExportMixin, admin.ModelAdmin):
+    resource_class = AlumniProfileResource
     # Personal data (name/DOB/national ID/contact) lives on UserProfile
     # now, edited via the User admin's inline -- not here. Membership
     # data (tier/status/expiry/issued items) lives on Membership,
@@ -208,7 +348,7 @@ class AlumniProfileAdmin(admin.ModelAdmin):
             'fields': ('is_active', 'registration_date', 'last_updated')
         }),
     )
-    inlines = [PaymentInline]
+    inlines = [PaymentInline, AlumniQualificationInline, AlumniEmploymentRecordInline]
 
     @admin.display(description='Name')
     def display_name(self, obj):
@@ -227,12 +367,29 @@ class AlumniProfileAdmin(admin.ModelAdmin):
 
 
 @admin.register(Membership)
-class MembershipAdmin(admin.ModelAdmin):
-    list_display = ['user', 'tier', 'status', 'is_lifetime', 'expires_on', 'membership_number']
-    list_filter = ['status', 'is_lifetime', 'tier']
+class MembershipAdmin(ExportMixin, admin.ModelAdmin):
+    resource_class = MembershipResource
+    list_display = [
+        'user', 'tier', 'status', 'is_lifetime', 'expires_on',
+        'membership_number', 'payment_frequency', 'amount_paid_display',
+        'balance_due_display', 'overdue_display', 'legacy_signed',
+    ]
+    list_filter = ['status', 'is_lifetime', 'tier', 'payment_frequency', 'legacy_signed']
     search_fields = ['user__email', 'user__profile__given_name', 'user__profile__family_name', 'membership_number']
-    readonly_fields = ['created_at', 'updated_at']
+    readonly_fields = ['created_at', 'updated_at', 'balance_due_display']
     actions = ['issue_membership_card', 'mark_as_lifetime']
+
+    @admin.display(description='Paid')
+    def amount_paid_display(self, obj):
+        return f"KES {obj.amount_paid}"
+
+    @admin.display(description='Balance Due')
+    def balance_due_display(self, obj):
+        return f"KES {obj.balance_due}" if obj.is_installment_plan else '—'
+
+    @admin.display(description='Overdue', boolean=True)
+    def overdue_display(self, obj):
+        return obj.is_overdue
 
     @admin.action(description="Issue membership card to selected")
     def issue_membership_card(self, request, queryset):
@@ -254,10 +411,11 @@ class PaymentAdmin(admin.ModelAdmin):
         'alumni__user__profile__family_name', 'alumni__user__email',
     ]
     readonly_fields = ['transaction_reference', 'created_at', 'updated_at']
+    autocomplete_fields = ['membership']
     actions = ['mark_completed', 'mark_failed', 'mark_pending_verification', 'mark_refunded']
     fieldsets = (
         ('Alumni & Tier', {
-            'fields': ('alumni', 'membership_tier')
+            'fields': ('alumni', 'membership_tier', 'membership')
         }),
         ('Payment Info', {
             'fields': ('amount', 'payment_method', 'payment_status', 'transaction_reference')
@@ -284,29 +442,39 @@ class PaymentAdmin(admin.ModelAdmin):
 
     def mark_completed(self, request, queryset):
         """
-        Confirm payment, then activate the Membership row the payment was
-        for. Each registration/renewal/upgrade request already created
-        its own pending Membership row (apps/home/views.py) -- this finds
-        that row and calls Membership.activate() on it, rather than
-        mutating fields directly (that's the one door todo.md 1.3 wants,
-        stated once on the model -- see apps/home/models.py). Skips
-        payments with no membership_tier set (shouldn't happen given how
-        Payment rows are created, but nothing to apply if it is).
+        Confirm payment, then update the Membership row the payment was
+        for -- rather than mutating fields directly (that's the one door
+        todo.md 1.3 wants, stated once on the model). Two paths:
+
+        - payment.membership is set (installment payments -- apps/home/views.py
+          links this explicitly now): call record_installment_payment(),
+          which accumulates amount_paid and activates on the first call
+          without assuming the full tier fee was paid.
+        - payment.membership is unset (lump-sum payments, or older rows that
+          predate the FK): fall back to the original lookup-by-(user,tier,
+          pending) then activate() in full, same as before.
+
+        Skips payments with no membership_tier set (shouldn't happen given
+        how Payment rows are created, but nothing to apply if it is).
         """
         updated = 0
-        for payment in queryset.select_related('alumni__user', 'membership_tier'):
+        for payment in queryset.select_related('alumni__user', 'membership_tier', 'membership'):
             payment.mark_as_completed()
             tier = payment.membership_tier
             if not tier:
                 continue
-            user = payment.alumni.user
-            membership = Membership.objects.filter(
-                user=user, tier=tier, status=Membership.Status.PENDING
-            ).order_by('-created_at').first()
-            if membership is None:
-                membership = Membership.objects.create(user=user, tier=tier)
             payment_date = payment.payment_date.date() if payment.payment_date else None
-            membership.activate(payment_date=payment_date)
+
+            if payment.membership_id:
+                payment.membership.record_installment_payment(payment.amount, payment_date=payment_date)
+            else:
+                user = payment.alumni.user
+                membership = Membership.objects.filter(
+                    user=user, tier=tier, status=Membership.Status.PENDING
+                ).order_by('-created_at').first()
+                if membership is None:
+                    membership = Membership.objects.create(user=user, tier=tier)
+                membership.activate(payment_date=payment_date)
             updated += 1
         self.message_user(request, f"{updated} payment(s) marked completed and membership updated.")
     mark_completed.short_description = "Mark selected payments as completed (and update membership)"

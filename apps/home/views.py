@@ -3,13 +3,16 @@ from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.mail import send_mail
+from django.db.models import Count, Sum
+from django.db.models.functions import TruncMonth
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.generic import CreateView, DetailView, ListView, UpdateView, View
+from django.views.generic import CreateView, DetailView, ListView, TemplateView, UpdateView, View
 
 from apps.home.forms import AlumniProfileForm, AlumniRegistrationForm, ContactForm, MembershipUpdateForm
 from apps.home.models import*
 from apps.home.payments import initiate_payment
+from apps.user.mixins import StaffOrSuperuserRequiredMixin
 
 # Create your views here.
 
@@ -223,7 +226,25 @@ class QualificationMapMixin:
         return context
 
 
-class AlumniRegisterView(QualificationMapMixin, LoginRequiredMixin, CreateView):
+class MpesaEligibilityMixin:
+    """
+    Feeds which MembershipTier ids DON'T allow M-Pesa (tier.fee above
+    MembershipTier.MPESA_FEE_CEILING) so the template's JS can disable
+    that option client-side when an ineligible tier is picked. Purely a
+    UX nicety -- the form's clean() is the actual, authoritative gate;
+    this just avoids a round-trip for a combination that's guessable
+    upfront.
+    """
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["non_mpesa_tier_ids"] = list(
+            MembershipTier.objects.filter(fee__gt=MembershipTier.MPESA_FEE_CEILING).values_list("id", flat=True)
+        )
+        return context
+
+
+class AlumniRegisterView(MpesaEligibilityMixin, QualificationMapMixin, LoginRequiredMixin, CreateView):
     """
     One-time alumni onboarding. The login/signup adapter sends every
     user without an AlumniProfile here (apps/user/adapter.py); once
@@ -243,18 +264,36 @@ class AlumniRegisterView(QualificationMapMixin, LoginRequiredMixin, CreateView):
         form.instance.user = self.request.user
         response = super().form_valid(form)
 
+        # DPA 2019 consent: form.privacy_consent already gated submission
+        # (required=True), so reaching here means it was checked. Stamp
+        # when and against which version -- never inferred, never
+        # backdated, and never overwritten on a later profile edit (this
+        # view only runs once, at registration).
+        from apps.user.models import CURRENT_PRIVACY_NOTICE_VERSION
+        profile = self.request.user.profile
+        profile.consent_given_at = timezone.now()
+        profile.privacy_notice_version = CURRENT_PRIVACY_NOTICE_VERSION
+        profile.save(update_fields=["consent_given_at", "privacy_notice_version"])
+
         # Only records the request -- membership number/tier assignment,
         # renewal, upgrading, and everything under #Issued Items happen
         # in the Membership Admin site once a Secretariat member confirms
         # the payment (see PaymentAdmin.mark_completed in apps/home/admin.py).
+        # Membership created first so Payment.membership can link directly
+        # to it -- installment payments need that (apps/home/models.py's
+        # record_installment_payment); a lump-sum "Once" payment still
+        # covers the full tier.fee in one shot, same as before.
         tier = form.cleaned_data["membership_tier"]
+        frequency = form.cleaned_data["payment_frequency"]
+        amount = form.cleaned_data.get("installment_amount") or tier.fee
+        membership = Membership.objects.create(user=self.request.user, tier=tier, payment_frequency=frequency)
         payment = Payment.objects.create(
             alumni=self.object,
+            membership=membership,
             membership_tier=tier,
-            amount=tier.fee,
+            amount=amount,
             payment_method=form.cleaned_data["payment_method"],
         )
-        Membership.objects.create(user=self.request.user, tier=tier)
         initiate_payment(payment)
 
         messages.success(self.request, "Welcome! Your alumni profile is complete.")
@@ -294,15 +333,17 @@ class AlumniProfileDetailView(DetailView):
 
 class AlumniProfileUpdateView(QualificationMapMixin, LoginRequiredMixin, UpdateView):
     """
-    Opt-in profile editing. Always operates on the logged-in user's own
-    record — no pk in the URL, so identity comes from the session.
+    Opt-in profile editing. The URL carries slug+pk now (readability --
+    matches alumni_detail's pattern), but ownership is still enforced by
+    filtering on user=request.user alongside it: someone editing the URL's
+    UUID to another member's profile gets a 404, not someone else's form.
     """
     model = AlumniProfile
     form_class = AlumniProfileForm
     template_name = "home/alumni_profile_update.html"
 
     def get_object(self, queryset=None):
-        return get_object_or_404(AlumniProfile, user=self.request.user)
+        return get_object_or_404(AlumniProfile, pk=self.kwargs["pk"], user=self.request.user)
 
     def get_success_url(self):
         return self.object.get_absolute_url()
@@ -322,16 +363,33 @@ class AlumniMembershipUpdateView(LoginRequiredMixin, View):
     Admin site once a Secretariat member confirms the payment (see
     PaymentAdmin.mark_completed in apps/home/admin.py), same as
     registration.
+
+    Restricted to already-paid-up members (2026-08-07): at least one
+    ACTIVE or EXPIRED Membership, not just the still-pending one from
+    registering. Someone who's never had a payment confirmed has nothing
+    to renew/upgrade yet -- enforced here, not just by hiding the navbar
+    link (apps/home/context_processors.py), since the URL is guessable.
     """
     template_name = "home/alumni_membership_update.html"
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated and not hasattr(request.user, "alumni_profile"):
             return redirect("home:uon_alumni_register")
+        if request.user.is_authenticated and hasattr(request.user, "alumni_profile"):
+            has_paid_membership = Membership.objects.filter(user=request.user).exclude(
+                status=Membership.Status.PENDING
+            ).exists()
+            if not has_paid_membership:
+                messages.info(
+                    request,
+                    "Your membership is still pending confirmation. You'll be able to renew or "
+                    "upgrade here once the Secretariat confirms your first payment.",
+                )
+                return redirect(request.user.alumni_profile.get_absolute_url())
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request, *args, **kwargs):
-        alumni = get_object_or_404(AlumniProfile, user=request.user)
+        alumni = get_object_or_404(AlumniProfile, pk=kwargs["pk"], user=request.user)
         current_membership = Membership.objects.current_for(request.user)
         form = MembershipUpdateForm(
             initial={"membership_tier": current_membership.tier_id if current_membership else None}
@@ -339,28 +397,55 @@ class AlumniMembershipUpdateView(LoginRequiredMixin, View):
         pending_payment = alumni.payments.filter(
             payment_status__in=["pending", "pending_verification"]
         ).order_by("-payment_date").first()
+        non_mpesa_tier_ids = list(
+            MembershipTier.objects.filter(fee__gt=MembershipTier.MPESA_FEE_CEILING).values_list("id", flat=True)
+        )
         return render(request, self.template_name, {
             "alumni": alumni,
             "current_membership": current_membership,
             "form": form,
             "pending_payment": pending_payment,
+            "non_mpesa_tier_ids": non_mpesa_tier_ids,
         })
 
     def post(self, request, *args, **kwargs):
-        alumni = get_object_or_404(AlumniProfile, user=request.user)
+        alumni = get_object_or_404(AlumniProfile, pk=kwargs["pk"], user=request.user)
+
+        # Guard against a second overlapping request: submitting twice
+        # (double-click, or coming back before the Secretariat has acted)
+        # used to silently create a second pending Membership+Payment pair
+        # with nothing to prevent BOTH from later being confirmed --
+        # ending up with two simultaneously-active memberships for one
+        # person, with current_for() only ever showing the newer one and
+        # the older one silently forgotten. Block instead of guessing at
+        # what "reuse the existing request" should even mean (change its
+        # tier? its amount? that's real business-rule work, not a
+        # mechanical fix) -- same reasoning as why 1.3's service layer
+        # isn't built yet.
+        if Membership.objects.filter(user=request.user, status=Membership.Status.PENDING).exists():
+            messages.warning(
+                request,
+                "You already have a membership request awaiting Secretariat confirmation. "
+                "Contact the Secretariat if you need to change it before it's processed.",
+            )
+            return redirect(alumni.get_membership_update_url())
+
         form = MembershipUpdateForm(request.POST)
 
         if not form.is_valid():
             return render(request, self.template_name, {"alumni": alumni, "form": form})
 
         tier = form.cleaned_data["membership_tier"]
+        frequency = form.cleaned_data["payment_frequency"]
+        amount = form.cleaned_data.get("installment_amount") or tier.fee
+        membership = Membership.objects.create(user=request.user, tier=tier, payment_frequency=frequency)
         payment = Payment.objects.create(
             alumni=alumni,
+            membership=membership,
             membership_tier=tier,
-            amount=tier.fee,
+            amount=amount,
             payment_method=form.cleaned_data["payment_method"],
         )
-        Membership.objects.create(user=request.user, tier=tier)
         initiate_payment(payment)
 
         messages.success(request, "Request recorded. Your membership updates once the Secretariat confirms the payment.")
@@ -375,16 +460,88 @@ class AlumniProfileDeleteView(LoginRequiredMixin, View):
     template_name = "home/alumni_profile_delete_confirm.html"
 
     def get(self, request, *args, **kwargs):
-        alumni = get_object_or_404(AlumniProfile, user=request.user)
+        alumni = get_object_or_404(AlumniProfile, pk=kwargs["pk"], user=request.user)
         return render(request, self.template_name, {"alumni": alumni})
 
     def post(self, request, *args, **kwargs):
-        alumni = get_object_or_404(AlumniProfile, user=request.user)
+        alumni = get_object_or_404(AlumniProfile, pk=kwargs["pk"], user=request.user)
         alumni.is_active = False
         alumni.save(update_fields=["is_active"])
         messages.success(request, "Your alumni profile has been deactivated.")
         logout(request)
         return redirect("home:uon_alumni_home")
+
+
+class MembershipAnalyticsView(StaffOrSuperuserRequiredMixin, TemplateView):
+    """
+    Staff/superadmin-only membership analytics (todo.md 1.9) -- Chart.js
+    dashboard over Membership/AlumniProfile/Faculty. Deliberately separate
+    from AlumniProfileDetailView's self-service dashboard: this is
+    leadership reporting across *all* members, not one member's own view.
+
+    Ships aggregates as JSON in the template context (json_script'd) rather
+    than a separate API endpoint -- there is no other consumer yet, and a
+    same-request context var is one less moving part than a fetch() round
+    trip for data that's cheap to compute per page load at today's scale.
+    """
+    template_name = "home/membership_analytics.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        by_tier = list(
+            Membership.objects.values("tier__name")
+            .annotate(count=Count("id"), revenue=Sum("subscription_amount"))
+            .order_by("-count")
+        )
+        by_status = list(
+            Membership.objects.values("status")
+            .annotate(count=Count("id"))
+            .order_by("-count")
+        )
+        by_faculty = list(
+            Membership.objects.exclude(user__alumni_profile__faculty__isnull=True)
+            .values("user__alumni_profile__faculty__faculty_name")
+            .annotate(count=Count("id"))
+            .order_by("-count")[:10]
+        )
+        monthly_revenue = list(
+            Membership.objects.exclude(started_on__isnull=True)
+            .annotate(month=TruncMonth("started_on"))
+            .values("month")
+            .annotate(revenue=Sum("subscription_amount"))
+            .order_by("month")
+        )
+        signed_counts = list(
+            Membership.objects.values("legacy_signed").annotate(count=Count("id"))
+        )
+
+        context["chart_data"] = {
+            "by_tier": {
+                "labels": [row["tier__name"] or "—" for row in by_tier],
+                "counts": [row["count"] for row in by_tier],
+                "revenue": [float(row["revenue"] or 0) for row in by_tier],
+            },
+            "by_status": {
+                "labels": [dict(Membership.Status.choices).get(row["status"], row["status"]) for row in by_status],
+                "counts": [row["count"] for row in by_status],
+            },
+            "by_faculty": {
+                "labels": [row["user__alumni_profile__faculty__faculty_name"] for row in by_faculty],
+                "counts": [row["count"] for row in by_faculty],
+            },
+            "monthly_revenue": {
+                "labels": [row["month"].strftime("%b %Y") for row in monthly_revenue],
+                "revenue": [float(row["revenue"] or 0) for row in monthly_revenue],
+            },
+            "signed_coverage": {
+                "signed": next((row["count"] for row in signed_counts if row["legacy_signed"]), 0),
+                "unsigned": next((row["count"] for row in signed_counts if not row["legacy_signed"]), 0),
+            },
+        }
+        context["total_members"] = Membership.objects.count()
+        context["total_revenue"] = Membership.objects.aggregate(total=Sum("subscription_amount"))["total"] or 0
+        return context
 
 
 def uon_alumni_donate(request):

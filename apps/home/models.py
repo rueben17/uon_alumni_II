@@ -18,11 +18,81 @@ import random
 import string
 from datetime import datetime
 from django.contrib.auth import get_user_model
+from phonenumber_field.modelfields import PhoneNumberField
 
 from apps.user.models import Honorific
 
 User = get_user_model()
 # Create your models here.
+
+
+# -------------------------------------------------------------------
+# Faculty, Department -- moved from apps.staff.models (2026-08-06).
+# Academic/institutional structure, not a staff concept: AlumniProfile,
+# Chapter, InMemoriam, Qualification (all here) and Student.faculty were
+# always the heavier consumers than apps.staff, which only ever reached
+# Faculty transitively through Department. apps.staff.Employee.department
+# and apps.staff.ResearchUnit.parent_faculty now FK here cross-app
+# ('home.Department' / 'home.Faculty'). See docs/todo.md.
+# -------------------------------------------------------------------
+
+def get_department_slug(instance):
+    return slugify(f"{instance.faculty.faculty_name} {instance.name}")
+
+
+class Faculty(models.Model):
+    faculty_name = models.CharField(
+        max_length=255,
+        unique=True,
+        verbose_name=_("Faculty Name"),
+        help_text=_("Official name of the faculty (e.g., 'Agriculture')"),
+    )
+    description = models.TextField(blank=True, null=True, verbose_name=_("Description"))
+    slug = AutoSlugField(
+        populate_from="faculty_name",
+        unique=True,
+        editable=True,
+        always_update=True,
+        blank=True,
+        null=True,
+        verbose_name=_("Slug"),
+    )
+
+    class Meta:
+        ordering = ["faculty_name"]
+        verbose_name = _("Faculty")
+        verbose_name_plural = _("Faculties")
+
+    def __str__(self):
+        return self.faculty_name
+
+
+class Department(models.Model):
+    name = models.CharField(max_length=255, verbose_name=_("Department Name"))
+    faculty = models.ForeignKey(
+        Faculty,
+        on_delete=models.CASCADE,
+        related_name="departments",
+        verbose_name=_("Faculty"),
+    )
+    slug = AutoSlugField(
+        populate_from=get_department_slug,
+        unique=True,
+        editable=True,
+        always_update=True,
+        null=True,
+        verbose_name=_("Slug"),
+    )
+    description = models.TextField(blank=True, null=True)
+
+    class Meta:
+        unique_together = ("name", "faculty")
+        ordering = ["name"]
+        verbose_name = _("Department")
+        verbose_name_plural = _("Departments")
+
+    def __str__(self):
+        return f"{self.faculty.faculty_name} - {self.name}"
 
 
 class Title(models.CharField):
@@ -82,6 +152,7 @@ class Article(ThumbnailMixin, models.Model):
         CONSULTANCY_TRAINING = "consultancy-training", _("Consultancy & Training")
         TERMS = "terms", _("Terms of Service")
         PRIVACY = "privacy", _("Privacy Policy")
+        COOKIES = "cookies", _("Cookie Policy")
         SHOP = "shop", _("Shop")
 
     type = models.CharField(
@@ -401,7 +472,7 @@ class Event(ThumbnailMixin, models.Model):
 
 
 class Chapter(ThumbnailMixin, models.Model):
-    faculty = models.ForeignKey('staff.Faculty', related_name='chapters', on_delete=models.CASCADE, blank=True, null=True)
+    faculty = models.ForeignKey(Faculty, related_name='chapters', on_delete=models.CASCADE, blank=True, null=True)
     name = models.CharField(max_length=100)
     about = models.TextField(blank=True, null=True)
     year_launched = models.DateTimeField(verbose_name=_("Launched On "),  blank=True, null=True)
@@ -584,7 +655,7 @@ class InMemoriam(models.Model):
     death_year = models.PositiveIntegerField(null=True, blank=True)
     graduation_year = models.PositiveIntegerField(null=True, blank=True)
     faculty = models.ForeignKey(
-        'staff.Faculty', on_delete=models.SET_NULL, null=True, blank=True, related_name='in_memoriam_entries'
+        Faculty, on_delete=models.SET_NULL, null=True, blank=True, related_name='in_memoriam_entries'
     )
     photo = ResizedImageField(size=[1200, 1200], quality=85, upload_to='in_memoriam/', blank=True, null=True)
     tribute = models.TextField(blank=True)
@@ -681,8 +752,22 @@ class MembershipTier(models.Model):
     # this -- `order` is display-only and can't carry that.
     ladder_rank = models.PositiveSmallIntegerField(null=True, blank=True)
 
+    # M-Pesa eligibility (Association decision 2026-08-07): "up to Gold"
+    # implemented as fee <= this ceiling, not ladder_rank <= Gold's rank --
+    # ladder_rank is null for Honorary/Student (cheaper than Gold, should
+    # still get M-Pesa) and for Platinum/Diamond (off-ladder but pricier
+    # than Gold, so correctly excluded here regardless of their still-open
+    # ladder placement -- see todo.md). Also lines up with M-Pesa's real
+    # per-transaction limit in Kenya, which makes Corporate/Platinum/
+    # Diamond-sized fees impractical over M-Pesa regardless of policy.
+    MPESA_FEE_CEILING = Decimal("100000.00")
+
     def __str__(self):
         return f"{self.name} - KES {self.fee}"
+
+    @property
+    def allows_mpesa(self):
+        return self.fee <= self.MPESA_FEE_CEILING
     
     def is_lifetime(self):
         """Check if this tier is a lifetime membership"""
@@ -724,7 +809,7 @@ class Qualification(models.Model):
     UoN degrees/diplomas/certificates conferred, as listed in the official
     congregation booklet -- seeded via seed_qualifications management command.
     """
-    faculty = models.ForeignKey('staff.Faculty', on_delete=models.CASCADE, related_name='qualifications')
+    faculty = models.ForeignKey(Faculty, on_delete=models.CASCADE, related_name='qualifications')
     level = models.CharField(max_length=20, choices=QualificationLevel.choices)
     name = models.CharField(max_length=255)
 
@@ -754,7 +839,7 @@ class AlumniProfile(models.Model):
 
     # Alumni specific
     graduation_year = models.IntegerField(null=True, blank=True)
-    faculty = models.ForeignKey('staff.Faculty', on_delete=models.SET_NULL, null=True, blank=True)
+    faculty = models.ForeignKey(Faculty, on_delete=models.SET_NULL, null=True, blank=True)
     # Reg-no source for alumni who register directly and never had a
     # Student row (everyone pre-dating the system). Students who came
     # through apps.student.models.Student have it there instead.
@@ -800,6 +885,112 @@ class AlumniProfile(models.Model):
             urlconf="main.urls",
         )
 
+    def get_edit_url(self):
+        return reverse(
+            "home:alumni_profile_update",
+            kwargs={"slug": self.slug, "pk": self.pk},
+            urlconf="main.urls",
+        )
+
+    def get_membership_update_url(self):
+        return reverse(
+            "home:alumni_membership_update",
+            kwargs={"slug": self.slug, "pk": self.pk},
+            urlconf="main.urls",
+        )
+
+    def get_delete_url(self):
+        return reverse(
+            "home:alumni_profile_delete",
+            kwargs={"slug": self.slug, "pk": self.pk},
+            urlconf="main.urls",
+        )
+
+
+class AlumniQualification(models.Model):
+    """A degree/diploma beyond the primary one already on AlumniProfile
+    (graduation_year/faculty/qualification). Purely additive: the legacy
+    Google Forms membership register captured up to three College+Faculty+
+    Course+Graduation sets per person (one alumnus can hold a UoN Bachelor's
+    AND a UoN Master's, for instance), and AlumniProfile was built assuming
+    one. Rather than touch the existing fields -- which every current
+    template/form/admin screen already reads as "the" degree -- this table
+    holds the overflow, and AlumniProfile's own fields keep meaning
+    "primary" exactly as they do today.
+
+    legacy_college is kept verbatim (e.g. "CHSS") purely as an import audit
+    trail -- docs/uon_faculty_mapping.json is what actually resolves it to
+    a current `faculty` FK, since the six legacy colleges were abolished in
+    the 2021 restructure and no longer exist as rows anywhere."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    alumni_profile = models.ForeignKey(
+        AlumniProfile, on_delete=models.CASCADE, related_name="additional_qualifications"
+    )
+    order = models.PositiveSmallIntegerField(default=1)
+    legacy_college = models.CharField(max_length=100, blank=True, default="")
+    faculty = models.ForeignKey(Faculty, on_delete=models.SET_NULL, null=True, blank=True)
+    qualification = models.ForeignKey(
+        Qualification, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    # Free-text fallback for legacy course names that don't resolve to a
+    # seeded Qualification row (decades of naming drift) -- never silently
+    # dropped just because it doesn't match.
+    course_name_raw = models.CharField(max_length=255, blank=True, default="")
+    graduation_year = models.IntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["alumni_profile", "order"]
+        verbose_name = _("Additional Qualification")
+        verbose_name_plural = _("Additional Qualifications")
+
+    def __str__(self):
+        label = self.qualification.name if self.qualification else self.course_name_raw
+        return f"{self.alumni_profile} — {label or 'Qualification'} ({self.graduation_year or 'n/d'})"
+
+
+class AlumniEmploymentRecord(models.Model):
+    """Employment beyond AlumniProfile's primary current_employer/
+    employment_position -- same overflow pattern as AlumniQualification,
+    for the legacy form's Position1/Organization1 columns."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    alumni_profile = models.ForeignKey(
+        AlumniProfile, on_delete=models.CASCADE, related_name="employment_history"
+    )
+    order = models.PositiveSmallIntegerField(default=1)
+    organization = models.CharField(max_length=255, blank=True, default="")
+    position = models.CharField(max_length=255, blank=True, default="")
+
+    class Meta:
+        ordering = ["alumni_profile", "order"]
+        verbose_name = _("Additional Employment Record")
+        verbose_name_plural = _("Additional Employment Records")
+
+    def __str__(self):
+        return f"{self.alumni_profile} — {self.position or 'Position'} at {self.organization or 'Organization'}"
+
+
+class AlumniPhoneNumber(models.Model):
+    """Phone numbers beyond User.phone (primary) and UserProfile.alt_phone
+    -- the legacy form captured up to three (Telephone/Telephone1/
+    Telephone2). FK's on User, not AlumniProfile: phone is a User-level
+    handle everywhere else in this codebase (docs/rebuild-schema.md)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="additional_phones")
+    phone = PhoneNumberField(region="KE")
+    label = models.CharField(max_length=50, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["user", "created_at"]
+        verbose_name = _("Additional Phone Number")
+        verbose_name_plural = _("Additional Phone Numbers")
+
+    def __str__(self):
+        return f"{self.user.email} — {self.phone}"
+
 
 class MembershipManager(models.Manager):
     def current_for(self, user):
@@ -843,6 +1034,16 @@ class Membership(models.Model):
         QUARTERLY = "quarterly", _("Quarterly")
         ANNUALLY = "annually", _("Annually")
 
+    # Grace period = one full billing cycle past the due date (miss two
+    # installments in a row and it lapses), not a flat number of days --
+    # a flat 30 days would be far too aggressive for an annual plan.
+    # Association-adjustable; not a hard business rule handed down.
+    INSTALLMENT_FREQUENCY_DAYS = {
+        PaymentFrequency.MONTHLY: 30,
+        PaymentFrequency.QUARTERLY: 90,
+        PaymentFrequency.ANNUALLY: 365,
+    }
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="memberships")
     tier = models.ForeignKey(MembershipTier, on_delete=models.PROTECT, related_name="memberships")
@@ -854,12 +1055,52 @@ class Membership(models.Model):
     membership_number = models.CharField(max_length=20, unique=True, null=True, blank=True)
     payment_frequency = models.CharField(max_length=20, choices=PaymentFrequency.choices, default=PaymentFrequency.ONCE)
 
+    # What was actually paid for *this* row -- deliberately separate from
+    # tier.fee, which is the CURRENT list price and drifts over time.
+    # Without this, "total subscriptions collected by year/tier" can't be
+    # reconstructed once fees change. Backs the planned Chart.js/Highcharts
+    # membership analytics (subscriptions, tiers, faculties -- todo.md).
+    subscription_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text=_("Amount actually paid/subscribed for this membership row. "
+                    "May differ from the tier's current fee."),
+    )
+
+    # Installment plans (2026-08-07): payment_frequency above was already on
+    # the model but unused until now. A plan is just payment_frequency !=
+    # ONCE -- no separate boolean, no fixed installment count/amount.
+    # Whatever comes in each time (record_installment_payment) accumulates
+    # here against tier.fee; Secretariat records amounts as they arrive,
+    # same manual-confirmation pattern as every other payment in this
+    # system. Activates on the FIRST payment (Association decision
+    # 2026-08-07), balance carried as arrears until paid off.
+    amount_paid = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text=_("Cumulative amount paid toward this row's tier fee. "
+                    "For installment plans this is < tier.fee until paid off."),
+    )
+    next_installment_due = models.DateField(
+        null=True, blank=True,
+        help_text=_("When the next installment is expected, based on payment_frequency. "
+                    "Only meaningful for installment plans (payment_frequency != Once)."),
+    )
+
     # Issued items follow the membership, not the person.
     card_issued = models.BooleanField(default=False)
     certificate_issued = models.BooleanField(default=False)
     certificate_sent = models.BooleanField(default=False)
     certificate_generated_at = models.DateTimeField(null=True, blank=True)
     lapel_badge_issued = models.BooleanField(default=False)
+
+    # Legacy paper-form artifact from the pre-digital membership register --
+    # NOT DPA e-consent. Consent for SMS/email lives on UserProfile
+    # (sms_opt_in/email_opt_in/consent_given_at) and is deliberately never
+    # inferred from this field (docs/todo.md: legacy members start
+    # unconsented, per the Association's own pending re-consent policy).
+    legacy_signed = models.BooleanField(
+        default=False,
+        help_text=_("Physical signature on file from a paper membership form (legacy import only)."),
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -908,14 +1149,66 @@ class Membership(models.Model):
             self.membership_number = self.generate_membership_number()
         self.save()
 
+    @property
+    def is_installment_plan(self):
+        return self.payment_frequency != self.PaymentFrequency.ONCE
+
+    @property
+    def balance_due(self):
+        """is_lifetime is about DURATION (never expires) -- orthogonal to
+        whether the fee is fully paid. A Life Member paying in installments
+        is lifetime AND has a balance due until amount_paid catches up
+        with tier.fee; don't conflate the two."""
+        if not self.tier_id:
+            return Decimal("0")
+        return max(self.tier.fee - self.amount_paid, Decimal("0"))
+
+    @property
+    def is_overdue(self):
+        """Computed live, not dependent on the expire_lapsed_installment_plans
+        management command having run -- so admin/dashboard display is
+        always correct even between cron runs. The command is what
+        actually flips status to EXPIRED for anything code elsewhere
+        trusts status for (e.g. MembershipManager, is_valid)."""
+        if not self.is_installment_plan or self.status != self.Status.ACTIVE:
+            return False
+        if self.balance_due <= 0 or not self.next_installment_due:
+            return False
+        grace_days = self.INSTALLMENT_FREQUENCY_DAYS.get(self.payment_frequency, 30)
+        return timezone.now().date() > self.next_installment_due + timezone.timedelta(days=grace_days)
+
+    def record_installment_payment(self, amount, payment_date=None):
+        """The 'one door' for installment payments -- PaymentAdmin.mark_completed()
+        calls this instead of activate() when a Payment is linked to a
+        specific Membership row (Payment.membership). Activates on the
+        FIRST call regardless of whether tier.fee is fully covered
+        (Association decision 2026-08-07: active while paying, not only
+        once paid off) -- subsequent calls just accumulate amount_paid
+        and push next_installment_due forward.
+        """
+        payment_date = payment_date or timezone.now().date()
+        self.amount_paid = (self.amount_paid or Decimal("0")) + amount
+
+        if self.status != self.Status.ACTIVE:
+            self.activate(payment_date=payment_date)
+        else:
+            self.save()
+
+        if self.is_installment_plan and self.balance_due > 0:
+            grace_days = self.INSTALLMENT_FREQUENCY_DAYS.get(self.payment_frequency, 30)
+            self.next_installment_due = payment_date + timezone.timedelta(days=grace_days)
+            self.save(update_fields=["next_installment_due"])
+
 
 class Payment(models.Model):
+    # Cash/Cheque removed 2026-08-07 (Association decision) -- everything
+    # now routes through a traceable channel. M-Pesa's eligibility is
+    # further gated per-tier (see MembershipTier.allows_mpesa below);
+    # credit_card/bank_transfer stay available for every tier.
     PAYMENT_METHODS = [
         ('mpesa', 'M-Pesa'),
         ('credit_card', 'Credit/Debit Card'),
         ('bank_transfer', 'Bank Transfer'),
-        ('cash', 'Cash'),
-        ('cheque', 'Cheque'),
     ]
     
     PAYMENT_STATUS = [
@@ -939,7 +1232,21 @@ class Payment(models.Model):
         blank=True,
         related_name='payments'
     )
-    
+    # Direct link to the specific Membership row this payment is an
+    # installment toward (2026-08-07). Previously mark_completed() found
+    # the row indirectly by matching (user, tier, status=pending), which
+    # only works once -- a second installment against an already-active
+    # membership would find nothing. Nullable/SET_NULL: older Payment rows
+    # predate this field, and non-installment lump-sum payments still work
+    # without it (mark_completed falls back to the old lookup when unset).
+    membership = models.ForeignKey(
+        'Membership',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='installment_payments',
+    )
+
     # Payment details
     amount = models.DecimalField(
         max_digits=10,
