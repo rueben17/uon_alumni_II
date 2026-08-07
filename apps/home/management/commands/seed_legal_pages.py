@@ -1,14 +1,21 @@
 # apps/home/management/commands/seed_legal_pages.py
 """
-Seeds the Privacy Policy and Cookie Policy standing pages.
+Seeds the Privacy Policy, Cookie Policy, and Terms of Service standing
+pages.
 
-Content is a compliance-oriented DRAFT against Kenya's Data Protection Act
-2019 -- covers what's collected, why, retention, the QR scan-log purpose
+Content is a compliance-oriented DRAFT (Privacy/Cookies against Kenya's
+Data Protection Act 2019; Terms against general Kenyan contract/consumer
+norms) -- covers what's collected, why, retention, the QR scan-log purpose
 specifically (docs/todo.md's 1.1 blocker requires this), and DPA data
 subject rights. It is NOT lawyer-reviewed; the Association should have it
 checked before treating it as final. Re-running this command is safe --
 it updates the existing rows in place (matched by page_key) rather than
 duplicating them, so edits made here just need a re-run to take effect.
+
+Terms added 2026-08-07 specifically because Google's OAuth consent screen
+setup asks for a public Terms of Service link alongside the Privacy
+Policy one -- an unwritten page behind a link handed to Google would have
+just shown the generic "being prepared" placeholder.
 """
 from django.core.management.base import BaseCommand
 from django.utils import timezone
@@ -79,9 +86,49 @@ Most browsers let you view, delete, and block cookies through their settings. Bl
 
 This notice is a working draft prepared alongside the system that enforces it, pending formal review by the Association's leadership."""
 
+TERMS_VERSION = "1.0"
+TERMS_BODY = f"""Version {TERMS_VERSION} -- effective {timezone.now():%d %B %Y}
+
+These Terms of Service govern your use of this website and your membership with the University of Nairobi Alumni Association (UoNAA, "we", "us"). By registering or signing in, you agree to these terms.
+
+1. ELIGIBILITY
+Membership is open to graduates of the University of Nairobi and other categories the Association recognises from time to time (e.g. honorary and corporate members). We may verify eligibility (graduation records, national ID/passport, or other supporting information) before activating a membership.
+
+2. YOUR ACCOUNT
+You sign in using Google -- we never see or store your Google password. You are responsible for keeping your Google account secure; activity on your UoNAA account is treated as yours. Provide accurate information when registering or updating your profile, and keep it current.
+
+3. MEMBERSHIP AND FEES
+Membership tiers, fees, and benefits are as published on this site and may change from time to time; changes apply to new registrations and renewals, not memberships already paid in full. Payment may be made in full or, where offered, in installments -- an installment plan activates your membership on the first payment, with the balance tracked until paid off. All payments are confirmed manually by the Secretariat; a membership shows as pending until confirmed. Fees, once paid, are generally non-refundable except at the Association's discretion or as required by law.
+
+4. ACCEPTABLE USE
+Use this site only for its intended purpose: managing your membership and engaging with the alumni community. Do not attempt to access another member's account or data, misuse the QR credential/badge system, submit false information, or use the site in a way that disrupts it for others.
+
+5. MEMBER DIRECTORY AND COMMUNICATIONS
+Your details appear in the member directory only if you opt in, and only the fields you agree to share. We send SMS/email communications only where you have opted in, except transactional messages necessary to administer your membership (e.g. payment confirmations).
+
+6. INTELLECTUAL PROPERTY
+Content on this site -- text, images, the UoNAA name and logo -- belongs to the Association or its licensors. You may not reproduce or redistribute it for commercial purposes without permission.
+
+7. TERMINATION
+You may deactivate your membership at any time through your profile. We may suspend or terminate an account for a breach of these terms, fraudulent registration, or non-payment, consistent with our published policies.
+
+8. DISCLAIMERS
+This site is provided "as is." We work to keep it accurate and available but do not guarantee uninterrupted access or that it is error-free.
+
+9. GOVERNING LAW
+These terms are governed by the laws of Kenya. Any dispute arising from your use of this site or your membership is subject to the jurisdiction of the courts of Kenya.
+
+10. CHANGES TO THESE TERMS
+We may update these terms from time to time; the version number above reflects the current one. Continued use of the site after a change constitutes acceptance of the updated terms.
+
+11. CONTACT
+Questions about these terms can be directed to the Secretariat through the details on our Contact page.
+
+This notice is a working draft prepared alongside the system that enforces it, pending formal review by the Association's leadership."""
+
 
 class Command(BaseCommand):
-    help = "Seed/update the Privacy Policy and Cookie Policy standing pages"
+    help = "Seed/update the Privacy Policy, Cookie Policy, and Terms of Service standing pages"
 
     def handle(self, *args, **options):
         pages = [
@@ -94,6 +141,11 @@ class Command(BaseCommand):
                 "page_key": Article.PageKey.COOKIES,
                 "title": "Cookie Policy",
                 "body": COOKIES_BODY,
+            },
+            {
+                "page_key": Article.PageKey.TERMS,
+                "title": "Terms of Service",
+                "body": TERMS_BODY,
             },
         ]
 
