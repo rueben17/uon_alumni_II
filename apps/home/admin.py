@@ -336,9 +336,9 @@ class AlumniProfileAdmin(ExportMixin, admin.ModelAdmin):
         }),
         ('Alumni Details', {
             'fields': (
-                'graduation_year', 'faculty', 'qualification', 'graduation_institution',
-                'other_institution_name', 'other_institution_qualification',
-                'name_at_graduation', 'student_reg_no',
+                'graduation_year', 'faculty', 'qualification', 'qualification_name_raw',
+                'graduation_institution', 'other_institution_name',
+                'other_institution_qualification', 'name_at_graduation', 'student_reg_no',
             )
         }),
         ('Employment', {

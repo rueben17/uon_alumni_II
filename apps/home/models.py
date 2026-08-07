@@ -849,6 +849,17 @@ class AlumniProfile(models.Model):
     other_institution_qualification = models.CharField(max_length=255, blank=True, default="")
     name_at_graduation = models.CharField(max_length=300, blank=True, default="", help_text=_("Only if different from your current name"))
     qualification = models.ForeignKey(Qualification, on_delete=models.SET_NULL, null=True, blank=True, related_name='alumni')
+    # Free-text fallback when `qualification` doesn't resolve to a seeded
+    # Qualification row (2026-08-07) -- e.g. legacy import course names
+    # that don't match the catalog ("BDS MPH" is two combined degrees) or
+    # predate it entirely. Mirrors AlumniQualification.course_name_raw's
+    # same fallback for the overflow (2nd/3rd) degree slots; this was the
+    # one gap left when that was built -- the PRIMARY slot had no raw-text
+    # fallback, so an unmatched primary course was silently lost on
+    # import. Not shown on the self-service registration/edit forms --
+    # alumni pick a real Qualification via the cascading dropdown there;
+    # this is for historical data preservation, not new data entry.
+    qualification_name_raw = models.CharField(max_length=255, blank=True, default="")
 
     # Employment (external -- distinct from apps.staff.Employee, which is
     # the internal UoN appointment; a staff-alumnus legitimately has both)

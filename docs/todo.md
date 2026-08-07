@@ -370,23 +370,47 @@ This is the loop that must be demonstrable before payments exist.
 - [ ] **No open search of member data** — a member may *appear* by choice, but
       the system does not let others query/lookup records.
 
-### 1.8 Spreadsheet export/import — export half DONE 2026-08-07
+### 1.8 Spreadsheet export/import — export done, import pipeline built + verified 2026-08-07
 - [x] `django-import-export` installed, added to `INSTALLED_APPS` (2026-08-06).
-- [ ] The actual legacy-membership import: a custom `Resource` mapping the
-      Google Forms register (Title/FirstName/OtherNames/IdNo/.../Signed) onto
-      the harmonized schema. Schema side is ready --
-      `AlumniQualification`/`AlumniEmploymentRecord`/`AlumniPhoneNumber`
-      (2026-08-06) absorb the legacy form's up-to-3 degree and up-to-2
-      employment records; `Membership.subscription_amount`/`legacy_signed`
-      (2026-08-06) hold `Subscription`/`Signed`. Blocked on the real export
-      file to see actual `Title`/`CurrentCategory`/`College` value formats
-      before writing the value-mapping tables.
+- [x] **Legacy-membership import pipeline — built and verified 2026-08-07**,
+      `apps/home/management/commands/import_legacy_memberships.py`. Not a
+      django-import-export `Resource`/`ModelResource` in the end -- one row
+      fans out into several model instances (User/UserProfile/AlumniProfile/
+      Membership + up to 2 overflow `AlumniQualification` + 1 overflow
+      `AlumniEmploymentRecord` + overflow phone/email rows), which fights
+      that abstraction's one-row-one-model assumption. Plain management
+      command instead, safe by default (runs in a transaction that's
+      rolled back unless `--commit` is passed), with a report listing every
+      unmapped value in the ambiguous columns (Title/Gender/Nationality/
+      CurrentCategory/College/Faculty/Course) so mapping-table gaps surface
+      before a real run, not after.
+
+      Verified end-to-end against `docs/data/Membership format.xlsx` (a
+      2-row structural sample, gitignored -- real PII, never committed;
+      full roster still to come). Phone normalization, name/gender/
+      nationality mapping, Faculty resolution via
+      `docs/uon_faculty_mapping.json` (both direct college-code and
+      fuzzy legacy-unit-text paths), graduation year, and Membership
+      tier/status/number/dates all resolved correctly on the sample.
+      Free-text `Course` values that don't match the seeded `Qualification`
+      catalog (e.g. "BDS MPH" is two combined quals) are no longer silently
+      lost -- `AlumniProfile.qualification_name_raw` (2026-08-07) mirrors
+      `AlumniQualification.course_name_raw`'s fallback for the primary
+      slot too. Re-verified against the sample after adding it: both
+      unmatched courses land in `qualification_name_raw` correctly.
+      **Not yet mapped anywhere:** `Payroll` (no field exists for it).
+
+      Mapping tables (`HONORIFIC_MAP`/`TIER_NAME_MAP`/etc. at the top of
+      the file) currently only cover the handful of values seen in the
+      2-row sample -- re-run with `--dry-run` (the default) against the
+      real full file first and extend them with whatever the report's
+      "Unmapped values" section lists before ever using `--commit` on it.
 - [x] General-purpose bulk export for "give me a spreadsheet of paid members" --
       `MembershipResource`/`AlumniProfileResource` (`apps/home/admin.py`),
       wired via `ExportMixin` onto `MembershipAdmin`/`AlumniProfileAdmin`.
       Staff/superadmin-only by construction (Django admin's own `is_staff`
       gate at `/2005/`, same as every other screen there) -- no separate
-      permission code needed. Export-only for now, not import.
+      permission code needed.
 
 ### 1.9 Membership analytics dashboard — DONE 2026-08-07
 Chart.js, pulling from `Membership`/`AlumniProfile`/`Faculty`. Renders

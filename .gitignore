@@ -230,3 +230,6 @@ yarn-error.log*
 cert.crt
 cert.key
 cookies.txt
+
+# Real member data (legacy membership register export) -- PII, never commit
+docs/data/
