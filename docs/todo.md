@@ -523,13 +523,15 @@ actually *see* — but it must not consume the time self-service needs.
 ### C.2 Standing pages off `Article.page_key`
 - [x] Generic `standing_page(request, page_key)` view + `page/<slug:page_key>/`
       route built, replacing the hardcoded-render approach. **Not yet done:**
-      migrating the six existing hardcoded pages (`history`, `donate`,
+      migrating the remaining hardcoded pages (`history`, `donate`,
       `scholarship`, `contact`, etc.) onto it — the mechanism exists, the
       content migration doesn't.
-- [ ] **Privacy notice + terms of use pages.** `PageKey.TERMS`/`PageKey.PRIVACY`
-      exist on `Article` now (added while the model was open), but no `Article`
-      rows have been created for them yet. See the 1.1 blocker — legally
-      required, and the only content item on the critical path.
+- [x] **Privacy notice + terms of use pages — DONE 2026-08-07.** Privacy
+      Policy, Cookie Policy, and Terms of Service all seeded via
+      `seed_legal_pages` (DPA-2019-aligned drafts, NOT lawyer-reviewed --
+      Association should have them checked before final). The 1.1 blocker
+      is resolved. Privacy + Terms URLs also handed to Google for the
+      OAuth consent screen's required links.
 
 ### C.3 Editor experience (highest leverage, all small)
 - [ ] **Rich text editing.** Every content model has `body = TextField()`, so the
@@ -623,8 +625,10 @@ actually *see* — but it must not consume the time self-service needs.
 
 ### Parallel workstreams (not in the phase sequence)
 - **Content site (`apps/home`):** see the "Content site" section above. Models in
-  0.3b, everything else parallel. `content_todo.txt` holds the separate
-  copywriting / data-entry audit — that is authoring work, not dev work.
+  0.3b, everything else parallel. The copywriting/data-entry audit is now
+  merged into this file as "Content Authoring Backlog" below (2026-08-07,
+  reconciled against actual current state) — that is authoring work, not
+  dev work.
 - **Booklet digitization 1956–2008:** scan → OCR/structure → load into schema.
   Independent; can grind alongside from Phase 0 onward.
 - **DRF / API layer:** resist until Phase 8 or the first real consumer (SMIS ETL,
@@ -670,3 +674,198 @@ ratify the open *policy* items — final tier benefit values (1.6), Platinum and
 Diamond's place in the ladder, Honorary + Corporate billing periods, Corporate's
 multi-rep shape, re-consent comms for the opt-in flip, and the retention rule +
 soft-delete-vs-erasure reconciliation. The plan can't make these calls.
+
+---
+
+## Content Authoring Backlog
+
+Merged in 2026-08-07 from the standalone `content_todo.txt` (previously at
+repo root) for cohesiveness — one todo list instead of several scattered
+files. Reconciled against actual current state at merge time, not a raw
+copy: the original was written before this session's identity rebuild and
+nav-wiring pass, so most of its "Controller" (routing) section was already
+fixed and has been marked as such below. The "Model" (data-entry) section
+is confirmed still accurate — checked real row counts: **every** content
+model (Executive, Secretariat, Chapter, Partner, Event, Images, Banner,
+CoreValue, Publication, InMemoriam, JobPosting) sits at 0 records; `Article`
+has exactly 3 (Privacy/Cookie/Terms — legal pages, not news/content).
+
+This is **authoring work** (copy, photos, data entry via `/2005/` admin),
+not dev work — the plumbing to display it now exists for almost everything
+listed. Grouped by whether the blocker is "someone needs to write/upload
+this" (Data) or "this page has no real content yet" (Copy).
+
+### Data — needs records entered via admin
+All of these have a working admin registration now (`/2005/`); this is
+purely a data-entry/copywriting task.
+
+1. **Executive Committee** (`Executive` model) — title, position, rank, bio,
+   avatar per member. Needed for `/uon-alumni-executive-committee/` to show
+   anything.
+2. **Secretariat** (`Secretariat` model) — same shape as Executive. Zero
+   records.
+3. **Mission, Vision & Core Values** — Mission/Vision are still two
+   hardcoded strings in `context_processors.py` (not a model, not editable
+   without a code change) — decide whether that's fine or worth moving to
+   an editable singleton. `CoreValue` model is fully built and admin-
+   registered but has zero content.
+4. **Chapters** (`Chapter` model) — name, about text, year launched,
+   thumbnail, linked Faculty. `uon_alumni_history.html` still brags about
+   "17 chapters" that don't exist as records.
+5. **Partners** (`Partner` model) — title, relation to UoNAA, thumbnail.
+   Now properly admin-registered (was a gap in the original audit, fixed
+   during this session's nav-wiring pass).
+6. **News / Articles** (`Article` model, `type=news/feature/notice`) —
+   the homepage promises "class notes, distinguished alumni profiles,
+   obituaries, institutional updates" and has zero of it published.
+7. **UoN Alumni Walk** (`Event` model, `event_type=WALK`) — title, body,
+   thumbnail. Zero events entered.
+8. **Gallery photos** (`Images` model) — attaches to Article/Chapter/
+   Event/Publication/InMemoriam. Needed before Gallery is more than an
+   empty grid.
+9. **Banner imagery** (`Banner` model) — per-banner images + logo + text.
+   Zero rows, so the banner snippet is still running on its one hardcoded
+   hero image rather than real content.
+10. **Membership tier "benefits" copy** — `MembershipTier` only stores
+    name/fee/type/duration, no text field for what a member actually gets.
+    Blocks the Categories & Benefits standing page (#12 below) from being
+    written until this exists, either as a new field or hardcoded per-tier
+    copy.
+11. **Publications** (`Publication` model) — newsletters, minutes, annual
+    reports. Zero rows; Downloads page (built, routed) has nothing to list.
+
+### Copy — pages that exist and route correctly, but have no real content
+Unlike the original audit, every one of these now has a working URL,
+view, and template (built during this session's C.1 fixes + nav-wiring
+pass) — the remaining gap is purely the words on the page.
+
+12. **Donate** — body is still literally `<p>Donate page</p>`. No giving
+    instructions (M-Pesa paybill/bank details), fund designations, impact
+    stories, or receipt/tax info.
+13. **Scholarship** — template renders, body empty below the banner. Needs
+    active programmes, eligibility, application process, past-recipient
+    stories.
+14. **In Memoriam** — `<p>In Memoriam page</p>` placeholder. Needs a real
+    listing (feeds from the now-built `InMemoriam` model, once #entries
+    exist) and a "submit a tribute" path.
+15. **AGM, Consultancy & Training, Categories & Benefits, Alumni Card,
+    Corporates, Our Notable Alumni, Shop** — all route through the generic
+    `standing_page` mechanism now (same one Privacy/Terms/Cookies use) but
+    have no `Article(type=page)` row written yet. Shop specifically also
+    needs a business decision (is UoNAA actually selling merchandise)
+    before it's worth writing.
+16. **Homepage "Latest News & Updates" / benefits section** — the
+    featured/highlighted-article loops are still `{% comment %}`ed out on
+    the homepage, waiting on #6's content to have something to loop over.
+17. **SEO / social metadata** — `<meta name="description" content="">` is
+    still empty sitewide, no per-page override, no Open Graph/Twitter Card
+    tags. Same item as C.4's findability section above — not duplicated
+    work, just cross-referenced from both angles.
+18. **Newsletter archive** — `AlumniProfile.receive_newsletter` opt-in
+    exists with nothing to actually send yet (ties to Phase 3
+    Communications).
+19. **Careers (UoNAA's own hiring, not the alumni job board)** — the
+    original audit's concern was whether *UoNAA itself* posts job
+    openings, distinct from the `JobPosting` alumni job board already
+    built and routed. Still an open question for the Association, not a
+    dev gap.
+
+**Suggested order** (from the original audit, still holds): the Model
+section as a content sprint (photos + bios + copy, publishing each Copy
+item as its data lands) is what's actually blocking now — the Controller-
+layer gaps that used to sit in front of it are resolved.
+
+---
+
+## Code Review Findings
+
+Merged in 2026-08-07 from the standalone `docs/code_review_todo.txt` for
+cohesiveness. Findings from a review of the staff directory filter/search
+feature, `profile_update.html`, `forms.py`, `staff_extras.py`, and
+`employee_table.html` — unrelated to tonight's Membership/payments/URL
+work, still open as originally filed unless marked fixed.
+
+### Bugs / correctness (fix first)
+1. **[HIGH] Reflected XSS via `track` GET param in Alpine `x-data`** —
+   `templates/staff/all_uon_staff.html:25`. Django's default autoescaping
+   is the wrong context for a value embedded in a JS string; a crafted
+   `?track=x',evil:(alert(1),0)` breaks out and runs arbitrary JS. Fix:
+   `|escapejs`, or better, `json_script` + read from that in Alpine. Also
+   allowlist `track` server-side against `Employee.StaffTrack.choices`.
+2. **[HIGH] HTMX self-nesting on every filter/search/pagination
+   interaction** — `all_uon_staff.html:26-30`,
+   `partials/employee_table.html:1,51,69,83`. `hx-target`/`hx-select` both
+   resolve to `#staff-table-container`, which the returned partial already
+   has on its own root — default innerHTML swap nests a duplicate-id copy
+   instead of replacing it. Fix: drop `hx-select` or use
+   `hx-swap="outerHTML"`.
+3. **[FIXED 2026-08-06]** Navbar/banner/footer commented out on
+   `staff/profile_update.html` — uncommented during the nav-wiring pass.
+4. **[MED]** Track/unit filter combo isn't cross-validated client or
+   server side — a stale URL like `?track=teaching&unit=service:5` renders
+   a disabled-yet-selected option with no indication the combo is
+   contradictory.
+5. **[MED]** `hx-trigger` override on the filter form drops the implicit
+   `submit` trigger — clicking Apply/pressing Enter does a full page
+   reload while typing/select changes stay AJAX.
+6. **[MED]** `EmployeeListView`'s own docstring calls it a "Public staff
+   directory," but it's `LoginRequiredMixin` and the navbar links to it
+   from the unauthenticated branch — confirm which behavior is intended.
+7. **[LOW / needs manual test]** Possible event-ordering race between
+   Alpine's `x-on:change` cleanup and htmx's own `change from:#id_track`
+   trigger on the same event.
+
+### Cleanup
+8. `staff_extras.py`'s `cloudinary_download` filter is defined but never
+   `{% load %}`ed anywhere — dead code.
+9. The `?page=&q=&track=&unit=` query string is hand-duplicated 6x across
+   `employee_table.html`'s pagination links.
+10. `EmployeeListView.get_context_data` builds Department/ServiceUnit/
+    ResearchUnit querysets on every request, including HTMX partial
+    requests that never touch those dropdowns.
+11. Track-to-unit disabling logic spread across three near-identical
+    `x-bind:disabled` expressions plus one imperative handler — could
+    consolidate into one Alpine computed getter.
+12. `apps/staff/forms.py`'s rounding class changes (`rounded-lg/xl/2xl` →
+    `rounded-sm`) only followed through on `profile_update.html`;
+    `complete_profile.html` renders the same form with the old rounding.
+
+### Architecture / future work
+13. **Shared base model for Employee/AlumniProfile/(future)Student** —
+    all three duplicate a large chunk of personal/contact fields
+    independently (honorific, names, DOB, national ID, phone, slug,
+    is_active, the full_name/display_name property pattern). Proposal: a
+    shared abstract `PersonProfile` base. Real migration work, plan as its
+    own task.
+14. **Friendlier Google OAuth failure page + surfaced diagnostics** —
+    allauth's generic `authentication_error.html` swallows the real
+    exception; nothing reaches logs or admins. Needs a branded error page
+    + `logger.exception()` in `CustomSocialAccountAdapter
+    .authentication_error()`, eventually wired to `AdminEmailHandler`/
+    Sentry (needs SMTP configured first).
+15. **Session/idle timeout re-authentication on data-sensitive alumni
+    pages** — `AlumniProfileUpdateView`/`AlumniMembershipUpdateView`/
+    `AlumniProfileDeleteView` accept a POST any time the session is alive,
+    however long the tab's been open. Proposal: stamp
+    `request.session['auth_time']` on login, step-up re-auth via Google if
+    stale on POST to these specific views (not staff).
+
+**Suggested order:** #1/#2 first (user-facing security/breakage), then
+#4-#7, then cleanup as time allows. #13-15 are separate future
+initiatives.
+
+---
+
+## Other docs in this folder (not merged — different purpose)
+
+- `docs/0.1-identity-decisions.md` / `docs/rebuild-schema.md` — design
+  rationale for the identity-model rebuild (field map, tier taxonomy,
+  numbered decisions). Reference material explaining *why* this schema
+  looks the way it does, not a list of pending work.
+- `docs/todo-pre-rebuild-2026-08-05.md` — a frozen snapshot of the todo
+  list as it stood immediately before the greenfield rebuild. Historical
+  record of the starting point, not live — this file (`todo.md`) is what
+  actually got reconciled against it and is the one to keep updated.
+- `docs/uon_faculty_mapping.json` — reference data (the 2021 college→
+  faculty restructure + constituent colleges), consumed by the seed
+  commands. Not a todo list.
