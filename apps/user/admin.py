@@ -12,6 +12,7 @@ from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 
 from apps.user.models import UserProfile
+from apps.home.models import AlumniPhoneNumber
 
 User = get_user_model()
 
@@ -76,6 +77,15 @@ class UserProfileInline(admin.StackedInline):
     fk_name = "user"
 
 
+class AlumniPhoneNumberInline(admin.TabularInline):
+    """Overflow phone numbers beyond User.phone/UserProfile.alt_phone --
+    see apps/home/models.py's AlumniPhoneNumber docstring. Lives on the
+    User admin (not AlumniProfile's) since phone is a User-level handle."""
+    model = AlumniPhoneNumber
+    extra = 0
+    fields = ["phone", "label"]
+
+
 # -------------------------------------------------------------------
 # Admin
 # -------------------------------------------------------------------
@@ -85,7 +95,7 @@ class UserAdmin(BaseUserAdmin):
     model = User
     add_form = UserCreationForm
     form = UserChangeForm
-    inlines = [UserProfileInline]
+    inlines = [UserProfileInline, AlumniPhoneNumberInline]
 
     list_display = [
         "email", "phone", "auth_provider",

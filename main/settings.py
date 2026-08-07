@@ -116,6 +116,7 @@ INSTALLED_APPS = [
     'cloudinary_storage',
     'django_extensions',
     'phonenumber_field',
+    'import_export',
 
     # Project apps
     'apps.home',
