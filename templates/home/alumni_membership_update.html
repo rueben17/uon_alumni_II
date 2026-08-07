@@ -34,6 +34,12 @@
                 {% elif current_membership.is_lifetime %}
                     <p class="mt-1">Lifetime membership -- never expires.</p>
                 {% endif %}
+                {% if current_membership.is_installment_plan and current_membership.balance_due > 0 %}
+                    <p class="mt-1 font-semibold text-amber-700">
+                        Balance outstanding: KES {{ current_membership.balance_due }}
+                        {% if current_membership.next_installment_due %}(next installment due {{ current_membership.next_installment_due }}){% endif %}
+                    </p>
+                {% endif %}
             </div>
 
             {% if pending_payment %}
@@ -60,6 +66,8 @@
                 {% csrf_token %}
                 {% include "snippets/form_field.html" with field=form.membership_tier %}
                 {% include "snippets/form_field.html" with field=form.payment_method %}
+                {% include "snippets/form_field.html" with field=form.payment_frequency %}
+                {% include "snippets/form_field.html" with field=form.installment_amount %}
 
                 <div class="flex flex-wrap items-center gap-3 pt-2">
                     <button type="submit" class="inline-flex items-center justify-center rounded-sm bg-slate-900 px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300">
@@ -76,4 +84,32 @@
 
     {% include "snippets/footer.html" %}
 </div>
+
+{{ non_mpesa_tier_ids|json_script:"non-mpesa-tier-ids" }}
+<script>
+    (function () {
+        // M-Pesa is only available up to Gold's fee (MembershipTier.allows_mpesa) --
+        // this is UX only, the form's clean() is the real gate.
+        const tierField = document.getElementById("id_membership_tier");
+        const methodField = document.getElementById("id_payment_method");
+        const idsEl = document.getElementById("non-mpesa-tier-ids");
+        if (!tierField || !methodField || !idsEl) return;
+
+        const nonMpesaIds = JSON.parse(idsEl.textContent).map(String);
+        const mpesaOption = Array.from(methodField.options).find((o) => o.value === "mpesa");
+        if (!mpesaOption) return;
+
+        function toggleMpesaOption() {
+            const ineligible = nonMpesaIds.includes(String(tierField.value));
+            mpesaOption.disabled = ineligible;
+            mpesaOption.textContent = ineligible ? "M-Pesa (not available for this tier)" : "M-Pesa";
+            if (ineligible && methodField.value === "mpesa") {
+                methodField.value = "bank_transfer";
+            }
+        }
+
+        tierField.addEventListener("change", toggleMpesaOption);
+        toggleMpesaOption();
+    })();
+</script>
 {% endblock %}

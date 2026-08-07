@@ -82,8 +82,10 @@
                     <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         {% include "snippets/form_field.html" with field=form.membership_tier %}
                         {% include "snippets/form_field.html" with field=form.payment_method %}
+                        {% include "snippets/form_field.html" with field=form.payment_frequency %}
+                        {% include "snippets/form_field.html" with field=form.installment_amount %}
                     </div>
-                    <p class="mt-2 text-xs text-slate-500">Payment is confirmed manually by the Secretariat after submission -- your membership shows as pending until then.</p>
+                    <p class="mt-2 text-xs text-slate-500">Payment is confirmed manually by the Secretariat after submission -- your membership shows as pending until then. Choosing a recurring Payment Frequency starts an installment plan: your membership activates on this first payment, and the remaining balance is tracked until it's paid off.</p>
                 </div>
 
                 <div>
@@ -91,6 +93,16 @@
                     <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         {% include "snippets/form_field.html" with field=form.receive_newsletter %}
                         {% include "snippets/form_field.html" with field=form.receive_sms_alerts %}
+                    </div>
+                </div>
+
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">Privacy</h2>
+                    <div class="mt-4">
+                        {% include "snippets/form_field.html" with field=form.privacy_consent %}
+                        <p class="mt-1 text-xs text-slate-500">
+                            Read the <a href="{{ url_privacy }}" target="_blank" class="underline hover:text-slate-700">Privacy Policy</a> before agreeing.
+                        </p>
                     </div>
                 </div>
 
@@ -160,6 +172,34 @@
                 rebuildQualificationOptions(null);
             });
         }
+    })();
+</script>
+
+{{ non_mpesa_tier_ids|json_script:"non-mpesa-tier-ids" }}
+<script>
+    (function () {
+        // M-Pesa is only available up to Gold's fee (MembershipTier.allows_mpesa) --
+        // this is UX only, the form's clean() is the real gate.
+        const tierField = document.getElementById("id_membership_tier");
+        const methodField = document.getElementById("id_payment_method");
+        const idsEl = document.getElementById("non-mpesa-tier-ids");
+        if (!tierField || !methodField || !idsEl) return;
+
+        const nonMpesaIds = JSON.parse(idsEl.textContent).map(String);
+        const mpesaOption = Array.from(methodField.options).find((o) => o.value === "mpesa");
+        if (!mpesaOption) return;
+
+        function toggleMpesaOption() {
+            const ineligible = nonMpesaIds.includes(String(tierField.value));
+            mpesaOption.disabled = ineligible;
+            mpesaOption.textContent = ineligible ? "M-Pesa (not available for this tier)" : "M-Pesa";
+            if (ineligible && methodField.value === "mpesa") {
+                methodField.value = "bank_transfer";
+            }
+        }
+
+        tierField.addEventListener("change", toggleMpesaOption);
+        toggleMpesaOption();
     })();
 </script>
 {% endblock %}
