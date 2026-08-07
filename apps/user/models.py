@@ -66,6 +66,17 @@ class Gender(models.TextChoices):
     OTHER = "O", _("Other")
 
 
+# Single source of truth for "which privacy notice did this consent apply
+# to" -- stamped onto UserProfile.privacy_notice_version at the moment of
+# consent (apps/home/views.py's AlumniRegisterView), and the exact string
+# apps/home/management/commands/seed_legal_pages.py's Privacy Policy
+# Article declares itself as. Bump this (and the seed command's body) if
+# the notice materially changes -- existing members keep their old
+# consent recorded against the old version instead of silently
+# appearing to have agreed to text they never saw.
+CURRENT_PRIVACY_NOTICE_VERSION = "1.0"
+
+
 class User(AbstractBaseUser, PermissionsMixin):
     """Auth only. Everything that describes the *person* lives on
     UserProfile — see the guiding rule in docs/rebuild-schema.md."""
