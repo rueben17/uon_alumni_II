@@ -13,7 +13,8 @@ from django.utils import timezone
 from qrcode.image.styledpil import StyledPilImage
 from qrcode.image.styles.moduledrawers import CircleModuleDrawer
 
-from apps.staff.models import Department, Employee, ResearchUnit, ServiceUnit
+from apps.home.models import Department
+from apps.staff.models import Employee, ResearchUnit, ServiceUnit
 
 
 class QRCode(models.Model):

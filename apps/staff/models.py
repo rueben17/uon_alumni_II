@@ -16,10 +16,6 @@ User = get_user_model()
 # Slug helpers
 # -------------------------------------------------------------------
 
-def get_department_slug(instance):
-    return slugify(f"{instance.faculty.faculty_name} {instance.name}")
-
-
 def get_employee_slug(instance):
     """
     Produces: honorific-firstname-lastname
@@ -46,67 +42,12 @@ def qr_upload_path(instance, filename):
 
 
 # -------------------------------------------------------------------
-# 1. Faculty
+# 1. Faculty, 2. Department -- moved to apps.home.models (2026-08-06).
+# Both are academic/institutional structure, not staff-specific: home
+# (AlumniProfile, Chapter, InMemoriam, Qualification) and student
+# (Student.faculty) were always the heavier consumers -- staff only ever
+# reached Faculty transitively, through Department. See docs/todo.md.
 # -------------------------------------------------------------------
-
-class Faculty(models.Model):
-    faculty_name = models.CharField(
-        max_length=255,
-        unique=True,
-        verbose_name=_("Faculty Name"),
-        help_text=_("Official name of the faculty (e.g., 'Agriculture')"),
-    )
-    description = models.TextField(blank=True, null=True, verbose_name=_("Description"))
-    slug = AutoSlugField(
-        populate_from="faculty_name",
-        unique=True,
-        editable=True,
-        always_update=True,
-        blank=True,
-        null=True,
-        verbose_name=_("Slug"),
-    )
-
-    class Meta:
-        ordering = ["faculty_name"]
-        verbose_name = _("Faculty")
-        verbose_name_plural = _("Faculties")
-
-    def __str__(self):
-        return self.faculty_name
-
-
-# -------------------------------------------------------------------
-# 2. Department
-# -------------------------------------------------------------------
-
-class Department(models.Model):
-    name = models.CharField(max_length=255, verbose_name=_("Department Name"))
-    faculty = models.ForeignKey(
-        Faculty,
-        on_delete=models.CASCADE,
-        related_name="departments",
-        verbose_name=_("Faculty"),
-    )
-    slug = AutoSlugField(
-        populate_from=get_department_slug,
-        unique=True,
-        editable=True,
-        always_update=True,
-        null=True,
-        verbose_name=_("Slug"),
-    )
-    description = models.TextField(blank=True, null=True)
-
-    class Meta:
-        unique_together = ("name", "faculty")
-        ordering = ["name"]
-        verbose_name = _("Department")
-        verbose_name_plural = _("Departments")
-
-    def __str__(self):
-        return f"{self.faculty.faculty_name} - {self.name}"
-
 
 # -------------------------------------------------------------------
 # 3. Service Unit  (administrative / non-teaching)
@@ -186,7 +127,7 @@ class ResearchUnit(models.Model):
         verbose_name=_("Unit Type"),
     )
     parent_faculty = models.ForeignKey(
-        Faculty,
+        'home.Faculty',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -318,7 +259,7 @@ class Employee(models.Model):
     )
 
     department = models.ForeignKey(
-        Department,
+        'home.Department',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

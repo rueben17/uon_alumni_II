@@ -80,7 +80,7 @@ class Migration(migrations.Migration):
                 ('published', models.BooleanField(default=False)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
-                ('faculty', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='in_memoriam_entries', to='staff.faculty')),
+                ('faculty', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='in_memoriam_entries', to='home.faculty')),
             ],
             options={
                 'verbose_name': 'In Memoriam Entry',

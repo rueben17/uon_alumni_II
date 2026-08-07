@@ -31,7 +31,7 @@ class Migration(migrations.Migration):
                 ('slug', autoslug.fields.AutoSlugField(always_update=True, blank=True, editable=True, max_length=300, null=True, populate_from=apps.student.models.get_student_slug)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
-                ('faculty', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='students', to='staff.faculty')),
+                ('faculty', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='students', to='home.faculty')),
                 ('programme', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='students', to='home.qualification')),
                 ('user', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='student', to=settings.AUTH_USER_MODEL)),
             ],

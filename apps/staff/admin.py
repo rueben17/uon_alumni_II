@@ -12,55 +12,14 @@ from django.utils.html import format_html
 
 from apps.qr_manager.models import QRCode
 from apps.staff.models import (
-    Department,
     Employee,
-    Faculty,
     Position,
     ResearchUnit,
     ServiceUnit,
 )
 
-
-class DepartmentInline(admin.TabularInline):
-    model = Department
-    extra = 0
-    fields = ("name",)
-    show_change_link = True
-
-
-@admin.register(Faculty)
-class FacultyAdmin(admin.ModelAdmin):
-    list_display = ("faculty_name", "department_count")
-    search_fields = ("faculty_name",)
-    ordering = ("faculty_name",)
-    inlines = [DepartmentInline]
-
-    def get_queryset(self, request):
-        return super().get_queryset(request).annotate(
-            dept_count=Count("departments")
-        )
-
-    @admin.display(description="Departments")
-    def department_count(self, obj):
-        return obj.dept_count
-
-
-@admin.register(Department)
-class DepartmentAdmin(admin.ModelAdmin):
-    list_display = ("name", "faculty", "employee_count")
-    list_filter = ("faculty",)
-    search_fields = ("name", "faculty__faculty_name")
-    ordering = ("faculty__faculty_name", "name")
-    autocomplete_fields = ("faculty",)
-
-    def get_queryset(self, request):
-        return super().get_queryset(request).annotate(
-            emp_count=Count("employees")
-        )
-
-    @admin.display(description="Employees")
-    def employee_count(self, obj):
-        return obj.emp_count
+# Faculty/Department admin moved to apps/home/admin.py alongside the
+# models themselves (2026-08-06) -- see apps/home/models.py's docstring.
 
 
 @admin.register(ServiceUnit)

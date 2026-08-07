@@ -17,11 +17,40 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('staff', '0002_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
+        migrations.CreateModel(
+            name='Faculty',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('faculty_name', models.CharField(help_text="Official name of the faculty (e.g., 'Agriculture')", max_length=255, unique=True, verbose_name='Faculty Name')),
+                ('description', models.TextField(blank=True, null=True, verbose_name='Description')),
+                ('slug', autoslug.fields.AutoSlugField(always_update=True, blank=True, editable=True, null=True, populate_from='faculty_name', unique=True, verbose_name='Slug')),
+            ],
+            options={
+                'verbose_name': 'Faculty',
+                'verbose_name_plural': 'Faculties',
+                'ordering': ['faculty_name'],
+            },
+        ),
+        migrations.CreateModel(
+            name='Department',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('name', models.CharField(max_length=255, verbose_name='Department Name')),
+                ('slug', autoslug.fields.AutoSlugField(always_update=True, editable=True, null=True, populate_from=apps.home.models.get_department_slug, unique=True, verbose_name='Slug')),
+                ('description', models.TextField(blank=True, null=True)),
+                ('faculty', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='departments', to='home.faculty', verbose_name='Faculty')),
+            ],
+            options={
+                'verbose_name': 'Department',
+                'verbose_name_plural': 'Departments',
+                'ordering': ['name'],
+                'unique_together': {('name', 'faculty')},
+            },
+        ),
         migrations.CreateModel(
             name='Banner',
             fields=[
@@ -125,7 +154,7 @@ class Migration(migrations.Migration):
                 ('last_updated', models.DateTimeField(auto_now=True)),
                 ('is_active', models.BooleanField(default=True)),
                 ('slug', autoslug.fields.AutoSlugField(always_update=True, blank=True, editable=True, null=True, populate_from=apps.home.models.get_alumni_profile_slug)),
-                ('faculty', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='staff.faculty')),
+                ('faculty', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='home.faculty')),
                 ('user', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='alumni_profile', to=settings.AUTH_USER_MODEL)),
             ],
         ),
@@ -138,7 +167,7 @@ class Migration(migrations.Migration):
                 ('year_launched', models.DateTimeField(blank=True, null=True, verbose_name='Launched On ')),
                 ('slug', autoslug.fields.AutoSlugField(always_update=True, blank=True, editable=True, null=True, populate_from='name', unique_with=['year_launched'])),
                 ('thumbnail', django_resized.forms.ResizedImageField(blank=True, crop=None, force_format=None, help_text='Chapter banner ', keep_meta=True, null=True, quality=95, scale=None, size=[1080, 1080], upload_to='chapter/uploads/%Y/%m/%d/')),
-                ('faculty', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='chapters', to='staff.faculty')),
+                ('faculty', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='chapters', to='home.faculty')),
             ],
             options={
                 'verbose_name': 'Chapter',
@@ -290,7 +319,7 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('level', models.CharField(choices=[('phd', 'Doctor of Philosophy (PhD)'), ('masters', "Master's Degree"), ('bachelors', "Bachelor's Degree"), ('pgd', 'Postgraduate Diploma'), ('diploma', 'Diploma'), ('fellowship', 'Fellowship')], max_length=20)),
                 ('name', models.CharField(max_length=255)),
-                ('faculty', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='qualifications', to='staff.faculty')),
+                ('faculty', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='qualifications', to='home.faculty')),
             ],
             options={
                 'verbose_name': 'Qualification',

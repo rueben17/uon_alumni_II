@@ -16,8 +16,9 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.units import inch
 from reportlab.platypus import Image as RLImage, Paragraph, SimpleDocTemplate, Spacer
 
+from apps.home.models import Department
 from apps.staff.forms import CompleteProfileForm
-from apps.staff.models import Department, Employee, ResearchUnit, ServiceUnit
+from apps.staff.models import Employee, ResearchUnit, ServiceUnit
 
 MOBILE_USER_AGENT_RE = re.compile(r"Mobi|Android|iPhone|iPad|iPod", re.IGNORECASE)
 

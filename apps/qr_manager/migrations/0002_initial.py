@@ -11,6 +11,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ('qr_manager', '0001_initial'),
         ('staff', '0001_initial'),
+        ('home', '0001_initial'),
     ]
 
     operations = [
@@ -27,7 +28,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='supervisor',
             name='department',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='qr_supervisors', to='staff.department'),
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='qr_supervisors', to='home.department'),
         ),
         migrations.AddField(
             model_name='supervisor',

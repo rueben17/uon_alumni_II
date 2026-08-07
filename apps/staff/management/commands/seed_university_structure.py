@@ -1,6 +1,7 @@
 # staff/management/commands/seed_university_structure.py
 from django.core.management.base import BaseCommand
-from apps.staff.models import Faculty, Department, ServiceUnit, ResearchUnit, Position
+from apps.home.models import Faculty, Department
+from apps.staff.models import ServiceUnit, ResearchUnit, Position
 
 # -------------------------------------------------------------------
 # 1. ACADEMIC FACULTIES AND DEPARTMENTS (UoN official)

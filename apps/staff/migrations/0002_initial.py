@@ -11,6 +11,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('staff', '0001_initial'),
+        ('home', '0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
@@ -21,9 +22,9 @@ class Migration(migrations.Migration):
             field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='employee', to=settings.AUTH_USER_MODEL, verbose_name='User Account'),
         ),
         migrations.AddField(
-            model_name='department',
-            name='faculty',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='departments', to='staff.faculty', verbose_name='Faculty'),
+            model_name='employee',
+            name='department',
+            field=models.ForeignKey(blank=True, help_text='Required for teaching staff.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='employees', to='home.department', verbose_name='Department'),
         ),
         migrations.AddField(
             model_name='employee',
@@ -33,7 +34,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='researchunit',
             name='parent_faculty',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='research_units', to='staff.faculty', verbose_name='Parent Faculty'),
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='research_units', to='home.faculty', verbose_name='Parent Faculty'),
         ),
         migrations.AddField(
             model_name='employee',
@@ -44,10 +45,6 @@ class Migration(migrations.Migration):
             model_name='employee',
             name='service_unit',
             field=models.ForeignKey(blank=True, help_text='Required for service / administrative staff.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='employees', to='staff.serviceunit', verbose_name='Service Unit'),
-        ),
-        migrations.AlterUniqueTogether(
-            name='department',
-            unique_together={('name', 'faculty')},
         ),
         migrations.AddIndex(
             model_name='employee',

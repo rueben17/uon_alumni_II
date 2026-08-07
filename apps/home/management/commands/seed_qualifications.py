@@ -5,8 +5,7 @@ Seeds the Qualification catalog from the official UoN 74th Congregation
 """
 from django.core.management.base import BaseCommand
 
-from apps.home.models import Qualification, QualificationLevel
-from apps.staff.models import Faculty
+from apps.home.models import Faculty, Qualification, QualificationLevel
 
 PHD = QualificationLevel.PHD
 MASTERS = QualificationLevel.MASTERS
@@ -15,7 +14,7 @@ PGD = QualificationLevel.PGD
 DIPLOMA = QualificationLevel.DIPLOMA
 FELLOWSHIP = QualificationLevel.FELLOWSHIP
 
-# faculty_name must match apps.staff.models.Faculty.faculty_name exactly.
+# faculty_name must match apps.home.models.Faculty.faculty_name exactly.
 QUALIFICATION_DATA = [
     {
         "faculty_name": "Agriculture",
@@ -344,6 +343,16 @@ QUALIFICATION_DATA = [
             (BACHELORS, "Bachelor of Education (Arts)"),
             (MASTERS, "Master of Education (MEd)"),
         ],
+    },
+    {
+        # Constituent college, not yet chartered -- confers UoN degrees
+        # under supervision (same category as Koitaleel Samoei above; see
+        # docs/uon_faculty_mapping.json's "constituent_colleges" section).
+        # No qualifications listed here yet -- none appeared in the 74th
+        # Congregation booklet this command sources from, but the Faculty
+        # row needs to exist so alumni records citing it resolve correctly.
+        "faculty_name": "Nyandarua University College",
+        "qualifications": [],
     },
 ]
 

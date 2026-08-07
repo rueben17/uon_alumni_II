@@ -35,7 +35,7 @@ class Student(models.Model):
 
     registration_no = models.CharField(max_length=50, unique=True)
     faculty = models.ForeignKey(
-        "staff.Faculty", null=True, blank=True, on_delete=models.SET_NULL, related_name="students"
+        "home.Faculty", null=True, blank=True, on_delete=models.SET_NULL, related_name="students"
     )
     programme = models.ForeignKey(
         "home.Qualification", null=True, blank=True, on_delete=models.SET_NULL, related_name="students"

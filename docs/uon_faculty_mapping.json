@@ -1,0 +1,512 @@
+{
+  "$schema_version": "1.0",
+  "institution": {
+    "name": "University of Nairobi",
+    "short_name": "UoN",
+    "code": "UONBI",
+    "domain": "uonbi.ac.ke"
+  },
+  "restructure": {
+    "announced": "2021-07-09",
+    "announced_by": "University Council (Chair: Prof. Julia Ojiambo)",
+    "effective_from": "2021",
+    "previous_structure_established": "1983",
+    "summary": "Six campus colleges headed by principals were abolished. Schools and institutes ceased to be academic units; departments now report directly to faculties headed by Deans and Associate Deans. Research institutes and centres were retained as non-teaching units.",
+    "legal_status": "A High Court conservatory order dated 2021-07-22 (UASU petition) temporarily suspended implementation. The faculty structure was subsequently implemented and is the structure currently in force.",
+    "faculties_at_announcement": 11,
+    "faculties_current": 10,
+    "post_announcement_change": "Faculty of Arts and Faculty of Social Sciences were later merged into a single Faculty of Arts and Social Sciences."
+  },
+  "sources": [
+    "https://academics.uonbi.ac.ke/basic-page/about-us",
+    "https://www.uonbi.ac.ke/uon-academic-departments",
+    "https://csdes.uonbi.ac.ke/faculty-lists"
+  ],
+  "constituent_colleges": {
+    "note": "Unrelated to the 2021 restructure below -- a different, ongoing institutional category. A constituent college is not yet chartered as its own university, so it confers its parent institution's degrees under supervision until it earns a charter. Historical precedent in Kenya: Kenya Polytechnic University College (-> Technical University of Kenya) and the University of Embu both went through this stage before being chartered independently. Treated as Faculty-equivalent rows in this system so alumni who graduated through them have somewhere to attach -- not part of the 10 restructured faculties, and not one of the 6 abolished legacy colleges below.",
+    "colleges": [
+      {
+        "name": "Koitaleel Samoei University College",
+        "parent_institution": "UONBI",
+        "chartered": false,
+        "qualifications_source": "UoN 74th Congregation booklet (Dec 2025) -- 3 programmes seeded"
+      },
+      {
+        "name": "Nyandarua University College",
+        "parent_institution": "UONBI",
+        "chartered": false,
+        "qualifications_source": "None yet -- no programmes appeared in the 74th Congregation booklet; Faculty row seeded with zero qualifications pending real data"
+      }
+    ]
+  },
+  "legacy_colleges": [
+    {
+      "code": "CAVS",
+      "name": "College of Agriculture and Veterinary Sciences",
+      "campus": "Upper Kabete",
+      "status": "abolished",
+      "successor_faculties": ["FAG", "FVM"]
+    },
+    {
+      "code": "CAE",
+      "name": "College of Architecture and Engineering",
+      "campus": "Main Campus",
+      "status": "abolished",
+      "successor_faculties": ["FEN", "FBED"]
+    },
+    {
+      "code": "CBPS",
+      "name": "College of Biological and Physical Sciences",
+      "campus": "Chiromo",
+      "status": "abolished",
+      "successor_faculties": ["FST"]
+    },
+    {
+      "code": "CEES",
+      "name": "College of Education and External Studies",
+      "campus": "Kikuyu",
+      "status": "abolished",
+      "successor_faculties": ["FED"]
+    },
+    {
+      "code": "CHS",
+      "name": "College of Health Sciences",
+      "campus": "Kenyatta National Hospital Campus",
+      "status": "abolished",
+      "successor_faculties": ["FHS"]
+    },
+    {
+      "code": "CHSS",
+      "name": "College of Humanities and Social Sciences",
+      "campus": "Main Campus, Parklands, Lower Kabete",
+      "status": "abolished",
+      "successor_faculties": ["FASS", "FLAW", "FBMS"]
+    }
+  ],
+  "faculties": [
+    {
+      "code": "FAG",
+      "name": "Faculty of Agriculture",
+      "slug": "agriculture",
+      "site": "https://agriculture.uonbi.ac.ke",
+      "campus": "Upper Kabete",
+      "predecessor_college": "CAVS",
+      "departments": [
+        "Agricultural Economics",
+        "Food Science, Nutrition and Technology",
+        "Land Resource Management and Agricultural Technology",
+        "Plant Science and Crop Protection"
+      ]
+    },
+    {
+      "code": "FVM",
+      "name": "Faculty of Veterinary Medicine",
+      "slug": "veterinary-medicine",
+      "site": "https://vetmedicine.uonbi.ac.ke",
+      "campus": "Upper Kabete",
+      "predecessor_college": "CAVS",
+      "departments": [
+        "Public Health, Pharmacology and Toxicology",
+        "Veterinary Anatomy and Physiology",
+        "Animal Production",
+        "Clinical Studies",
+        "Veterinary Pathology, Microbiology and Parasitology"
+      ]
+    },
+    {
+      "code": "FEN",
+      "name": "Faculty of Engineering",
+      "slug": "engineering",
+      "site": "https://engineering.uonbi.ac.ke",
+      "campus": "Main Campus",
+      "predecessor_college": "CAE",
+      "departments": [
+        "Mechanical and Manufacturing Engineering",
+        "Civil and Construction Engineering",
+        "Electrical and Information Engineering",
+        "Environmental and Biosystems Engineering",
+        "Geospatial and Space Technology"
+      ]
+    },
+    {
+      "code": "FBED",
+      "name": "Faculty of Built Environment and Design",
+      "slug": "built-environment-design",
+      "site": "https://built-environment.uonbi.ac.ke",
+      "campus": "Main Campus",
+      "predecessor_college": "CAE",
+      "departments": [
+        "Architecture",
+        "Art and Design",
+        "Real Estate, Construction Management and Quantity Surveying",
+        "Urban and Regional Planning"
+      ]
+    },
+    {
+      "code": "FST",
+      "name": "Faculty of Science and Technology",
+      "slug": "science-technology",
+      "site": "https://sciencetechnology.uonbi.ac.ke",
+      "campus": "Chiromo",
+      "predecessor_college": "CBPS",
+      "departments": [
+        "Biology",
+        "Biochemistry",
+        "Chemistry",
+        "Computing and Informatics",
+        "Earth and Climate Science",
+        "Mathematics",
+        "Physics"
+      ]
+    },
+    {
+      "code": "FED",
+      "name": "Faculty of Education",
+      "slug": "education",
+      "site": "https://education.uonbi.ac.ke",
+      "campus": "Kikuyu",
+      "predecessor_college": "CEES",
+      "departments": [
+        "Educational Management, Policy and Curriculum Studies",
+        "Educational Communication and Pedagogical Studies",
+        "Educational Foundations",
+        "Educational and Distance Studies",
+        "Physical Education and Sport"
+      ]
+    },
+    {
+      "code": "FHS",
+      "name": "Faculty of Health Sciences",
+      "slug": "health-sciences",
+      "site": "https://healthsciences.uonbi.ac.ke",
+      "campus": "Kenyatta National Hospital Campus",
+      "predecessor_college": "CHS",
+      "departments": [
+        "Clinical Medicine and Therapeutics",
+        "Dental Sciences",
+        "Diagnostic Imaging and Radiation Medicine",
+        "Human Anatomy and Physiology",
+        "Human Pathology",
+        "Medical Microbiology and Immunology",
+        "Nursing Sciences",
+        "Obstetrics and Gynaecology",
+        "Ophthalmology",
+        "Paediatrics and Child Health",
+        "Pharmacy",
+        "Psychiatry",
+        "Public and Global Health",
+        "Surgery"
+      ]
+    },
+    {
+      "code": "FASS",
+      "name": "Faculty of Arts and Social Sciences",
+      "slug": "arts-social-sciences",
+      "site": "https://socialsciences.uonbi.ac.ke",
+      "campus": "Main Campus",
+      "predecessor_college": "CHSS",
+      "note": "Created as two faculties in 2021 (Faculty of Arts, Faculty of Social Sciences) and later merged.",
+      "departments": [
+        "Anthropology, Gender and African Studies",
+        "Diplomacy and International Studies",
+        "Economics and Development Studies",
+        "Geography, Population and Environmental Studies",
+        "History and Archaeology",
+        "Journalism and Mass Communication",
+        "Kiswahili",
+        "Library and Information Science",
+        "Linguistics and Languages",
+        "Literature",
+        "Philosophy and Religious Studies",
+        "Political Science and Public Administration",
+        "Psychology",
+        "Sociology, Social Work and African Women Studies"
+      ]
+    },
+    {
+      "code": "FLAW",
+      "name": "Faculty of Law",
+      "slug": "law",
+      "site": "https://law.uonbi.ac.ke",
+      "campus": "Parklands",
+      "predecessor_college": "CHSS",
+      "note": "Operates without departments; the former Public Law, Private Law and Commercial Law departments were dissolved into the faculty.",
+      "departments": []
+    },
+    {
+      "code": "FBMS",
+      "name": "Faculty of Business and Management Sciences",
+      "slug": "business-management-sciences",
+      "site": "https://business.uonbi.ac.ke",
+      "campus": "Lower Kabete",
+      "predecessor_college": "CHSS",
+      "departments": [
+        "Business Administration",
+        "Finance and Accounting",
+        "Management Science and Project Planning"
+      ]
+    }
+  ],
+  "unit_mapping": [
+    {
+      "legacy_unit": "Faculty of Agriculture",
+      "legacy_type": "faculty",
+      "legacy_college": "CAVS",
+      "disposition": "retained",
+      "current_faculty": "FAG",
+      "current_type": "faculty"
+    },
+    {
+      "legacy_unit": "Faculty of Veterinary Medicine",
+      "legacy_type": "faculty",
+      "legacy_college": "CAVS",
+      "disposition": "retained",
+      "current_faculty": "FVM",
+      "current_type": "faculty"
+    },
+    {
+      "legacy_unit": "School of Engineering",
+      "legacy_type": "school",
+      "legacy_college": "CAE",
+      "disposition": "elevated",
+      "current_faculty": "FEN",
+      "current_type": "faculty"
+    },
+    {
+      "legacy_unit": "School of the Built Environment",
+      "legacy_type": "school",
+      "legacy_college": "CAE",
+      "disposition": "elevated",
+      "current_faculty": "FBED",
+      "current_type": "faculty"
+    },
+    {
+      "legacy_unit": "School of the Arts and Design",
+      "legacy_type": "school",
+      "legacy_college": "CAE",
+      "disposition": "demoted_to_department",
+      "current_faculty": "FBED",
+      "current_type": "department",
+      "current_unit": "Art and Design"
+    },
+    {
+      "legacy_unit": "School of Biological Sciences",
+      "legacy_type": "school",
+      "legacy_college": "CBPS",
+      "disposition": "demoted_to_department",
+      "current_faculty": "FST",
+      "current_type": "department",
+      "current_unit": "Biology"
+    },
+    {
+      "legacy_unit": "School of Physical Sciences",
+      "legacy_type": "school",
+      "legacy_college": "CBPS",
+      "disposition": "split_into_departments",
+      "current_faculty": "FST",
+      "current_type": "department",
+      "current_unit": "Chemistry; Physics; Earth and Climate Science"
+    },
+    {
+      "legacy_unit": "School of Mathematics",
+      "legacy_type": "school",
+      "legacy_college": "CBPS",
+      "disposition": "demoted_to_department",
+      "current_faculty": "FST",
+      "current_type": "department",
+      "current_unit": "Mathematics"
+    },
+    {
+      "legacy_unit": "School of Computing and Informatics",
+      "legacy_type": "school",
+      "legacy_college": "CBPS",
+      "disposition": "demoted_to_department",
+      "current_faculty": "FST",
+      "current_type": "department",
+      "current_unit": "Computing and Informatics"
+    },
+    {
+      "legacy_unit": "Institute of Nuclear Science and Technology",
+      "legacy_type": "institute",
+      "legacy_college": "CBPS",
+      "disposition": "retained_as_research_institute",
+      "current_faculty": null,
+      "current_type": "research_institute"
+    },
+    {
+      "legacy_unit": "School of Education",
+      "legacy_type": "school",
+      "legacy_college": "CEES",
+      "disposition": "elevated",
+      "current_faculty": "FED",
+      "current_type": "faculty"
+    },
+    {
+      "legacy_unit": "School of Continuing and Distance Education",
+      "legacy_type": "school",
+      "legacy_college": "CEES",
+      "disposition": "merged",
+      "current_faculty": "FED",
+      "current_type": "department",
+      "current_unit": "Educational and Distance Studies"
+    },
+    {
+      "legacy_unit": "School of Medicine",
+      "legacy_type": "school",
+      "legacy_college": "CHS",
+      "disposition": "split_into_departments",
+      "current_faculty": "FHS",
+      "current_type": "department"
+    },
+    {
+      "legacy_unit": "School of Dental Sciences",
+      "legacy_type": "school",
+      "legacy_college": "CHS",
+      "disposition": "demoted_to_department",
+      "current_faculty": "FHS",
+      "current_type": "department",
+      "current_unit": "Dental Sciences"
+    },
+    {
+      "legacy_unit": "School of Pharmacy",
+      "legacy_type": "school",
+      "legacy_college": "CHS",
+      "disposition": "demoted_to_department",
+      "current_faculty": "FHS",
+      "current_type": "department",
+      "current_unit": "Pharmacy"
+    },
+    {
+      "legacy_unit": "School of Nursing Sciences",
+      "legacy_type": "school",
+      "legacy_college": "CHS",
+      "disposition": "demoted_to_department",
+      "current_faculty": "FHS",
+      "current_type": "department",
+      "current_unit": "Nursing Sciences"
+    },
+    {
+      "legacy_unit": "School of Public Health",
+      "legacy_type": "school",
+      "legacy_college": "CHS",
+      "disposition": "demoted_to_department",
+      "current_faculty": "FHS",
+      "current_type": "department",
+      "current_unit": "Public and Global Health"
+    },
+    {
+      "legacy_unit": "Faculty of Arts",
+      "legacy_type": "faculty",
+      "legacy_college": "CHSS",
+      "disposition": "merged",
+      "current_faculty": "FASS",
+      "current_type": "faculty"
+    },
+    {
+      "legacy_unit": "School of Law",
+      "legacy_type": "school",
+      "legacy_college": "CHSS",
+      "disposition": "elevated",
+      "current_faculty": "FLAW",
+      "current_type": "faculty"
+    },
+    {
+      "legacy_unit": "School of Business",
+      "legacy_type": "school",
+      "legacy_college": "CHSS",
+      "disposition": "elevated",
+      "current_faculty": "FBMS",
+      "current_type": "faculty"
+    },
+    {
+      "legacy_unit": "School of Economics",
+      "legacy_type": "school",
+      "legacy_college": "CHSS",
+      "disposition": "demoted_to_department",
+      "current_faculty": "FASS",
+      "current_type": "department",
+      "current_unit": "Economics and Development Studies"
+    },
+    {
+      "legacy_unit": "School of Journalism and Mass Communication",
+      "legacy_type": "school",
+      "legacy_college": "CHSS",
+      "disposition": "demoted_to_department",
+      "current_faculty": "FASS",
+      "current_type": "department",
+      "current_unit": "Journalism and Mass Communication"
+    },
+    {
+      "legacy_unit": "Institute of Diplomacy and International Studies",
+      "legacy_type": "institute",
+      "legacy_college": "CHSS",
+      "disposition": "demoted_to_department",
+      "current_faculty": "FASS",
+      "current_type": "department",
+      "current_unit": "Diplomacy and International Studies",
+      "note": "Also still listed among research institutes."
+    },
+    {
+      "legacy_unit": "Institute of Anthropology, Gender and African Studies",
+      "legacy_type": "institute",
+      "legacy_college": "CHSS",
+      "disposition": "demoted_to_department",
+      "current_faculty": "FASS",
+      "current_type": "department",
+      "current_unit": "Anthropology, Gender and African Studies",
+      "note": "Also still listed among research institutes."
+    },
+    {
+      "legacy_unit": "Population Studies and Research Institute",
+      "legacy_type": "institute",
+      "legacy_college": "CHSS",
+      "disposition": "retained_as_research_institute",
+      "current_faculty": null,
+      "current_type": "research_institute"
+    },
+    {
+      "legacy_unit": "Institute for Development Studies",
+      "legacy_type": "institute",
+      "legacy_college": "CHSS",
+      "disposition": "retained_as_research_institute",
+      "current_faculty": null,
+      "current_type": "research_institute"
+    },
+    {
+      "legacy_unit": "Wangari Maathai Institute for Peace and Environmental Studies",
+      "legacy_type": "institute",
+      "legacy_college": "CAVS",
+      "disposition": "retained_as_research_institute",
+      "current_faculty": null,
+      "current_type": "research_institute"
+    }
+  ],
+  "legacy_department_aliases": [
+    { "legacy_name": "Geology", "current_faculty": "FST", "current_department": "Earth and Climate Science" },
+    { "legacy_name": "Meteorology", "current_faculty": "FST", "current_department": "Earth and Climate Science" },
+    { "legacy_name": "Economics", "current_faculty": "FASS", "current_department": "Economics and Development Studies" },
+    { "legacy_name": "Geography and Environmental Studies", "current_faculty": "FASS", "current_department": "Geography, Population and Environmental Studies" },
+    { "legacy_name": "History and Archaeological Studies", "current_faculty": "FASS", "current_department": "History and Archaeology" },
+    { "legacy_name": "Sociology and Social Work", "current_faculty": "FASS", "current_department": "Sociology, Social Work and African Women Studies" },
+    { "legacy_name": "Public Law", "current_faculty": "FLAW", "current_department": null },
+    { "legacy_name": "Private Law", "current_faculty": "FLAW", "current_department": null },
+    { "legacy_name": "Commercial Law", "current_faculty": "FLAW", "current_department": null },
+    { "legacy_name": "Architecture and Building Science", "current_faculty": "FBED", "current_department": "Architecture" },
+    { "legacy_name": "Real Estate and Construction Management", "current_faculty": "FBED", "current_department": "Real Estate, Construction Management and Quantity Surveying" },
+    { "legacy_name": "Education Administration and Planning", "current_faculty": "FED", "current_department": "Educational Management, Policy and Curriculum Studies" },
+    { "legacy_name": "Education Communication and Technology", "current_faculty": "FED", "current_department": "Educational Communication and Pedagogical Studies" },
+    { "legacy_name": "Education Studies", "current_faculty": "FED", "current_department": "Educational Foundations" },
+    { "legacy_name": "Distance Studies", "current_faculty": "FED", "current_department": "Educational and Distance Studies" },
+    { "legacy_name": "Extra Mural Studies", "current_faculty": "FED", "current_department": "Educational and Distance Studies" },
+    { "legacy_name": "Medical Physiology", "current_faculty": "FHS", "current_department": "Human Anatomy and Physiology" },
+    { "legacy_name": "Human Anatomy", "current_faculty": "FHS", "current_department": "Human Anatomy and Physiology" },
+    { "legacy_name": "Medical Microbiology", "current_faculty": "FHS", "current_department": "Medical Microbiology and Immunology" },
+    { "legacy_name": "Public Health", "current_faculty": "FHS", "current_department": "Public and Global Health" },
+    { "legacy_name": "Pharmaceutical Chemistry", "current_faculty": "FHS", "current_department": "Pharmacy" },
+    { "legacy_name": "Pharmaceutics and Pharmacy Practice", "current_faculty": "FHS", "current_department": "Pharmacy" },
+    { "legacy_name": "Pharmacology and Pharmacognosy", "current_faculty": "FHS", "current_department": "Pharmacy" },
+    { "legacy_name": "Anesthesia Department", "current_faculty": "FHS", "current_department": "Surgery" },
+    { "legacy_name": "Orthopaedic Surgery", "current_faculty": "FHS", "current_department": "Surgery" },
+    { "legacy_name": "Management Science", "current_faculty": "FBMS", "current_department": "Management Science and Project Planning" }
+  ]
+}
