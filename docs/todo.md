@@ -271,27 +271,36 @@ The innermost functional ring. Works end-to-end with **no payment gateway** —
 activation is manual (Secretariat), exactly as today's `PaymentAdmin.mark_completed`.
 This is the loop that must be demonstrable before payments exist.
 
-### 1.1 Self-registration
-- [ ] Self-service signup → creates `User` + `UserProfile` + `AlumniProfile`.
-      Registration does NOT activate membership (unchanged rule).
-- [ ] Phone required + verified at signup (rides 0.4's OTP).
-- [ ] **BLOCKER — the privacy notice must exist before this ships.** There is no
-      privacy policy page on the site today, and `UserProfile.privacy_notice_version`
-      presupposes a versioned one to point at. Consent under the DPA 2019 must be
-      consent to a *stated purpose*; it cannot be captured against a document
-      that does not exist. It must disclose the QR scan-log purpose and retention
-      limit (cross-cutting). This is the **only** item from the content
-      workstream that sits on the AIMS critical path — everything else there is
-      genuinely parallel.
-- [ ] Consent captured explicitly at this point, writing
-      `consent_given_at` + `privacy_notice_version`.
+### 1.1 Self-registration — mostly done, phone/OTP intentionally on hold
+- [x] Self-service signup → creates `User` + `UserProfile` + `AlumniProfile`
+      (`AlumniRegisterView`). Registration does not activate membership.
+- [ ] Phone required + verified at signup (rides 0.4's OTP). **On hold
+      2026-08-07 — deliberate, not forgotten:** OTP means a paid SMS gateway,
+      and that cost conversation hasn't happened with the Association yet.
+      Revisit once 0.4 itself is prioritized.
+- [x] **BLOCKER resolved 2026-08-07.** `Article` rows seeded for Privacy
+      Policy and Cookie Policy (`seed_legal_pages` management command,
+      DPA-2019-aligned draft — covers the QR scan-log purpose/retention
+      limit as required, but is NOT lawyer-reviewed; Association should have
+      it checked before treating it as final). Footer links + a cookie
+      consent banner (Alpine, `base.html`) ship too.
+- [x] Consent captured explicitly at registration — `privacy_consent`
+      checkbox gates form submission, `AlumniRegisterView.form_valid()`
+      stamps `consent_given_at` + `privacy_notice_version` (from the new
+      shared `apps.user.models.CURRENT_PRIVACY_NOTICE_VERSION` constant, so
+      the recorded version can never drift from the actual policy text).
 
-### 1.2 Member dashboard (your own)
-- [ ] Self-resolved from `request.user` (no pk in URL).
-- [ ] Shows: profile, current `Membership` (status, tier, expiry), issued-item
-      flags, payment/renewal history.
-- [ ] Self-service profile edit — split correctly between `UserProfile` fields
-      and `AlumniProfile` fields.
+### 1.2 Member dashboard (your own) — DONE, already built earlier this session
+- [x] Self-resolved from `request.user` (no pk in URL) — `AlumniProfileDetailView`
+      via `url_my_profile`, `AlumniProfileUpdateView`/`AlumniMembershipUpdateView`.
+- [x] Shows: profile, current `Membership` (status, tier, expiry) via the
+      `current_membership` context var, payment history via `alumni.payments`.
+- [x] Self-service profile edit, split UserProfile/AlumniProfile per the
+      access-through rule. "Real-time" in the sense the alumni self-service
+      loop (register/renew/upgrade/edit) needs no staff involvement to
+      *submit* — activation of a tier change still needs Secretariat
+      confirmation (`PaymentAdmin.mark_completed`), which is the deliberate
+      manual-approval design from 1.3/2.3, not a gap.
 
 ### 1.3 Membership management + the one door
 - [ ] **Service layer first:** `renew_membership()`, `upgrade_to_lifetime()`,
@@ -361,9 +370,44 @@ This is the loop that must be demonstrable before payments exist.
 - [ ] **No open search of member data** — a member may *appear* by choice, but
       the system does not let others query/lookup records.
 
-### 1.8 Spreadsheet export/import
-- [ ] `django-import-export` in admin — solves the Secretariat's "give me a
-      spreadsheet of paid members" on day one, plus bulk import.
+### 1.8 Spreadsheet export/import — export half DONE 2026-08-07
+- [x] `django-import-export` installed, added to `INSTALLED_APPS` (2026-08-06).
+- [ ] The actual legacy-membership import: a custom `Resource` mapping the
+      Google Forms register (Title/FirstName/OtherNames/IdNo/.../Signed) onto
+      the harmonized schema. Schema side is ready --
+      `AlumniQualification`/`AlumniEmploymentRecord`/`AlumniPhoneNumber`
+      (2026-08-06) absorb the legacy form's up-to-3 degree and up-to-2
+      employment records; `Membership.subscription_amount`/`legacy_signed`
+      (2026-08-06) hold `Subscription`/`Signed`. Blocked on the real export
+      file to see actual `Title`/`CurrentCategory`/`College` value formats
+      before writing the value-mapping tables.
+- [x] General-purpose bulk export for "give me a spreadsheet of paid members" --
+      `MembershipResource`/`AlumniProfileResource` (`apps/home/admin.py`),
+      wired via `ExportMixin` onto `MembershipAdmin`/`AlumniProfileAdmin`.
+      Staff/superadmin-only by construction (Django admin's own `is_staff`
+      gate at `/2005/`, same as every other screen there) -- no separate
+      permission code needed. Export-only for now, not import.
+
+### 1.9 Membership analytics dashboard — DONE 2026-08-07
+Chart.js, pulling from `Membership`/`AlumniProfile`/`Faculty`. Renders
+correctly against zero data today (honest "no records yet" message instead
+of broken/empty charts) -- becomes actually useful once the legacy import
+(1.8) lands real rows.
+- [x] `MembershipAnalyticsView` (`apps/home/views.py`) at
+      `/analytics/membership/` -- counts/revenue by tier, by faculty (top 10,
+      via `AlumniProfile.faculty`), by status, `subscription_amount` trend by
+      month (`TruncMonth` on `started_on`), and `legacy_signed` coverage.
+      Gated by the new `StaffOrSuperuserRequiredMixin`
+      (`apps/user/mixins.py`) -- anonymous → login redirect, non-staff → 403,
+      verified via Django test client + a real authenticated-session
+      screenshot. Deliberately separate from 1.2's self-service dashboard:
+      this is leadership reporting across *all* members.
+- [x] Chart.js chosen over Highcharts.js (2026-08-07) -- free/MIT, no
+      licensing conversation needed with the Association.
+- [ ] Renewal rate and active-vs-expired trend lines -- straightforward
+      additions to the same view once there's real data to make them
+      meaningful; not built tonight since they'd be untestable against zero
+      rows.
 
 ---
 
@@ -374,6 +418,16 @@ Everything here plugs into the 1.3 service layer — payments become just anothe
 caller of the same door.
 
 ### 2.1 M-Pesa (Daraja)
+- [x] **Tier eligibility gate — DONE 2026-08-07** (ahead of the real Daraja
+      integration below, same manual-confirmation pattern as everything
+      else pre-Phase-2). `MembershipTier.allows_mpesa` = fee <=
+      `MPESA_FEE_CEILING` (KES 100,000, matching Gold's fee and M-Pesa's
+      real per-transaction limit) -- Diamond/Platinum/Corporate must use
+      Bank Transfer. Enforced in both `AlumniRegistrationForm` and
+      `MembershipUpdateForm.clean()`, plus a client-side JS nicety
+      (disables the option, doesn't rely on it). `Cash`/`Cheque` removed
+      from `Payment.PAYMENT_METHODS` entirely -- everything now routes
+      through a traceable channel.
 - [ ] STK push for registration + renewal.
 - [ ] C2B + callback handling for reconciliation. **Record the Payment
       explicitly in the webhook view — NOT via a signal** (preserves the
@@ -419,10 +473,34 @@ caller of the same door.
       *excess* refund does NOT deactivate membership (they still paid enough);
       a *full* reversal might. Refund/reversal webhooks record via the same
       explicit pattern as 2.1.
+- [x] **Paying one tier off in installments — DONE 2026-08-07**, ahead of
+      the rest of Phase 2 (doesn't need a payment gateway; same manual
+      Secretariat confirmation pattern as everything else in Phase 1).
+      `Membership.payment_frequency` (already existed, was unused) now
+      actually drives something: `amount_paid`/`next_installment_due`
+      fields, `balance_due`/`is_installment_plan`/`is_overdue` properties,
+      and `record_installment_payment()` accumulate payments against one
+      `Membership` row via a new direct `Payment.membership` FK (the old
+      lookup-by-tier-and-pending-status broke on a second installment).
+      Decisions ratified 2026-08-07: activates on the FIRST payment,
+      balance carried as arrears (not held pending until paid in full);
+      lapses via `expire_lapsed_installment_plans` (grace period = one
+      full billing cycle past the due date -- 60/180/730 days for
+      monthly/quarterly/annually, not a flat number). **Note:** `is_lifetime`
+      is duration-only (never expires once paid off) and deliberately
+      doesn't exempt a Life-tier installment plan from expiring if they
+      stop paying -- caught this exact conflation as a bug during testing
+      and fixed it in both `balance_due` and the expiry command's filter.
+      **Still needs:** a real scheduled-task runner for the expiry command
+      -- no Celery/cron wired up yet, same gap Phase 3 already flags.
 - [ ] **Installment upgrades** toward the next ladder rung: a payment can be
-      *partial toward a target*. Accumulate amount-paid-toward-tier on the
-      `Membership`; upgrade via the service layer only when cumulative payments
-      clear the next rung's `ladder_rank` price.
+      *partial toward a target*, but the target is the *next tier up*, not
+      the current one -- e.g. paying off Bronze then rolling the excess
+      toward Silver automatically. Different from the above (which is
+      "pay off Gold in pieces, still Gold throughout"); still deferred.
+      Accumulate amount-paid-toward-tier on the `Membership`; upgrade via
+      the service layer only when cumulative payments clear the next
+      rung's `ladder_rank` price.
 
 ---
 
@@ -563,9 +641,6 @@ actually *see* — but it must not consume the time self-service needs.
 - **API / mobile app.** Building server-rendered Django (modern + maintainable).
   DRF is parked until a real consumer appears. If the Association's idea of "up
   to date" includes a mobile app or PWA, that's a scope conversation not yet had.
-- **Analytics / leadership dashboard.** The system *captures* rich data but has
-  no reporting layer — member counts by tier, renewal rate, quarterly revenue.
-  Revisit once data exists to report on.
 - **Operational maturity:** CI/CD pipeline, error monitoring/observability,
   accessibility (WCAG) + i18n. Touched only glancingly (0.6). Worth elevating
   when the build stabilizes.
