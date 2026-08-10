@@ -82,9 +82,13 @@ These span the whole build. Stated once here; each phase honors them.
   - Retention rule + the **soft-delete vs. right-to-erasure** tension: an
     `is_active=False` soft delete keeps data forever, which can conflict with an
     erasure request. Decide the reconciliation. **Still open.**
-- **Backups / DR.** Data lives on **UoN servers**; the DB is Neon. A backup +
-  restore method must be provided and owned. Live payment + PII data; "who
-  restores this and how" needs an answer, not an assumption.
+- **Backups / DR.** Data lives on **UoN servers**. **Decided 2026-08-10:
+  the DB is moving off Neon onto the VPS itself** (not staying on Neon
+  long-term) — sequenced deliberately **last**, after the rest of the
+  pending build work below, as its own dedicated migration. A backup +
+  restore method must be provided and owned regardless of where it ends up
+  hosted. Live payment + PII data; "who restores this and how" needs an
+  answer, not an assumption.
 - **Secrets in `.env`** — M-Pesa (Daraja sandbox vs prod keys differ), Stripe,
   SMS/email provider creds. Never in the repo.
 - **Rate limiting — a must.** Public endpoints (registration, and especially the
@@ -120,12 +124,13 @@ numbered decisions) and `docs/rebuild-schema.md` (the models themselves).
 - [x] Use `PhoneNumberField(region="KE", unique=True)` on `User.phone` when the
       model is written in 0.3. *(No hand-rolled regex is being replaced any
       more — the fresh schema simply never has one.)*
-- [ ] Enforce normalization in `User.save()` itself. **Mitigated, not closed:**
-      every form path that sets `user.phone` (`CompleteProfileForm`,
-      `AlumniProfileForm`) calls `normalize_phone()` in `clean_<field>()`
-      before assignment, so the two real entry points are covered — but
-      there's still no floor at the model layer for any future call site
-      that sets `user.phone` directly.
+- [x] **Enforce normalization in `User.save()` itself — DONE 2026-08-10.**
+      `User.save()` now calls `normalize_phone()` on `self.phone` (skipping
+      blank/unset) before every save, as a floor beneath the two form-level
+      call sites -- closes the gap for any future direct
+      `user.phone = ...; user.save()`. Verified: `'0712345678'` saves as
+      `'+254712345678'`; a blank phone round-trips untouched; full
+      `apps.user` test suite (11 tests) still green.
 
 ### 0.3 Write the schema fresh + stand up the new DB — **DONE 2026-08-06**
 Replaces the old five-step migration entirely. Definitions: `docs/rebuild-schema.md`.
@@ -144,11 +149,15 @@ Replaces the old five-step migration entirely. Definitions: `docs/rebuild-schema
       (`seed_membership_tiers`), not the model — see 0.3's still-open
       `get_expiry_date()` item below, which is the model-level version of
       the same class of bug.
-- [ ] Fix `MembershipTier.get_expiry_date()` — it uses
-      `timedelta(days=months * 30)`, so a 12-month membership expires after 360
-      days and drifts ~5 days earlier every renewal. Use `relativedelta`.
-      **Deliberately deferred to 1.3** — not urgent while activation is
-      manual, wrong the moment renewals automate.
+- [x] **Fix `MembershipTier.get_expiry_date()` — DONE 2026-08-10.** Swapped
+      `timedelta(days=months * 30)` for `dateutil.relativedelta` (new
+      dependency, `python-dateutil` added to `requirements.txt`) — a
+      12-month membership now expires on the true calendar anniversary
+      instead of drifting ~5-6 days earlier every renewal. Verified against
+      a leap-day join (2024-02-29 → 2025-02-28, not a raw day-count crash)
+      and an ordinary date (2025-03-15 → exactly 2026-03-15); Life tiers
+      still return `None`. Landed ahead of 1.3 rather than bundled with it,
+      per explicit instruction.
 - [x] One `Honorific` TextChoices in `apps/user/` replaces all four existing
       title vocabularies (`AlumniProfile.TITLE_CHOICES`,
       `Employee.HonorificChoices`, and the `TITLE` tuples on `home.Executive`
@@ -303,16 +312,58 @@ This is the loop that must be demonstrable before payments exist.
       manual-approval design from 1.3/2.3, not a gap.
 
 ### 1.3 Membership management + the one door
-- [ ] **Service layer first:** `renew_membership()`, `upgrade_to_lifetime()`,
-      `assign_membership_tier()` become functions operating on `Membership`
-      rows, not methods mutating `AlumniProfile` in place. *Every* caller
-      (admin now, payment callback later, scheduled jobs) goes through one door.
-      Build this here — it is what keeps Phase 2 from fragmenting state changes.
-- [ ] Member-initiated **renewal** request → pending `Membership`.
-- [ ] Member-initiated **upgrade** (incl. to lifetime) request → pending.
-- [ ] Expiry / validity tracking surfaced on the dashboard.
-- [ ] Secretariat **manual approval** in scoped admin calls the service layer to
-      activate / stamp membership number.
+- [x] **Service layer — DONE 2026-08-10.** `apps/home/services.py`:
+      `assign_membership_tier()` (general-purpose door — creates a pending
+      `Membership` row), `renew_membership()` (same tier as current) and
+      `upgrade_to_lifetime()` (must be a lifetime tier, raises otherwise)
+      as narrower purpose-built wrappers around it, plus
+      `activate_membership()`/`record_installment_payment()` — the
+      activation-side door, replacing direct
+      `Membership.activate()`/`.record_installment_payment()` calls.
+      **Design decisions ratified 2026-08-08, built 2026-08-10:**
+      - Renewal/upgrade request creates a **new pending `Membership` row** —
+        confirmed already true of the existing views, now also true via
+        the service layer for any future caller.
+      - On activation, the prior ACTIVE row (if any) is explicitly flipped
+        to **`Status.SUPERSEDED`** (migration `0013_alter_membership_status`)
+        — distinct from `EXPIRED` (lapsed with nothing replacing it).
+      - **`membership_number` carries forward** across renewals/upgrades.
+        Hit a real schema blocker building this: the field was
+        `unique=True`, which makes it *impossible* to save the same
+        number on both the outgoing and incoming row even for an instant
+        — replaced with a **conditional unique constraint** scoped to
+        `status="active"` (migration
+        `0014_alter_membership_membership_number_and_more`) so exactly one
+        row per number may be live at a time, while history keeps its
+        number on superseded rows too. Also had to fix the *ordering* —
+        supersede the prior row BEFORE activating the new one (not after),
+        since the constraint is checked per-statement and activating first
+        would briefly leave two rows ACTIVE with the same number. Wrapped
+        in `transaction.atomic()` so a reader never observes the gap.
+      - Verified end-to-end (direct service calls, and through the real
+        `PaymentAdmin.mark_completed()` action with a mock request):
+        first activation gets a fresh number; a renewal supersedes the
+        prior row and carries the number forward; an upgrade to a Life
+        tier does the same (`is_lifetime=True`, `expires_on=None`); the
+        installment path (`record_installment_payment()`) supersedes only
+        on the first payment, not subsequent ones.
+- [x] Member-initiated **renewal** request → pending `Membership` — already
+      true of `AlumniMembershipUpdateView.post()`; now also routed through
+      `services.assign_membership_tier()` instead of a bare
+      `Membership.objects.create()`, same as `AlumniRegisterView`.
+- [x] Member-initiated **upgrade** (incl. to lifetime) request → pending —
+      same view/form handles this today (one tier dropdown covers both
+      renewal and upgrade); `services.upgrade_to_lifetime()` exists as the
+      purpose-built door for a future caller that wants to specifically
+      mean "upgrade to Life," not a generic tier change.
+- [ ] Expiry / validity tracking surfaced on the dashboard. **Not built
+      tonight** — a UI/display task, separate from the service layer
+      itself.
+- [x] Secretariat **manual approval** in scoped admin calls the service layer
+      to activate / stamp membership number — `PaymentAdmin.mark_completed()`
+      rewired to call `services.activate_membership()`/
+      `services.record_installment_payment()` instead of the model methods
+      directly.
 
 ### 1.4 Status visibility
 - [ ] Member sees pending vs. active vs. expired clearly.
@@ -333,14 +384,63 @@ This is the loop that must be demonstrable before payments exist.
 - [ ] Membership category selected on the form (tier taxonomy from 0.1).
 
 ### 1.6 Tier + benefit admin (inline forms, main Django admin)
-- [ ] `Benefit`/`Entitlement` model related to `MembershipTier`, editable as
-      **inlines** on the tier in the main admin — Association manages what each
-      tier grants, no deploy needed.
-- [ ] Seed with the **Association's own stated benefits first** (from brochure):
-      newsletter/SMS-email alerts, library access, governance participation,
-      alumni card, certificate, lapel badge, Chancellor-ranking participation,
-      Distinguished Leadership Awards. Starred (card/cert/badge/governance/
-      ranking) = **Life members only**, per the brochure's own footnote.
+- [x] **`Benefit`/`TierBenefit` models — DONE 2026-08-10.** FK to the
+      existing `MembershipTier` (not a new parallel model — a UX/UI spec
+      initially proposed a standalone `Tier` model, which would have
+      forked the tier concept in two; caught before building anything by
+      checking existing models first). `TierBenefit` is the through model
+      (`tier` + `benefit`, `unique_together`), `status` is
+      included/excluded/not_applicable (never boolean — a cell can carry a
+      qualifier like "2 vehicles" or "25% off" in `detail`). `Benefit.axis`
+      is one of access/voice/economic/legacy per the spec's four-axis
+      test ("every sellable item maps to one of these; anything that
+      doesn't is marketing copy, not a benefit"). `TierBenefitInline`
+      (`TabularInline`) on `MembershipTierAdmin`; `BenefitAdmin`
+      filterable by axis. Verified on both admin sites `MembershipTier`
+      is dual-registered on (`/2005/` and `membership_admin_site`).
+      `billing_period`/`is_corporate` are **derived properties**, not
+      stored fields — both fully determined by existing `fee`/
+      `duration_months`/`tier_type`, and "no field lives in two places" is
+      this rebuild's own governing rule.
+- [x] **Seeded via data migration — DONE 2026-08-10**, all 25 benefits ×
+      10 tiers (Honorary excluded — see below), spot-checked 10 cells
+      against source. Two new `MembershipTier` rows added along the way
+      (Association decision): **Registered** (KES 0, free — didn't exist
+      before) and **Associate** (KES 3,000, annual — a new tier, NOT a
+      rename of Honorary despite matching its price; Honorary stays a
+      conferred distinction, Associate is purchased). Existing tiers'
+      `order` shifted to fit; no other existing row touched.
+      **Still open:** Honorary Member's own benefits were never specified
+      by the source data (its tier list has no "Honorary" row at all) —
+      needs the Association's input, not left as fabricated defaults.
+      **Also surfaced, unresolved:** the seed data assumes Corporate
+      Membership is billed `one_off` (paid once), but the existing
+      `Corporate Membership` row has `duration_months=12` — this system
+      already treats Corporate as a *recurring annual* fee (built into
+      tonight's demo-data generator and the installment-eligibility
+      logic already). Derived `billing_period` correctly reads back
+      "annual" for Corporate right now, which contradicts the seed data's
+      assumption. Not resolved either way — flagged for the Association,
+      not silently picked.
+- [x] **Differentiation audit + redesign — DONE 2026-08-10**, applied via
+      a second data migration (`0017_redesign_tier_benefits.py`, on top of
+      `0016` rather than editing it in place). The original matrix had
+      one structural break (AGM vote sat on the cheaper Full Annual tier,
+      not the pricier Associate — fixed, moved to Associate) and several
+      flatlines where 3-8 adjacent tiers shared an identical value across
+      large price gaps (career services identical from KES 500-500,000;
+      library borrowing identical across all 5 Life tiers; consultancy
+      panel and advisory forum each had duplicate adjacent pairs) — all
+      converted into real escalation ladders. Two benefits reclassified
+      VOICE→ACCESS (publication/speaking slots; VC/Chancellor invitation
+      — scarce access, not enforceable governance input). Associate kept
+      as its own tier (Association decision) rather than the redesign's
+      offered fallback of collapsing it into Full Annual — its full
+      differentiator is now the AGM vote. Escalation-ladder wording
+      (e.g. "résumé featured to recruiters", "reserved bay + valet") is
+      invented copy for the redesign exercise, not Association-authored —
+      spot-checked 12 cells against the proposal, all correct; still
+      needs a copy pass before this reads as final member-facing text.
 - [ ] Then build on researched references (proposed — for Association approval):
       - *Gradient within Life tiers:* Bronze = entry to starred perks + base
         discount band; Silver = deeper discount band + priority event
@@ -525,6 +625,18 @@ caller of the same door.
       Accumulate amount-paid-toward-tier on the `Membership`; upgrade via
       the service layer only when cumulative payments clear the next
       rung's `ladder_rank` price.
+      **Decisions ratified 2026-08-08 (not yet built):**
+      - Trigger is **automatic**, not member-initiated: every call to
+        `record_installment_payment()` checks cumulative `amount_paid`
+        against the next `ladder_rank` tier's price; clearing it fires the
+        1.3 service layer's tier-bump function with no separate member
+        request needed. Uses the same new-row-plus-`SUPERSEDED` mechanics
+        as any other 1.3 upgrade.
+      - **Analytics:** `MembershipAnalyticsView` gets a new chart — upgrade
+        counts broken down **by tier transition** (e.g. Bronze→Silver: 12,
+        Silver→Gold: 5), not just a raw total. Needs the old→new
+        relationship captured on the row (e.g. a `superseded_membership`
+        self-FK) so the query has something to group by.
 
 ---
 
