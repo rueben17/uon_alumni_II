@@ -92,6 +92,7 @@ class AlumniPhoneNumberInline(admin.TabularInline):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
+    list_per_page = 25
     model = User
     add_form = UserCreationForm
     form = UserChangeForm

@@ -6,6 +6,7 @@ from import_export import resources, fields
 from import_export.admin import ExportMixin
 
 from apps.home.membership_admin_site import membership_admin_site
+from apps.home import services
 # Register your models here.
 
 # ─────────────────────────────────────────────
@@ -101,6 +102,7 @@ class DepartmentInline(admin.TabularInline):
 
 @admin.register(Faculty)
 class FacultyAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = ("faculty_name", "department_count")
     search_fields = ("faculty_name",)
     ordering = ("faculty_name",)
@@ -118,6 +120,7 @@ class FacultyAdmin(admin.ModelAdmin):
 
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = ("name", "faculty", "employee_count")
     list_filter = ("faculty",)
     search_fields = ("name", "faculty__faculty_name")
@@ -173,7 +176,7 @@ class ArticleAdmin(admin.ModelAdmin):
     list_filter = ['type', 'is_published', 'created_at', 'is_feature', 'is_highlighted', 'chapter']
     search_fields = ['title', 'body']
     readonly_fields = ['published_at']
-    list_per_page = 6
+    list_per_page = 25
     inlines = [ArticleImagesInline]
 
 @admin.register(Event)
@@ -181,13 +184,14 @@ class EventAdmin(admin.ModelAdmin):
     list_display = ['title', 'event_type', 'created_at', 'date_updated']
     list_filter = ['event_type']
     prepopulated_fields = { 'slug': ('title',), }
-    list_per_page = 6
+    list_per_page = 25
     inlines = [EventImagesInline]
 
 
 
 @admin.register(Images)
 class ImagesAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = ['__str__', 'chapter', 'article', 'event', 'publication', 'in_memoriam', 'image', 'created_at']
     search_fields = ['article__title', 'chapter__name', 'event__title', 'publication__title']
     list_filter = [ 'chapter', 'created_at' ] #,
@@ -195,12 +199,14 @@ class ImagesAdmin(admin.ModelAdmin):
 
 @admin.register(Banner)
 class BannerAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = ['text', 'created_at']
     list_filter = [ 'created_at' ] #, 
 
 
 @admin.register(CoreValue)
 class CoreValueAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = ['name', 'order', 'is_active', 'created_at']
     list_editable = ['order', 'is_active']
     search_fields = ['name', 'description']
@@ -219,6 +225,7 @@ class CoreValueAdmin(admin.ModelAdmin):
 
 @admin.register(Chapter)
 class ChapterAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = ['name', 'faculty','year_launched', 'slug']
     list_filter = [ 'faculty' ] #,
     prepopulated_fields = { 'slug': ('name',)}
@@ -226,14 +233,17 @@ class ChapterAdmin(admin.ModelAdmin):
 
 @admin.register(Executive)
 class ExecutiveAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = ['title', 'position', 'rank', 'first_name', 'middle_name', 'surname' ]
 
 @admin.register(Secretariat)
 class SecretariatAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = ['title', 'position', 'first_name', 'middle_name', 'surname' ]
 
 @admin.register(Partner)
 class PartnerAdmin(admin.ModelAdmin):
+    list_per_page = 25
     # Was not registered at all before -- content editors had no way to
     # enter a partner without a Django shell (content_todo.txt #5).
     list_display = ['title', 'relation', 'created_at']
@@ -242,6 +252,7 @@ class PartnerAdmin(admin.ModelAdmin):
 
 @admin.register(Publication)
 class PublicationAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = ['title', 'category', 'visibility', 'document_date', 'is_approved']
     list_filter = ['category', 'visibility', 'is_approved']
     search_fields = ['title', 'volume', 'issue_number']
@@ -252,6 +263,7 @@ class PublicationAdmin(admin.ModelAdmin):
 
 @admin.register(InMemoriam)
 class InMemoriamAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = ['given_name', 'family_name', 'birth_year', 'death_year', 'graduation_year', 'published']
     list_filter = ['published', 'faculty']
     search_fields = ['given_name', 'family_name']
@@ -261,6 +273,7 @@ class InMemoriamAdmin(admin.ModelAdmin):
 
 @admin.register(JobPosting)
 class JobPostingAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = ['title', 'company', 'is_approved', 'expires_on', 'is_live']
     list_filter = ['is_approved']
     search_fields = ['title', 'company']
@@ -273,6 +286,7 @@ class JobPostingAdmin(admin.ModelAdmin):
 
 @admin.register(ContactMessage)
 class ContactMessageAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = ['name', 'email', 'subject', 'is_read', 'created_at']
     list_filter = ['is_read']
     search_fields = ['name', 'email', 'subject', 'message']
@@ -288,11 +302,34 @@ class ContactMessageAdmin(admin.ModelAdmin):
         return False
 
 
+class TierBenefitInline(admin.TabularInline):
+    model = TierBenefit
+    extra = 0
+    fields = ['benefit', 'status', 'detail', 'display_order']
+    ordering = ['display_order']
+    # No autocomplete_fields: MembershipTierAdmin is dual-registered on
+    # both the main site and membership_admin_site (below), and
+    # autocomplete requires the target model's ModelAdmin on that SAME
+    # site -- Benefit only has ~25 rows total, a plain <select> is fine.
+
+
 @admin.register(MembershipTier)
 class MembershipTierAdmin(admin.ModelAdmin):
-    list_display = ['name', 'fee', 'tier_type', 'duration_months', 'is_active']
+    list_per_page = 25
+    list_display = ['name', 'fee', 'track', 'tier_type', 'duration_months', 'is_active']
     list_editable = ['fee', 'is_active']
     list_filter = ['tier_type', 'is_active']
+    ordering = ['order']
+    inlines = [TierBenefitInline]
+
+
+@admin.register(Benefit)
+class BenefitAdmin(admin.ModelAdmin):
+    list_per_page = 25
+    list_display = ['name', 'axis', 'display_order']
+    list_filter = ['axis']
+    search_fields = ['name', 'description']
+    ordering = ['display_order']
 
 
 class PaymentInline(admin.TabularInline):
@@ -329,7 +366,7 @@ class AlumniProfileAdmin(ExportMixin, admin.ModelAdmin):
         'user__profile__national_id', 'student_reg_no',
     ]
     readonly_fields = ['registration_date', 'last_updated']
-    list_per_page = 20
+    list_per_page = 25
     fieldsets = (
         ('User Account', {
             'fields': ('user',)
@@ -369,6 +406,7 @@ class AlumniProfileAdmin(ExportMixin, admin.ModelAdmin):
 @admin.register(Membership)
 class MembershipAdmin(ExportMixin, admin.ModelAdmin):
     resource_class = MembershipResource
+    list_per_page = 25
     list_display = [
         'user', 'tier', 'status', 'is_lifetime', 'expires_on',
         'membership_number', 'payment_frequency', 'amount_paid_display',
@@ -404,6 +442,7 @@ class MembershipAdmin(ExportMixin, admin.ModelAdmin):
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = ['id', 'alumni', 'amount', 'payment_method', 'payment_status', 'payment_date']
     list_filter = ['payment_status', 'payment_method']
     search_fields = [
@@ -443,16 +482,21 @@ class PaymentAdmin(admin.ModelAdmin):
     def mark_completed(self, request, queryset):
         """
         Confirm payment, then update the Membership row the payment was
-        for -- rather than mutating fields directly (that's the one door
-        todo.md 1.3 wants, stated once on the model). Two paths:
+        for via the 1.3 service layer (apps/home/services.py) -- the one
+        door, rather than mutating fields or calling the model methods
+        directly. Two paths:
 
         - payment.membership is set (installment payments -- apps/home/views.py
-          links this explicitly now): call record_installment_payment(),
+          links this explicitly now): services.record_installment_payment(),
           which accumulates amount_paid and activates on the first call
           without assuming the full tier fee was paid.
         - payment.membership is unset (lump-sum payments, or older rows that
           predate the FK): fall back to the original lookup-by-(user,tier,
-          pending) then activate() in full, same as before.
+          pending) then services.activate_membership(), same as before.
+
+        Either path now also supersedes whatever was previously ACTIVE for
+        that user and carries its membership_number forward, handled
+        inside the service layer rather than here.
 
         Skips payments with no membership_tier set (shouldn't happen given
         how Payment rows are created, but nothing to apply if it is).
@@ -466,7 +510,7 @@ class PaymentAdmin(admin.ModelAdmin):
             payment_date = payment.payment_date.date() if payment.payment_date else None
 
             if payment.membership_id:
-                payment.membership.record_installment_payment(payment.amount, payment_date=payment_date)
+                services.record_installment_payment(payment.membership, payment.amount, payment_date=payment_date)
             else:
                 user = payment.alumni.user
                 membership = Membership.objects.filter(
@@ -474,7 +518,7 @@ class PaymentAdmin(admin.ModelAdmin):
                 ).order_by('-created_at').first()
                 if membership is None:
                     membership = Membership.objects.create(user=user, tier=tier)
-                membership.activate(payment_date=payment_date)
+                services.activate_membership(membership, payment_date=payment_date)
             updated += 1
         self.message_user(request, f"{updated} payment(s) marked completed and membership updated.")
     mark_completed.short_description = "Mark selected payments as completed (and update membership)"
@@ -499,6 +543,7 @@ class PaymentAdmin(admin.ModelAdmin):
 
 @admin.register(PaymentTransaction)
 class PaymentTransactionAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = ['id', 'payment', 'transaction_type', 'status_code', 'created_at']
     list_filter = ['transaction_type']
     search_fields = ['payment__transaction_reference', 'error_message']

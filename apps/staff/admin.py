@@ -24,6 +24,7 @@ from apps.staff.models import (
 
 @admin.register(ServiceUnit)
 class ServiceUnitAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = ("name",)
     search_fields = ("name",)
     ordering = ("name",)
@@ -31,6 +32,7 @@ class ServiceUnitAdmin(admin.ModelAdmin):
 
 @admin.register(ResearchUnit)
 class ResearchUnitAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = ("name",)
     search_fields = ("name",)
     ordering = ("name",)
@@ -38,6 +40,7 @@ class ResearchUnitAdmin(admin.ModelAdmin):
 
 @admin.register(Position)
 class PositionAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = ("title", "employee_count")
     search_fields = ("title",)
     ordering = ("title",)
@@ -55,7 +58,7 @@ class PositionAdmin(admin.ModelAdmin):
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
     date_hierarchy = "created_at"
-    list_per_page = 10
+    list_per_page = 25
 
     list_display = (
         "staff_id",

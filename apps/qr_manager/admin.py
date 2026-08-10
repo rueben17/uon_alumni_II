@@ -22,6 +22,7 @@ class EmployeeChoiceField(forms.ModelChoiceField):
 
 @admin.register(QRCode)
 class QRCodeAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = (
         "holder",
         "qr_type",
@@ -196,6 +197,7 @@ class QRCodeAdmin(admin.ModelAdmin):
 
 @admin.register(ScanLog)
 class ScanLogAdmin(admin.ModelAdmin):
+    list_per_page = 25
     """Read-only: scan history is evidence, not data entry. Scoped to
     a supervisor's own unit(s), same as QRCodeAdmin -- gated on
     holding a Supervisor row (or being superuser) rather than Django's
@@ -301,6 +303,7 @@ class ScanLogAdmin(admin.ModelAdmin):
 
 @admin.register(Supervisor)
 class SupervisorAdmin(admin.ModelAdmin):
+    list_per_page = 25
     """Assigns which unit a user supervises for QR code purposes. This
     model IS the access-control mechanism for QRCodeAdmin's scoping,
     so — regardless of any Django model permissions a user might be
@@ -342,6 +345,7 @@ class SupervisorAdmin(admin.ModelAdmin):
 # ---------------------------------------------------------------------
 
 class SupervisorEmployeeAdmin(admin.ModelAdmin):
+    list_per_page = 25
     """Read-only roster, scoped to the supervisor's own unit. Editing
     Employee records happens in the main staff admin, not here. Gated
     on holding a Supervisor row rather than Django's 'staff' app
