@@ -7,6 +7,8 @@ from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 from phonenumber_field.modelfields import PhoneNumberField
 
+from apps.user.phone import normalize_phone
+
 
 def profile_photo_path(instance, filename):
     """profile_photos/<user-uuid>.<ext> — stable, immutable, no PII in the
@@ -130,6 +132,18 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email or ""
+
+    def save(self, *args, **kwargs):
+        """Floor for normalization at the model layer (todo.md 0.2, closed
+        2026-08-10). The two known form entry points (`CompleteProfileForm`,
+        `AlumniProfileForm`) already call `normalize_phone()` in their own
+        `clean_<field>()`, but that only covers call sites that go through
+        those forms -- any future direct `user.phone = ...; user.save()`
+        had no floor. Skips blank/unset phone (registration paths that
+        haven't collected it yet) rather than forcing one in."""
+        if self.phone:
+            self.phone = normalize_phone(self.phone)
+        super().save(*args, **kwargs)
 
     @cached_property
     def roles(self) -> frozenset:

@@ -17,6 +17,7 @@ from decimal import Decimal
 import random
 import string
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from phonenumber_field.modelfields import PhoneNumberField
 
@@ -739,6 +740,10 @@ class MembershipTier(models.Model):
         ('honorary', 'Honorary Member'),
         ('corporate', 'Corporate Partner'),
         ('student', 'Student Member'),
+        # Free entry-level tier (2026-08-10) -- distinct from 'student',
+        # which specifically means enrolled-student status; Registered is
+        # anyone who signed up without paying anything.
+        ('registered', 'Registered Member'),
     ]
     name = models.CharField(max_length=50)  # "Gold Life Member"
     fee = models.DecimalField(max_digits=10, decimal_places=2)
@@ -768,23 +773,123 @@ class MembershipTier(models.Model):
     @property
     def allows_mpesa(self):
         return self.fee <= self.MPESA_FEE_CEILING
-    
+
+    @property
+    def is_corporate(self):
+        """Derived, not stored (2026-08-10) -- "no field lives in two
+        places" (docs/todo.md's governing rule). tier_type already carries
+        this; a separate boolean could only ever agree with it or drift
+        from it."""
+        return self.tier_type == "corporate"
+
+    @property
+    def track(self):
+        """student / individual / corporate -- derived from tier_type for
+        the same reason as is_corporate above. Distinct from tier_type
+        itself (which has 6 values); this collapses them to the three
+        tracks the 2026-08-10 tier-audit's rules describe."""
+        if self.tier_type == "student":
+            return "student"
+        if self.tier_type == "corporate":
+            return "corporate"
+        return "individual"
+
+    @property
+    def billing_period(self):
+        """free / annual / one_off, derived rather than stored for the
+        same reason as is_corporate above -- fully determined by fee and
+        is_lifetime() already. free beats one_off in priority: Registered
+        is fee=0 but not literally on the lifetime/Life-tier code path
+        (tier_type != 'life'), so is_lifetime() would say False for it --
+        checking fee first, always, is what actually makes it read as
+        'free' rather than 'annual' for a zero-fee tier of any duration.
+        """
+        if self.fee == 0:
+            return "free"
+        if self.is_lifetime():
+            return "one_off"
+        return "annual"
+
     def is_lifetime(self):
         """Check if this tier is a lifetime membership"""
         return self.tier_type == 'life' or self.duration_months == 0
     
     def get_expiry_date(self, start_date=None):
-        """Calculate expiry date based on tier duration"""
-        from django.utils import timezone
-        from datetime import timedelta
-        
+        """Calculate expiry date based on tier duration.
+
+        Uses relativedelta, not timedelta(days=months*30) -- the old
+        30-days-per-month approximation turned "12 months" into 360 days,
+        so every renewal landed ~5-6 days earlier than the true calendar
+        anniversary and the drift compounded release over release
+        (todo.md 0.3, fixed 2026-08-10). relativedelta adds real calendar
+        months, so a join date of e.g. Feb 29 on a leap year still lands
+        on a sane date the next non-leap year (Feb 28), which a raw
+        day-count can't express either.
+        """
         if start_date is None:
             start_date = timezone.now().date()
-        
+
         if self.is_lifetime():
             return None  # Never expires
-        
-        return start_date + timedelta(days=self.duration_months * 30)   
+
+        return start_date + relativedelta(months=self.duration_months)
+
+
+class Benefit(models.Model):
+    """A named perk that may or may not apply to a given MembershipTier --
+    the per-tier value lives on TierBenefit below, not here (docs/todo.md
+    1.6). Every real benefit maps to one of four axes; anything that
+    doesn't is marketing copy, not a benefit (2026-08-10 UX/UI spec)."""
+
+    class Axis(models.TextChoices):
+        ACCESS = "access", _("Access")       # physically scarce, verifiable at a gate
+        VOICE = "voice", _("Voice")           # binary and enforceable (candidacy, seats)
+        ECONOMIC = "economic", _("Economic")  # members earn from it
+        LEGACY = "legacy", _("Legacy")        # permanent and named
+
+    name = models.CharField(max_length=255)
+    axis = models.CharField(max_length=20, choices=Axis.choices)
+    description = models.TextField(blank=True, default="")
+    display_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["display_order", "name"]
+        verbose_name = _("Benefit")
+        verbose_name_plural = _("Benefits")
+
+    def __str__(self):
+        return self.name
+
+
+class TierBenefit(models.Model):
+    """One cell of the tier x benefit matrix -- status is never boolean
+    (a cell can be included, excluded, not applicable, or included with a
+    qualifier like "2 vehicles" or "25% off", hence `detail` alongside
+    `status` rather than a plain BooleanField)."""
+
+    class Status(models.TextChoices):
+        INCLUDED = "included", _("Included")
+        EXCLUDED = "excluded", _("Excluded")
+        NOT_APPLICABLE = "not_applicable", _("Not applicable")
+
+    tier = models.ForeignKey(MembershipTier, on_delete=models.CASCADE, related_name="tier_benefits")
+    benefit = models.ForeignKey(Benefit, on_delete=models.CASCADE, related_name="tier_benefits")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.EXCLUDED)
+    detail = models.CharField(
+        max_length=255, blank=True, default="",
+        help_text=_("Qualifier for an included benefit, e.g. \"2 vehicles\", \"25% off\", \"eligible\". Leave blank for a plain ✓."),
+    )
+    display_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ("tier", "benefit")
+        ordering = ["display_order"]
+        verbose_name = _("Tier Benefit")
+        verbose_name_plural = _("Tier Benefits")
+
+    def __str__(self):
+        detail_suffix = f" ({self.detail})" if self.detail else ""
+        return f"{self.tier.name} — {self.benefit.name}: {self.get_status_display()}{detail_suffix}"
 
 
 def get_alumni_profile_slug(instance):
@@ -1038,6 +1143,12 @@ class Membership(models.Model):
         ACTIVE = "active", _("Active")
         EXPIRED = "expired", _("Expired")
         CANCELLED = "cancelled", _("Cancelled")
+        # A renewal/upgrade activated and replaced this row (1.3 service
+        # layer, 2026-08-10) -- distinct from EXPIRED, which means the
+        # member let it lapse with nothing replacing it. Lets "current
+        # membership" stay a simple status filter instead of every call
+        # site having to order-by-latest to find it.
+        SUPERSEDED = "superseded", _("Superseded")
 
     class PaymentFrequency(models.TextChoices):
         ONCE = "once", _("Once")
@@ -1063,7 +1174,15 @@ class Membership(models.Model):
     started_on = models.DateField(null=True, blank=True)
     expires_on = models.DateField(null=True, blank=True)  # null once active = lifetime
     is_lifetime = models.BooleanField(default=False)
-    membership_number = models.CharField(max_length=20, unique=True, null=True, blank=True)
+    # NOT unique=True at the field level (2026-08-10, 1.3 service layer):
+    # the ratified "membership_number carries forward across renewals"
+    # decision means the outgoing (SUPERSEDED) row and the incoming
+    # (ACTIVE) row briefly hold the SAME number -- a blanket unique
+    # constraint makes that literally impossible to save. Uniqueness is
+    # enforced instead by Meta.constraints, scoped to only ACTIVE rows --
+    # exactly one row per number may be live at a time; history keeps its
+    # number on superseded rows too.
+    membership_number = models.CharField(max_length=20, null=True, blank=True)
     payment_frequency = models.CharField(max_length=20, choices=PaymentFrequency.choices, default=PaymentFrequency.ONCE)
 
     # What was actually paid for *this* row -- deliberately separate from
@@ -1120,6 +1239,13 @@ class Membership(models.Model):
         ordering = ["-created_at"]
         verbose_name = _("Membership")
         verbose_name_plural = _("Memberships")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["membership_number"],
+                condition=models.Q(status="active"),
+                name="unique_active_membership_number",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.user.email} — {self.tier.name} ({self.get_status_display()})"
