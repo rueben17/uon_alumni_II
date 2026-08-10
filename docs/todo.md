@@ -89,6 +89,27 @@ These span the whole build. Stated once here; each phase honors them.
   restore method must be provided and owned regardless of where it ends up
   hosted. Live payment + PII data; "who restores this and how" needs an
   answer, not an assumption.
+  **Incident, 2026-08-10:** the 2026-08-06 Faculty/Department app move
+  (staff → home) was reconciled on local sqlite that night but never on
+  Neon — its `django_migrations` table kept recording `home`/`staff`
+  migration names as applied while Neon's actual live schema still had
+  `staff_faculty`/`staff_department` (the pre-move tables), because
+  Django tracks "applied" by migration name, not by a file's current
+  content. Surfaced tonight when deploy.yml's `migrate` step hit
+  `home.0007_...` and failed with `relation "home_faculty" does not
+  exist`. Fixed directly against Neon (read-only-verified first: `SELECT
+  COUNT(*)` confirmed zero rows in `user_user`/`home_alumniprofile`/
+  `staff_employee`/`home_membership`/`home_payment` and the FK dependency
+  graph via `information_schema` confirmed a rename would resolve every
+  affected table) via `ALTER TABLE staff_faculty RENAME TO home_faculty`
+  / same for `department` — Postgres FKs track by object id, not name, so
+  every dependent table's constraint followed the rename automatically,
+  no data loss, no reseed needed. `migrate` then completed 0007→0017
+  cleanly. **Lesson:** any future migration-graph restructuring (renaming
+  a table, moving a model between apps) needs the SAME reconciliation
+  applied to every real environment, not just the one being tested in at
+  the time — this is exactly the kind of gap the Neon→VPS move (above)
+  should get a real deploy/migration checklist for.
 - **Secrets in `.env`** — M-Pesa (Daraja sandbox vs prod keys differ), Stripe,
   SMS/email provider creds. Never in the repo.
 - **Rate limiting — a must.** Public endpoints (registration, and especially the
