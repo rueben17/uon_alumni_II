@@ -1,9 +1,10 @@
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.mail import send_mail
-from django.db.models import Count, Sum
+from django.db.models import Count, Prefetch, Sum
 from django.db.models.functions import TruncMonth
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -12,6 +13,7 @@ from django.views.generic import CreateView, DetailView, ListView, TemplateView,
 from apps.home.forms import AlumniProfileForm, AlumniRegistrationForm, ContactForm, MembershipUpdateForm
 from apps.home.models import*
 from apps.home.payments import initiate_payment
+from apps.home import services
 from apps.user.mixins import StaffOrSuperuserRequiredMixin
 
 # Create your views here.
@@ -286,7 +288,7 @@ class AlumniRegisterView(MpesaEligibilityMixin, QualificationMapMixin, LoginRequ
         tier = form.cleaned_data["membership_tier"]
         frequency = form.cleaned_data["payment_frequency"]
         amount = form.cleaned_data.get("installment_amount") or tier.fee
-        membership = Membership.objects.create(user=self.request.user, tier=tier, payment_frequency=frequency)
+        membership = services.assign_membership_tier(self.request.user, tier, payment_frequency=frequency)
         payment = Payment.objects.create(
             alumni=self.object,
             membership=membership,
@@ -326,9 +328,76 @@ class AlumniProfileDetailView(DetailView):
         from allauth.account.models import EmailAddress
 
         context = super().get_context_data(**kwargs)
-        context["current_membership"] = Membership.objects.current_for(self.object.user)
+        current_membership = Membership.objects.current_for(self.object.user)
+        context["current_membership"] = current_membership
         context["alt_email"] = EmailAddress.objects.filter(user=self.object.user, primary=False).first()
+        # Only what this member actually has -- not the full tier matrix
+        # (that's the separate Categories & Benefits page). Excluded/
+        # not-applicable rows would just be a list of things they don't
+        # get, which has no place on someone's own profile.
+        if current_membership:
+            context["member_benefits"] = (
+                current_membership.tier.tier_benefits
+                .filter(status=TierBenefit.Status.INCLUDED)
+                .select_related("benefit")
+                .order_by("display_order")
+            )
         return context
+
+
+class MembershipCategoriesView(TemplateView):
+    """Public tier x benefit comparison (2026-08-11) -- the "Categories &
+    Benefits" nav link now points here instead of the empty standing_page
+    placeholder (see context_processors.py's url_categories_benefits).
+
+    Tiers with no TierBenefit rows at all are excluded rather than shown
+    empty -- today that's just Honorary Member (conferred, not purchased;
+    the 2026-08-10 tier-audit's source data never covered it, so nothing
+    was ever seeded for it). Corporate is queried and rendered separately
+    from the individual ladder, not appended as "tier 11" -- it's a
+    parallel institutional track per the audit's own rules.
+    """
+    template_name = "home/membership_categories.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        included_qs = (
+            TierBenefit.objects.filter(status=TierBenefit.Status.INCLUDED)
+            .select_related("benefit")
+            .order_by("display_order")
+        )
+        tiers = (
+            MembershipTier.objects.filter(is_active=True, tier_benefits__isnull=False)
+            .distinct()
+            .order_by("fee")
+            .prefetch_related(Prefetch("tier_benefits", queryset=included_qs, to_attr="included_benefits"))
+        )
+        context["individual_tiers"] = [t for t in tiers if not t.is_corporate]
+        context["corporate_tiers"] = [t for t in tiers if t.is_corporate]
+        return context
+
+
+@login_required
+def download_payment_receipt(request, slug, pk, payment_id):
+    """Serve a payment's acknowledgement receipt as a downloadable file.
+
+    STUBBED (2026-08-10): no receipt-generation mechanism exists anywhere
+    in this codebase yet -- confirmed nothing under 'receipt'/'reportlab'-
+    for-receipts before wiring this up. Per the UX/UI spec's own stop
+    condition ("if receipt generation does not already exist, stop and
+    ask before adding it"), this deliberately does NOT fabricate PDF
+    generation. Returns 501 so the button/URL is real and the template
+    never hits NoReverseMatch, but the actual file response is pending
+    confirmation of where/how receipts should be produced.
+    """
+    from django.http import HttpResponse
+
+    alumni = get_object_or_404(AlumniProfile, pk=pk, user=request.user)
+    payment = get_object_or_404(Payment, pk=payment_id, alumni=alumni)
+    return HttpResponse(
+        "Receipt download isn't wired up yet -- pending confirmation of how receipts are generated.",
+        status=501,
+    )
 
 
 class AlumniProfileUpdateView(QualificationMapMixin, LoginRequiredMixin, UpdateView):
@@ -438,7 +507,7 @@ class AlumniMembershipUpdateView(LoginRequiredMixin, View):
         tier = form.cleaned_data["membership_tier"]
         frequency = form.cleaned_data["payment_frequency"]
         amount = form.cleaned_data.get("installment_amount") or tier.fee
-        membership = Membership.objects.create(user=request.user, tier=tier, payment_frequency=frequency)
+        membership = services.assign_membership_tier(request.user, tier, payment_frequency=frequency)
         payment = Payment.objects.create(
             alumni=alumni,
             membership=membership,
@@ -516,6 +585,28 @@ class MembershipAnalyticsView(StaffOrSuperuserRequiredMixin, TemplateView):
             Membership.objects.values("legacy_signed").annotate(count=Count("id"))
         )
 
+        total_members = Membership.objects.count()
+
+        # Raw per-row breakdowns for the table-view twin beside each chart
+        # (todo.md 1.9 follow-up, 2026-08-08) -- a bar/line chart alone can't
+        # carry more than one measure at a glance (count *and* revenue *and*
+        # share of total), and past ~7 categories a table reads better than
+        # a chart anyway. Built from the same querysets above, not a second
+        # round-trip to the DB.
+        context["tier_table"] = [
+            {
+                "name": row["tier__name"] or "—",
+                "count": row["count"],
+                "revenue": row["revenue"] or 0,
+                "pct": (row["count"] / total_members * 100) if total_members else 0,
+            }
+            for row in by_tier
+        ]
+        context["revenue_table"] = [
+            {"month": row["month"], "revenue": row["revenue"] or 0}
+            for row in monthly_revenue
+        ]
+
         context["chart_data"] = {
             "by_tier": {
                 "labels": [row["tier__name"] or "—" for row in by_tier],
@@ -539,7 +630,7 @@ class MembershipAnalyticsView(StaffOrSuperuserRequiredMixin, TemplateView):
                 "unsigned": next((row["count"] for row in signed_counts if not row["legacy_signed"]), 0),
             },
         }
-        context["total_members"] = Membership.objects.count()
+        context["total_members"] = total_members
         context["total_revenue"] = Membership.objects.aggregate(total=Sum("subscription_amount"))["total"] or 0
         return context
 

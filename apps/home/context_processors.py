@@ -170,9 +170,12 @@ def contacts(request):
         "url_downloads":   f"{base}{home_url('uon_alumni_downloads')}",
         "url_newsletters": f"{base}{home_url('uon_alumni_downloads')}?category=newsletter",
         "url_careers":     f"{base}{home_url('uon_alumni_careers')}",
+        # Categories & Benefits is a real data-driven page now (2026-08-11,
+        # MembershipCategoriesView) -- not routed through standing_page
+        # like the rest below, which are still Article-content placeholders.
+        "url_categories_benefits": f"{base}{home_url('membership_categories')}",
         # Standing pages -- one route (home:standing_page) behind all of
         # these, see apps/home/views.py's standing_page().
-        "url_categories_benefits": f"{base}{home_url('standing_page', page_key='categories-benefits')}",
         "url_alumni_card":         f"{base}{home_url('standing_page', page_key='alumni-card')}",
         "url_corporates":          f"{base}{home_url('standing_page', page_key='corporates')}",
         "url_notable_alumni":      f"{base}{home_url('standing_page', page_key='notable-alumni')}",

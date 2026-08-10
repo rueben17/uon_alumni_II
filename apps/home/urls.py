@@ -33,7 +33,12 @@ urlpatterns = [
     uon_path("profile/<slug:slug>/<uuid:pk>/edit/", AlumniProfileUpdateView.as_view(), "alumni_profile_update"),
     uon_path("profile/<slug:slug>/<uuid:pk>/membership/", AlumniMembershipUpdateView.as_view(), "alumni_membership_update"),
     uon_path("profile/<slug:slug>/<uuid:pk>/delete/", AlumniProfileDeleteView.as_view(), "alumni_profile_delete"),
+    uon_path(
+        "profile/<slug:slug>/<uuid:pk>/payments/<int:payment_id>/receipt/",
+        download_payment_receipt, "payment_receipt_download",
+    ),
     uon_path("membership-analytics/", MembershipAnalyticsView.as_view(), "membership_analytics"),
+    uon_path("membership-categories/", MembershipCategoriesView.as_view(), "membership_categories"),
     uon_path("donate/", uon_alumni_donate, "uon_alumni_donate"),
     uon_path("scholarship/", uon_alumni_scholarship, "uon_alumni_scholarship"),
     uon_path("in-memoriam/", uon_alumni_in_memoriam, "uon_alumni_in_memoriam"),
