@@ -144,11 +144,22 @@ class EmployeeListView(LoginRequiredMixin, ListView):
             qs = qs.filter(department_id=department)
 
         # Filter: ?track=teaching
-        track = self.request.GET.get("track", "").strip()
+        track = self._validated_track()
         if track:
             qs = qs.filter(staff_track=track)
 
         return qs
+
+    def _validated_track(self):
+        """Allowlist ?track= against real choices (code review finding
+        #1, 2026-08-11 fix) -- this value gets reflected into the
+        filter form's Alpine x-data, so an unvalidated value is a
+        reflected-XSS vector regardless of how it's escaped there.
+        Belt-and-suspenders with the template-side json_script fix:
+        an invalid value never even reaches template rendering."""
+        track = self.request.GET.get("track", "").strip()
+        valid_tracks = {value for value, _label in Employee.StaffTrack.choices}
+        return track if track in valid_tracks else ""
 
     def get_template_names(self):
         if self.request.headers.get("HX-Request") == "true":
@@ -159,7 +170,7 @@ class EmployeeListView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context["query"] = self.request.GET.get("q", "")
         context["selected_unit"] = self.request.GET.get("unit", "")
-        context["selected_track"] = self.request.GET.get("track", "")
+        context["selected_track"] = self._validated_track()
         context["track_choices"] = Employee.StaffTrack.choices
         departments = Department.objects.order_by("name")
         service_units = ServiceUnit.objects.order_by("name")

@@ -943,12 +943,18 @@ feature, `profile_update.html`, `forms.py`, `staff_extras.py`, and
 work, still open as originally filed unless marked fixed.
 
 ### Bugs / correctness (fix first)
-1. **[HIGH] Reflected XSS via `track` GET param in Alpine `x-data`** —
-   `templates/staff/all_uon_staff.html:25`. Django's default autoescaping
-   is the wrong context for a value embedded in a JS string; a crafted
-   `?track=x',evil:(alert(1),0)` breaks out and runs arbitrary JS. Fix:
-   `|escapejs`, or better, `json_script` + read from that in Alpine. Also
-   allowlist `track` server-side against `Employee.StaffTrack.choices`.
+1. **[FIXED 2026-08-11]** Reflected XSS via `track` GET param in Alpine
+   `x-data` — `templates/staff/all_uon_staff.html:25`. Fixed both ways
+   the finding suggested, not just the minimal patch: `EmployeeListView`
+   now allowlists `track` against `Employee.StaffTrack.choices`
+   server-side (`_validated_track()`, shared by the queryset filter and
+   the template context, so an invalid value never reaches rendering at
+   all), and the template passes `selected_track` to Alpine via
+   `json_script` instead of raw string interpolation into the JS-string
+   context. Verified with the exact payload from the original finding
+   (`?track=x',evil:(alert(1),0)`) — neutralized to `""` server-side,
+   nothing resembling it reaches the response; legitimate values
+   (`teaching`) still round-trip and filter correctly.
 2. **[HIGH] HTMX self-nesting on every filter/search/pagination
    interaction** — `all_uon_staff.html:26-30`,
    `partials/employee_table.html:1,51,69,83`. `hx-target`/`hx-select` both

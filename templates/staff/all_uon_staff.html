@@ -18,11 +18,12 @@
                             <p class="text-sm text-slate-600">Browse all active staff and filter by teaching, service, or research unit.</p>
                         </div>
 
+                        {{ selected_track|json_script:"selected-track-data" }}
                         <form
                             class="grid grid-cols-1 gap-3 md:grid-cols-[1fr_220px_260px_auto] w-full md:w-auto"
                             action="{% url 'staff:all_uon_staff' %}"
                             method="get"
-                            x-data="{ track: '{{ selected_track|default:'' }}' }"
+                            x-data="{ track: JSON.parse(document.getElementById('selected-track-data').textContent) }"
                             hx-get="{% url 'staff:all_uon_staff' %}"
                             hx-target="#staff-table-container"
                             hx-select="#staff-table-container"
