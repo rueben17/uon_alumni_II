@@ -20,7 +20,7 @@
 
           
 
-                    <div class="loader h-screen flex justify-center items-center bg-gray-100">
+                    <div class="loader fixed inset-0 z-[9999] flex h-screen items-center justify-center bg-gray-100">
                         <svg class="w-10 h-10 animate-spin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2026 Fonticons, Inc.--><path d="M272 112C272 85.5 293.5 64 320 64C346.5 64 368 85.5 368 112C368 138.5 346.5 160 320 160C293.5 160 272 138.5 272 112zM272 528C272 501.5 293.5 480 320 480C346.5 480 368 501.5 368 528C368 554.5 346.5 576 320 576C293.5 576 272 554.5 272 528zM112 272C138.5 272 160 293.5 160 320C160 346.5 138.5 368 112 368C85.5 368 64 346.5 64 320C64 293.5 85.5 272 112 272zM480 320C480 293.5 501.5 272 528 272C554.5 272 576 293.5 576 320C576 346.5 554.5 368 528 368C501.5 368 480 346.5 480 320zM139 433.1C157.8 414.3 188.1 414.3 206.9 433.1C225.7 451.9 225.7 482.2 206.9 501C188.1 519.8 157.8 519.8 139 501C120.2 482.2 120.2 451.9 139 433.1zM139 139C157.8 120.2 188.1 120.2 206.9 139C225.7 157.8 225.7 188.1 206.9 206.9C188.1 225.7 157.8 225.7 139 206.9C120.2 188.1 120.2 157.8 139 139zM501 433.1C519.8 451.9 519.8 482.2 501 501C482.2 519.8 451.9 519.8 433.1 501C414.3 482.2 414.3 451.9 433.1 433.1C451.9 414.3 482.2 414.3 501 433.1z"/></svg>
                     </div>
 
@@ -106,9 +106,28 @@
         <script src="{% static 'js/htmx.js' %}" defer ></script>
         <script src="{% static 'js/main.js' %}" defer ></script>
         <script>
-           $(window).on('load', function(){
-                $('.loader').fadeOut();
-           });
+            // Vanilla JS, not jQuery's $(window).on('load', ...) --
+            // that depended on the jQuery CDN <script> above succeeding
+            // (a slow/blocked/failed third-party load left this handler
+            // never registered, so the loader never hid) and on the
+            // slow `load` event, which waits for every image/subresource
+            // rather than just the DOM being ready. Both together are
+            // the likely cause of the loader "sometimes rendering
+            // weird" (2026-08-11) -- fixed here, and the loader itself
+            // is now `fixed inset-0` above so even a delayed hide can't
+            // push real page content down a full extra viewport height.
+            document.addEventListener('DOMContentLoaded', function () {
+                // DOMContentLoaded fires as soon as HTML/CSS/JS are
+                // parsed -- on a fast/cached load that's near-instant,
+                // so the spinner just flashed and vanished. A short
+                // fixed minimum-display delay reads as intentional
+                // instead (2026-08-11) -- still no dependency on
+                // jQuery/window.load, just a deliberate pause here.
+                var loader = document.querySelector('.loader');
+                setTimeout(function () {
+                    if (loader) { loader.style.display = 'none'; }
+                }, 500);
+            });
         </script>
        
     </body>
