@@ -10,7 +10,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.generic import CreateView, DetailView, ListView, TemplateView, UpdateView, View
 
-from apps.home.forms import AlumniProfileForm, AlumniRegistrationForm, ContactForm, MembershipUpdateForm
+from apps.home.forms import (
+    AlumniProfileForm, AlumniRegistrationForm, ContactForm, MembershipUpdateForm, ScholarshipApplicationForm,
+)
 from apps.home.models import*
 from apps.home.payments import initiate_payment
 from apps.home import services
@@ -640,7 +642,30 @@ def uon_alumni_donate(request):
 
 
 def uon_alumni_scholarship(request):
-    return render(request, 'home/uon_alumni_scholarship.html')
+    """Public, no login required -- applicants are current undergraduate
+    students, not necessarily existing alumni-portal accounts. Same
+    GET-display/POST-validate/messages.success/redirect pattern as
+    uon_alumni_contact_us() below; request.FILES is needed here for
+    physical_copy, which uon_alumni_contact_us's form doesn't have.
+
+    department_map feeds the Faculty -> Department cascading dropdown --
+    same shape/pattern as QualificationMapMixin's qualification_map
+    (this is a function view, not a CBV, so built inline rather than via
+    that mixin, but the template JS is the same rebuild-on-change logic)."""
+    form = ScholarshipApplicationForm(request.POST or None, request.FILES or None)
+    department_map = {}
+    for department in Department.objects.select_related("faculty"):
+        department_map.setdefault(str(department.faculty_id), []).append(
+            {"value": department.id, "label": department.name}
+        )
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(
+            request,
+            "Thanks for applying -- your scholarship application has been received.",
+        )
+        return redirect("home:uon_alumni_scholarship")
+    return render(request, 'home/uon_alumni_scholarship.html', {"form": form, "department_map": department_map})
 
 
 def uon_alumni_in_memoriam(request):
