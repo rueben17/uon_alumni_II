@@ -27,9 +27,8 @@ from apps.user.mixins import StaffOrSuperuserRequiredMixin
 
 
 def uon_alumni_home(request):
-    
     context = {
-
+        "carousel_images": Images.objects.filter(show_in_carousel=True).exclude(image="").order_by("created_at"),
     }
     return render(request, "home/alumni_home.html", context)
 

@@ -300,6 +300,16 @@ class Images(models.Model):
                     null=True,
                     blank=True,
                 )
+    # Homepage advert/promo carousel (2026-08-11), below the banner --
+    # these rows have no article/chapter/event/publication/in_memoriam
+    # parent (an "unattached" image, per __str__ below), so a plain flag
+    # is enough; no new FK needed since there's nothing model-specific to
+    # point at.
+    show_in_carousel = models.BooleanField(
+        default=False,
+        verbose_name=_("Show in homepage carousel"),
+        help_text=_("Feature this image in the advert/promo carousel below the homepage banner."),
+    )
     created_at = models.DateTimeField(auto_now_add=True, editable=False)
     updated_at = models.DateTimeField(auto_now=True)
 

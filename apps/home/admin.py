@@ -192,9 +192,9 @@ class EventAdmin(admin.ModelAdmin):
 @admin.register(Images)
 class ImagesAdmin(admin.ModelAdmin):
     list_per_page = 25
-    list_display = ['__str__', 'chapter', 'article', 'event', 'publication', 'in_memoriam', 'image', 'created_at']
+    list_display = ['__str__', 'chapter', 'article', 'event', 'publication', 'in_memoriam', 'image', 'show_in_carousel', 'created_at']
     search_fields = ['article__title', 'chapter__name', 'event__title', 'publication__title']
-    list_filter = [ 'chapter', 'created_at' ] #,
+    list_filter = [ 'chapter', 'show_in_carousel', 'created_at' ] #,
 
 
 @admin.register(Banner)
