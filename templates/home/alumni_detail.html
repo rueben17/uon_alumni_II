@@ -103,10 +103,13 @@
                     </div>
                     <!-- /Left column -->
 
-                    <!-- Right column: payment history + receipts -- owner-only,
-                         same visibility rule as the Edit/Manage/Deactivate
-                         actions above (this is a public profile page; payment
-                         data must never render for other visitors). -->
+                    <!-- Right column: membership status -- payment history
+                         (owner-only, same visibility rule as the Edit/Manage/
+                         Deactivate actions above; payment data must never
+                         render for other visitors) stacked above this
+                         alumni's own current-tier benefits (public, same
+                         visibility as the tier badge in the header). -->
+                    <div class="flex flex-col gap-6">
                     {% if request.user.is_authenticated and request.user == alumni.user %}
                     <div class="rounded-sm border border-slate-200 bg-white p-6 shadow-sm md:p-8">
                         <h2 class="text-lg font-semibold text-slate-900 mb-4">Payment History</h2>
@@ -139,41 +142,27 @@
                         {% endwith %}
                     </div>
                     {% endif %}
-                    <!-- /Right column -->
-                </div>
 
-                <!-- Full-width: this alumni's OWN current-tier benefits only --
-                     a full comparison across every tier belongs on the
-                     separate Categories & Benefits standing page
-                     (docs/todo.md Content Authoring Backlog #15), not here. -->
-                <div class="mt-6 rounded-sm border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-                    <h2 class="text-lg font-semibold text-slate-900 mb-4">Membership Benefits</h2>
-                    {% if current_membership %}
-                        <p class="text-sm font-medium text-slate-700">
-                            {{ current_membership.tier.name }} &middot; KES {{ current_membership.tier.fee }}
-                            {% if current_membership.tier.is_lifetime %}(one-time){% else %}/ {{ current_membership.tier.duration_months }} months{% endif %}
-                        </p>
-                        {% if member_benefits %}
-                            <ul class="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-                                {% for tb in member_benefits %}
-                                    <li class="flex items-baseline gap-2 text-sm text-slate-700">
-                                        {% if tb.detail %}
-                                            <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
-                                                &#10003; {{ tb.detail }}
-                                            </span>
-                                        {% else %}
-                                            <span class="shrink-0 text-emerald-600">&#10003;</span>
-                                        {% endif %}
-                                        <span>{{ tb.benefit.name }}</span>
-                                    </li>
-                                {% endfor %}
-                            </ul>
+                    <!-- This alumni's OWN current-tier benefits only -- a full
+                         comparison across every tier belongs on the separate
+                         Categories & Benefits standing page (docs/todo.md
+                         Content Authoring Backlog #15), not here. Rendered
+                         through the same snippets/tiers.html card used there
+                         (and on the profile page's Corporate track) -- one
+                         tier in the list, previous_tier_name unset so it
+                         reads "What's included:" rather than a diff. -->
+                    <div>
+                        <h2 class="text-lg font-semibold text-slate-900 mb-4">Membership Benefits</h2>
+                        {% if current_membership_tiers %}
+                            {% include "snippets/tiers.html" with tiers=current_membership_tiers %}
                         {% else %}
-                            <p class="mt-2 text-sm text-slate-500 italic">No benefits configured for this tier yet.</p>
+                            <div class="rounded-sm border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+                                <p class="text-sm text-slate-500">No membership on file yet.</p>
+                            </div>
                         {% endif %}
-                    {% else %}
-                        <p class="text-sm text-slate-500">No membership on file yet.</p>
-                    {% endif %}
+                    </div>
+                    </div>
+                    <!-- /Right column -->
                 </div>
                 </section>
 

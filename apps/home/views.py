@@ -335,14 +335,22 @@ class AlumniProfileDetailView(DetailView):
         # Only what this member actually has -- not the full tier matrix
         # (that's the separate Categories & Benefits page). Excluded/
         # not-applicable rows would just be a list of things they don't
-        # get, which has no place on someone's own profile.
+        # get, which has no place on someone's own profile. Shaped to
+        # match snippets/tiers.html's expectations (new_benefits/
+        # previous_tier_name on the tier itself, a `tiers` list to loop
+        # over) so this page renders through the same shared card
+        # component as the public tier comparison and Corporate, instead
+        # of a third hand-rolled copy of the same markup.
         if current_membership:
-            context["member_benefits"] = (
-                current_membership.tier.tier_benefits
+            tier = current_membership.tier
+            tier.previous_tier_name = None
+            tier.new_benefits = (
+                tier.tier_benefits
                 .filter(status=TierBenefit.Status.INCLUDED)
                 .select_related("benefit")
                 .order_by("display_order")
             )
+            context["current_membership_tiers"] = [tier]
         return context
 
 

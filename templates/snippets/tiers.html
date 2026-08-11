@@ -1,5 +1,13 @@
-<div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
-  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-stretch md:grid-cols-3 md:gap-8">
+<div class="mx-auto max-w-7xl {% if tiers|length > 1 %}px-4 py-8 sm:px-6 sm:py-12 lg:px-8 lg:py-16{% endif %}">
+  {% comment %}
+    grid-cols only widen past 1 when there's more than one card -- a
+    single tier (e.g. the alumni profile page's own-tier panel) gets
+    embedded in all sorts of container widths, and sm:/md: breakpoints
+    key off the viewport, not the container, so a lone card in a narrow
+    column would otherwise get forced into a cramped fixed-width track
+    regardless of how much room it actually has.
+  {% endcomment %}
+  <div class="grid grid-cols-1 gap-4 sm:items-stretch md:gap-8 {% if tiers|length > 1 %}sm:grid-cols-2 md:grid-cols-3{% endif %}">
     {% for tier in tiers %}
       <div tabindex="0" class="divide-y divide-gray-200 rounded-2xl border border-gray-200 shadow-xs cursor-pointer transition-colors hover:bg-sky-50 focus:bg-sky-50">
         <div class="p-6 sm:px-8">
@@ -24,7 +32,7 @@
             <p class="text-lg font-medium text-gray-900 sm:text-xl">What's included:</p>
           {% endif %}
 
-          <ul class="mt-2 space-y-2 sm:mt-4">
+          <ul class="mt-2 flex flex-row flex-wrap gap-x-4 gap-y-2 sm:mt-4">
             {% for tb in tier.new_benefits %}
               <li class="flex items-center gap-1">
                 <svg
