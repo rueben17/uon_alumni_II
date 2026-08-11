@@ -689,6 +689,38 @@ actually *see* — but it must not consume the time self-service needs.
       Association should have them checked before final). The 1.1 blocker
       is resolved. Privacy + Terms URLs also handed to Google for the
       OAuth consent screen's required links.
+- [x] **Sign-in page copy updated — DONE 2026-08-11.** `templates/account/login.html`
+      no longer claims access is restricted to `@uonbi.ac.ke` accounts (that
+      restriction was removed at the auth layer; the copy had gone stale).
+      Now: "Sign in with your Google account to continue." + a "having
+      trouble? contact ICT Directorate" helper line, mailto link preserved.
+      **Still open:** `templates/staff/staff_login.html` (a separate Staff
+      Portal login page) still says "Use your @uonbi.ac.ke Google account" --
+      not touched, since it's unclear whether that restriction is still
+      intentional for the staff-only portal specifically. Needs a decision.
+- [ ] **Google OAuth consent screen -- logo not rendering + "In production"
+      publishing blocked (2026-08-11).** Uploaded a UoNAA logo via Google
+      Cloud Console (OAuth consent screen → Branding) but it isn't showing
+      on the live consent screen -- Google deliberately suppresses custom
+      branding on unverified apps (anti-phishing measure), so this won't
+      show until the app is verified/published, not a bug in the upload.
+      Tried setting publishing status to "In production" and hit: *"restricted
+      to projects using HTTPS URLs only... remove non-HTTPS URLs from the
+      clients page."* Confirmed this app's production side is already
+      HTTPS-only end-to-end (`SECURE_SSL_REDIRECT`, HSTS, `SECURE_PROXY_SSL_HEADER`
+      all correctly set in `main/settings.py`) -- the flagged URL is almost
+      certainly a leftover local-dev redirect URI (`http://127.0.0.1:8000/...`)
+      registered on the same OAuth Client being published.
+      **Recommended fix, not yet done:** split into two OAuth 2.0 Clients in
+      the same Google Cloud project -- a **production** client (HTTPS-only
+      redirect URI, `https://uonalumni.or.ke/accounts/google/login/callback/`,
+      this is the one to publish) and a **dev** client (keeps the
+      `http://127.0.0.1:8000/...` redirect URI, stays in Testing status, its
+      Client ID/Secret swapped into the local `.env` only) -- so publishing
+      production doesn't break local Google-login testing. Also needs Google's
+      app verification (domain verification via Search Console; Privacy/Terms
+      links already provided per the item above) before the logo will actually
+      display for real users, separate from the HTTPS fix itself.
 
 ### C.3 Editor experience (highest leverage, all small)
 - [ ] **Rich text editing.** Every content model has `body = TextField()`, so the
