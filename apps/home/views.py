@@ -370,12 +370,52 @@ class MembershipCategoriesView(TemplateView):
         )
         tiers = (
             MembershipTier.objects.filter(is_active=True, tier_benefits__isnull=False)
+            .exclude(tier_type="registered")
             .distinct()
             .order_by("fee")
             .prefetch_related(Prefetch("tier_benefits", queryset=included_qs, to_attr="included_benefits"))
         )
-        context["individual_tiers"] = [t for t in tiers if not t.is_corporate]
-        context["corporate_tiers"] = [t for t in tiers if t.is_corporate]
+        individual_tiers = [t for t in tiers if not t.is_corporate]
+        context["individual_tiers"] = individual_tiers
+        corporate_tiers = [t for t in tiers if t.is_corporate]
+        context["corporate_tiers"] = corporate_tiers
+
+        # Individual tiers are a monotonic ladder by fee (each a superset
+        # of the one below, per the 2026-08-10 tier-audit's own design
+        # rule) -- showing every tier's FULL benefit list repeats most of
+        # it verbatim from the tier below. Instead, diff each tier
+        # against the one immediately cheaper: a benefit only counts as
+        # "new" if it wasn't there before, OR it was there with a
+        # DIFFERENT qualifier (e.g. mentor status upgrading from "mentee"
+        # to "mentor" is a real change even though the benefit itself
+        # already existed) -- a same-id/same-detail match is genuinely
+        # unchanged and gets dropped from this tier's list. tier.name is
+        # attached as tier.previous_tier_name so the template can render
+        # "Everything in X, plus:"; the cheapest tier has no previous, so
+        # it just shows its own list.
+        previous_by_id = {}
+        for i, tier in enumerate(individual_tiers):
+            tier.previous_tier_name = individual_tiers[i - 1].name if i > 0 else None
+            tier.new_benefits = [
+                tb for tb in tier.included_benefits
+                if previous_by_id.get(tb.benefit_id) != tb.detail
+            ]
+            previous_by_id = {tb.benefit_id: tb.detail for tb in tier.included_benefits}
+
+        # Corporate isn't a rung on the individual ladder, so there's no
+        # "previous tier" to diff against -- it just shows its own full
+        # benefit list. Setting these here (rather than branching in the
+        # template) lets snippets/tiers.html stay ignorant of which track
+        # it's rendering.
+        for tier in corporate_tiers:
+            tier.previous_tier_name = None
+            tier.new_benefits = tier.included_benefits
+
+        # Rendered in one shared grid (see membership_categories.html) so
+        # Corporate lands in whatever row the individual ladder's last row
+        # left open, instead of forcing its own row below.
+        context["all_tiers"] = individual_tiers + corporate_tiers
+
         return context
 
 

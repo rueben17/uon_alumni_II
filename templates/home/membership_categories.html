@@ -16,75 +16,10 @@
 
 
 
-            {% if individual_tiers %}
-                <div class="grid grid-cols-4 gap-6 md:grid-cols-8 lg:grid-cols-12">
-                    {% for tier in individual_tiers %}
-                        <div class="col-span-4 rounded-sm border border-slate-200 bg-white p-4 shadow-sm">
-                            <div class="mb-3 flex flex-col gap-1">
-                                <h2 class="text-lg font-semibold text-slate-900">{{ tier.name }}</h2>
-                                <span class="text-sm text-slate-600">
-                                    KES {{ tier.fee }}
-                                    {% if tier.billing_period == "free" %}(free){% elif tier.billing_period == "one_off" %}(one-time){% else %}/ {{ tier.duration_months }} months{% endif %}
-                                </span>
-                            </div>
-                            {% if tier.included_benefits %}
-                                <ul class="flex flex-col gap-2">
-                                    {% for tb in tier.included_benefits %}
-                                        <li class="flex items-baseline gap-2 text-sm text-slate-700">
-                                            {% if tb.detail %}
-                                                <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
-                                                    &#10003; {{ tb.detail }}
-                                                </span>
-                                            {% else %}
-                                                <span class="shrink-0 text-emerald-600">&#10003;</span>
-                                            {% endif %}
-                                            <span>{{ tb.benefit.name }}</span>
-                                        </li>
-                                    {% endfor %}
-                                </ul>
-                            {% else %}
-                                <p class="text-sm text-slate-500 italic">No benefits configured for this tier yet.</p>
-                            {% endif %}
-                        </div>
-                    {% endfor %}
-                </div>
+            {% if all_tiers %}
+                {% include "snippets/tiers.html" with tiers=all_tiers %}
             {% else %}
                 <p class="text-sm text-slate-500">Membership categories aren't configured yet.</p>
-            {% endif %}
-
-            {% if corporate_tiers %}
-                <div class="mt-8 border-t border-slate-200 pt-6">
-                    <div class="mb-4 flex flex-col gap-1">
-                        <span class="inline-flex w-fit items-center rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold uppercase text-white">Separate institutional track</span>
-                        <p class="text-xs text-slate-500">Not a rung above Platinum — Corporate Membership is bought for what the institution gets, not accumulated individual perks.</p>
-                    </div>
-                    {% for tier in corporate_tiers %}
-                        <div class="rounded-sm border border-slate-200 bg-slate-50 p-4">
-                            <div class="mb-3 flex flex-wrap items-baseline gap-2">
-                                <h2 class="text-lg font-semibold text-slate-900">{{ tier.name }}</h2>
-                                <span class="text-sm text-slate-600">KES {{ tier.fee }} / year</span>
-                            </div>
-                            {% if tier.included_benefits %}
-                                <ul class="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-                                    {% for tb in tier.included_benefits %}
-                                        <li class="flex items-baseline gap-2 text-sm text-slate-700">
-                                            {% if tb.detail %}
-                                                <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
-                                                    &#10003; {{ tb.detail }}
-                                                </span>
-                                            {% else %}
-                                                <span class="shrink-0 text-emerald-600">&#10003;</span>
-                                            {% endif %}
-                                            <span>{{ tb.benefit.name }}</span>
-                                        </li>
-                                    {% endfor %}
-                                </ul>
-                            {% else %}
-                                <p class="text-sm text-slate-500 italic">No benefits configured for this tier yet.</p>
-                            {% endif %}
-                        </div>
-                    {% endfor %}
-                </div>
             {% endif %}
         </div>
     </section>

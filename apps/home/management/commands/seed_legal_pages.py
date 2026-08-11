@@ -44,7 +44,7 @@ UoNAA is the data controller for the personal data described in this notice. For
 - To register and administer your membership, including verifying eligibility and processing subscriptions.
 - To communicate with you: renewal reminders, event notices, newsletters -- only where you have opted in.
 - To maintain the alumni directory, where you have chosen to make your details visible to other members.
-- To issue and verify membership credentials (physical card, digital QR page) and, for staff, identity badges.
+- To issue and verify membership credentials (digital QR page) and, for staff, identity badges.
 - QR scan logs exist solely to detect misuse of a badge (e.g. a lost or cloned credential) and are not used for movement tracking or performance monitoring. They are retained for a limited period (see Section 5) and then permanently deleted.
 
 4. LEGAL BASIS
