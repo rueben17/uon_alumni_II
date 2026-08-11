@@ -387,7 +387,15 @@ class AlumniRegistrationForm(AlumniProfileForm):
         cleaned_data = super().clean()
         frequency = cleaned_data.get("payment_frequency")
         installment_amount = cleaned_data.get("installment_amount")
-        if frequency and frequency != Membership.PaymentFrequency.ONCE and not installment_amount:
+        if frequency == Membership.PaymentFrequency.ONCE:
+            # A lump-sum payment always charges the full tier fee -- strip
+            # installment_amount here rather than trusting it stays blank,
+            # so a stray/crafted value in the POST (e.g. leftover from
+            # switching frequency client-side, or a hand-built request)
+            # can never override tier.fee at the view layer, which does
+            # `form.cleaned_data.get("installment_amount") or tier.fee`.
+            cleaned_data["installment_amount"] = None
+        elif frequency and not installment_amount:
             self.add_error("installment_amount", "Required when Payment Frequency isn't 'Once'.")
 
         # M-Pesa gated per-tier (2026-08-07): available up to Gold's fee,
@@ -442,7 +450,15 @@ class MembershipUpdateForm(TailwindStyledFormMixin, forms.Form):
         cleaned_data = super().clean()
         frequency = cleaned_data.get("payment_frequency")
         installment_amount = cleaned_data.get("installment_amount")
-        if frequency and frequency != Membership.PaymentFrequency.ONCE and not installment_amount:
+        if frequency == Membership.PaymentFrequency.ONCE:
+            # A lump-sum payment always charges the full tier fee -- strip
+            # installment_amount here rather than trusting it stays blank,
+            # so a stray/crafted value in the POST (e.g. leftover from
+            # switching frequency client-side, or a hand-built request)
+            # can never override tier.fee at the view layer, which does
+            # `form.cleaned_data.get("installment_amount") or tier.fee`.
+            cleaned_data["installment_amount"] = None
+        elif frequency and not installment_amount:
             self.add_error("installment_amount", "Required when Payment Frequency isn't 'Once'.")
 
         tier = cleaned_data.get("membership_tier")
