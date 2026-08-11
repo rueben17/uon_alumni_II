@@ -915,11 +915,18 @@ purely a data-entry/copywriting task.
 9. **Banner imagery** (`Banner` model) — per-banner images + logo + text.
    Zero rows, so the banner snippet is still running on its one hardcoded
    hero image rather than real content.
-10. **Membership tier "benefits" copy** — `MembershipTier` only stores
-    name/fee/type/duration, no text field for what a member actually gets.
-    Blocks the Categories & Benefits standing page (#12 below) from being
-    written until this exists, either as a new field or hardcoded per-tier
-    copy.
+9b. **[NEW 2026-08-11]** Homepage advert/promo carousel (`Images.show_in_carousel`)
+    — snippet + wiring built tonight, renders below the banner and hides
+    itself entirely when there are no flagged images (currently zero).
+    Needs someone to upload images via `/2005/` (Gallery Image admin) and
+    tick "Show in homepage carousel" before it shows anything.
+10. **[DONE 2026-08-10/11]** Membership tier benefits copy — `Benefit`/
+    `TierBenefit` models built and seeded (25 benefits × 250 tier-benefit
+    rows, the 2026-08-10 tier-benefits matrix). Categories & Benefits is
+    no longer a standing_page candidate (see #15 below) — it's its own
+    `MembershipCategoriesView`, live at `/uon-alumni-membership-categories/`,
+    rendering real per-tier benefit copy with incremental "everything in
+    X, plus:" diffing.
 11. **Publications** (`Publication` model) — newsletters, minutes, annual
     reports. Zero rows; Downloads page (built, routed) has nothing to list.
 
@@ -931,18 +938,24 @@ pass) — the remaining gap is purely the words on the page.
 12. **Donate** — body is still literally `<p>Donate page</p>`. No giving
     instructions (M-Pesa paybill/bank details), fund designations, impact
     stories, or receipt/tax info.
-13. **Scholarship** — template renders, body empty below the banner. Needs
-    active programmes, eligibility, application process, past-recipient
-    stories.
+13. **Scholarship** — **[application form built 2026-08-11]**, so this is
+    narrower than it was: the page is no longer empty below the banner,
+    it's a full `ScholarshipApplicationForm` (personal/university/contact/
+    home/school/achievements, cascading Faculty→Department dropdowns,
+    file upload). Still needed: actual copy *around* the form — which
+    programme(s) this is, eligibility criteria, what happens after you
+    apply, past-recipient stories. Right now it's just a one-line subtitle
+    straight into the form.
 14. **In Memoriam** — `<p>In Memoriam page</p>` placeholder. Needs a real
     listing (feeds from the now-built `InMemoriam` model, once #entries
     exist) and a "submit a tribute" path.
-15. **AGM, Consultancy & Training, Categories & Benefits, Alumni Card,
-    Corporates, Our Notable Alumni, Shop** — all route through the generic
-    `standing_page` mechanism now (same one Privacy/Terms/Cookies use) but
-    have no `Article(type=page)` row written yet. Shop specifically also
-    needs a business decision (is UoNAA actually selling merchandise)
-    before it's worth writing.
+15. **AGM, Consultancy & Training, Alumni Card, Corporates, Our Notable
+    Alumni, Shop** — all route through the generic `standing_page`
+    mechanism now (same one Privacy/Terms/Cookies use) but have no
+    `Article(type=page)` row written yet. Shop specifically also needs a
+    business decision (is UoNAA actually selling merchandise) before it's
+    worth writing. **Categories & Benefits removed from this list** — it's
+    not a standing_page, see #10 above.
 16. **Homepage "Latest News & Updates" / benefits section** — the
     featured/highlighted-article loops are still `{% comment %}`ed out on
     the homepage, waiting on #6's content to have something to loop over.
