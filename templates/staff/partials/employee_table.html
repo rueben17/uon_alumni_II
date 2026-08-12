@@ -50,7 +50,7 @@
                         class="rounded border border-slate-300 px-3 py-1.5 hover:bg-white"
                         hx-get="?page={{ page_obj.previous_page_number }}&q={{ query|urlencode }}&track={{ selected_track|urlencode }}&unit={{ selected_unit|urlencode }}"
                         hx-target="#staff-table-container"
-                        hx-select="#staff-table-container"
+                        hx-swap="outerHTML"
                         hx-push-url="true"
                     >
                         Previous
@@ -82,7 +82,7 @@
                         class="rounded border border-slate-300 px-3 py-1.5 hover:bg-white"
                         hx-get="?page={{ page_obj.next_page_number }}&q={{ query|urlencode }}&track={{ selected_track|urlencode }}&unit={{ selected_unit|urlencode }}"
                         hx-target="#staff-table-container"
-                        hx-select="#staff-table-container"
+                        hx-swap="outerHTML"
                         hx-push-url="true"
                     >
                         Next

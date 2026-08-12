@@ -1000,13 +1000,17 @@ work, still open as originally filed unless marked fixed.
    (`?track=x',evil:(alert(1),0)`) — neutralized to `""` server-side,
    nothing resembling it reaches the response; legitimate values
    (`teaching`) still round-trip and filter correctly.
-2. **[HIGH] HTMX self-nesting on every filter/search/pagination
-   interaction** — `all_uon_staff.html:26-30`,
+2. **[FIXED 2026-08-13]** HTMX self-nesting on every filter/search/
+   pagination interaction — `all_uon_staff.html:26-30`,
    `partials/employee_table.html:1,51,69,83`. `hx-target`/`hx-select` both
-   resolve to `#staff-table-container`, which the returned partial already
-   has on its own root — default innerHTML swap nests a duplicate-id copy
-   instead of replacing it. Fix: drop `hx-select` or use
-   `hx-swap="outerHTML"`.
+   resolved to `#staff-table-container`, which the returned partial already
+   has on its own root — default innerHTML swap nested a duplicate-id copy
+   instead of replacing it. Since the partial's entire content *is* that
+   one element, `hx-select` was redundant once swap mode was right — 
+   dropped it and added `hx-swap="outerHTML"` in all 5 places (the filter
+   form + 4 pagination links). Verified live: `#staff-table-container`
+   count stays at exactly 1 through repeated search interactions
+   (previously would have compounded to 2, then 3, ...).
 3. **[FIXED 2026-08-06]** Navbar/banner/footer commented out on
    `staff/profile_update.html` — uncommented during the nav-wiring pass.
 4. **[MED]** Track/unit filter combo isn't cross-validated client or
@@ -1058,9 +1062,9 @@ work, still open as originally filed unless marked fixed.
     `request.session['auth_time']` on login, step-up re-auth via Google if
     stale on POST to these specific views (not staff).
 
-**Suggested order:** #1/#2 first (user-facing security/breakage), then
-#4-#7, then cleanup as time allows. #13-15 are separate future
-initiatives.
+**Suggested order:** ~~#1/#2 first (user-facing security/breakage)~~ both
+fixed 2026-08-13. Next: #4-#7, then cleanup as time allows. #13-15 are
+separate future initiatives.
 
 ---
 

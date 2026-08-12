@@ -26,7 +26,7 @@
                             x-data="{ track: JSON.parse(document.getElementById('selected-track-data').textContent) }"
                             hx-get="{% url 'staff:all_uon_staff' %}"
                             hx-target="#staff-table-container"
-                            hx-select="#staff-table-container"
+                            hx-swap="outerHTML"
                             hx-push-url="true"
                             hx-trigger="keyup changed delay:350ms from:#id_q, change from:#id_track, change from:#id_unit">
                             <div>
