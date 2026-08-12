@@ -1560,6 +1560,24 @@ class Verdict(models.IntegerChoices):
     DOES_NOT_QUALIFY = 2, _("Does not qualify for scholarship award")
 
 
+class KcseGrade(models.TextChoices):
+    # The standard 8-4-4 KCSE grading scale, best to worst -- matches
+    # Meta.ordering conventions elsewhere in this file (best-first reads
+    # naturally in a dropdown, same as e.g. QualificationLevel above).
+    A = "A", _("A")
+    A_MINUS = "A-", _("A-")
+    B_PLUS = "B+", _("B+")
+    B = "B", _("B")
+    B_MINUS = "B-", _("B-")
+    C_PLUS = "C+", _("C+")
+    C = "C", _("C")
+    C_MINUS = "C-", _("C-")
+    D_PLUS = "D+", _("D+")
+    D = "D", _("D")
+    D_MINUS = "D-", _("D-")
+    E = "E", _("E")
+
+
 class ScholarshipApplication(models.Model):
     """Undergraduate-only alumni scholarship application, sourced from a
     Google Form. Undergraduate-only is enforced here at the model layer
@@ -1598,7 +1616,7 @@ class ScholarshipApplication(models.Model):
 
     # Secondary school details
     school_name = models.CharField(max_length=200)
-    kcse_grade = models.CharField(max_length=5)  # e.g. "A-", "B+"
+    kcse_grade = models.CharField(max_length=5, choices=KcseGrade.choices, verbose_name="KCSE Grade")
     kcse_year = models.PositiveSmallIntegerField(
         # Upper bound is evaluated once at process start (module import
         # time), same as every other "current year" cap in this file --
