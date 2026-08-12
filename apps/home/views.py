@@ -220,8 +220,21 @@ class QualificationMapMixin:
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        # Iterates the SAME select_related("faculty") queryset
+        # AlumniProfileForm.__init__ already set on this field (dodging
+        # the N+1 from Qualification.__str__ touching self.faculty --
+        # 273 rows), rather than a third fresh query over the same data.
+        # This still costs 2 Qualification queries, not 1: Django's
+        # ModelChoiceIterator calls queryset.iterator() for any field
+        # queryset that isn't prefetch_related (only select_related
+        # here), and .iterator() is a streaming mode that never reads or
+        # populates _result_cache -- so the widget's own <option> render
+        # unavoidably re-queries once more, however this one's read.
+        # Nowhere near the N+1 it replaced, so left as the practical
+        # floor rather than restructuring around .choices to chase the
+        # last query (2026-08-12 audit).
         qualification_map = {}
-        for qualification in Qualification.objects.select_related("faculty"):
+        for qualification in context["form"].fields["qualification"].queryset:
             qualification_map.setdefault(str(qualification.faculty_id), []).append(
                 {"value": qualification.id, "label": qualification.name}
             )
@@ -698,13 +711,50 @@ def uon_alumni_scholarship(request):
     department_map feeds the Faculty -> Department cascading dropdown --
     same shape/pattern as QualificationMapMixin's qualification_map
     (this is a function view, not a CBV, so built inline rather than via
-    that mixin, but the template JS is the same rebuild-on-change logic)."""
+    that mixin, but the template JS is the same rebuild-on-change logic).
+
+    Query cost (found via a load-time audit, 2026-08-12 -- this page
+    alone was taking 11s+ server-side in production): prefetch_related
+    from the Faculty side fetches every Faculty (1 query) plus every
+    Department in one batched query (1 more), and that same cached
+    queryset is reused below for the faculty field's own <option> list
+    instead of a third, separate Faculty.objects.all(). The department
+    field still needs its own queryset (Django renders its <option>s
+    independently of the JS-driven rebuild, as a no-JS fallback), but
+    WITH select_related("faculty") -- Department.__str__ reads
+    self.faculty.faculty_name, so without it, rendering that field's
+    62 <option> labels fired 62 separate Faculty lookups. That N+1,
+    not the map-building query, was almost certainly the real cost.
+    """
     form = ScholarshipApplicationForm(request.POST or None, request.FILES or None)
-    department_map = {}
-    for department in Department.objects.select_related("faculty"):
-        department_map.setdefault(str(department.faculty_id), []).append(
+
+    # Assign before reading back, not after: ModelChoiceField.queryset's
+    # setter calls .all() on whatever it's given, cloning it -- iterate
+    # a queryset first and assign it second, and the clone the setter
+    # produces starts uncached again regardless. Assigning the
+    # still-lazy queryset first and reading it back via the field means
+    # this loop and the widget's own render iterate the same object.
+    #
+    # That object-sharing is *necessary* but only sufficient here
+    # because this field carries prefetch_related: Django's
+    # ModelChoiceIterator calls queryset.iterator() for any field
+    # queryset that isn't prefetch_related, and .iterator() is a
+    # streaming mode that never reads or populates _result_cache --
+    # so this exact pattern, tried on QualificationMapMixin's
+    # select_related-only (no prefetch_related) qualification field,
+    # still cost a second query there. Don't copy this pattern onto a
+    # select_related-only field expecting the same payoff.
+    form.fields["faculty"].queryset = Faculty.objects.prefetch_related("departments").order_by("faculty_name")
+    form.fields["department"].queryset = Department.objects.select_related("faculty").order_by("name")
+
+    department_map = {
+        str(faculty.id): [
             {"value": department.id, "label": department.name}
-        )
+            for department in faculty.departments.all()
+        ]
+        for faculty in form.fields["faculty"].queryset
+    }
+
     if request.method == "POST" and form.is_valid():
         form.save()
         messages.success(

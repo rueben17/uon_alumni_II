@@ -1,6 +1,7 @@
 # apps/staff/forms.py
 from django import forms
 
+from apps.home.models import Department
 from apps.staff.models import Employee
 from apps.user.models import Honorific, User, UserProfile
 from apps.user.phone import InvalidPhoneNumber, normalize_phone
@@ -45,6 +46,14 @@ class CompleteProfileForm(TailwindStyledFormMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        # The auto-generated ModelChoiceField queryset has no
+        # select_related, so rendering the <option> list calls
+        # Department.__str__ -> self.faculty.faculty_name once per row --
+        # the same N+1 pattern as AlumniProfileForm's qualification field
+        # (found via a load-time audit, 2026-08-12), just on Department
+        # instead of Qualification.
+        self.fields["department"].queryset = Department.objects.select_related("faculty")
 
         # Seed the profile/user fields from existing data on the edit path
         # (a brand-new Employee has no data to prefill). NOTE: Employee.id
