@@ -70,6 +70,14 @@ class StaffLoginView(View):
     Legacy staff landing page — no templates link here anymore
     (Sign In goes to /accounts/google/login/ directly). Deletion
     candidate for the cleanup commit; kept so old links don't 404.
+
+    Redirects straight there rather than rendering staff_login.html's
+    own Google button: that template's {% provider_login_url %} calls
+    reverse() against whatever urlconf is active for the CURRENT
+    request, and on this subdomain that's apps.staff.urls, which never
+    includes allauth's routes at all -- so hit unauthenticated, it
+    500s with NoReverseMatch instead of the 404-avoidance this view
+    exists for (found via a full-site load-time audit, 2026-08-12).
     """
 
     def get(self, request, *args, **kwargs):
@@ -81,7 +89,10 @@ class StaffLoginView(View):
                     uuid=employee.id,
                 )
             return redirect(employee.get_absolute_url())
-        return render(request, "staff/staff_login.html")
+        scheme = "https" if request.is_secure() else "http"
+        host = request.get_host()
+        port = f":{host.split(':')[1]}" if ":" in host else ""
+        return redirect(f"{scheme}://{settings.SUBDOMAIN_DOMAIN}{port}/accounts/google/login/")
 
 
 def staff_logout(request):
