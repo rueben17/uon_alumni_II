@@ -28,7 +28,15 @@
                             hx-target="#staff-table-container"
                             hx-swap="outerHTML"
                             hx-push-url="true"
-                            hx-trigger="keyup changed delay:350ms from:#id_q, change from:#id_track, change from:#id_unit">
+                            hx-trigger="keyup changed delay:350ms from:#id_q, change from:#id_track, change from:#id_unit, submit">
+                            <!--
+                                submit added (2026-08-13, code review finding #5) so the
+                                Apply button and pressing Enter go through the same htmx
+                                request as typing/select changes, instead of falling back
+                                to a full-page GET -- htmx's implicit default trigger for
+                                a <form> IS submit, but naming keyup/change explicitly
+                                here overrode that default and dropped it silently.
+                            -->
                             <div>
                                 <label for="id_q" class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-600">Search</label>
                                 <input

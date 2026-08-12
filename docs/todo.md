@@ -289,9 +289,15 @@ This is where a half-finished rebuild bites silently.
 - [ ] Extend the test suite past `apps/user/phone.py`: the auth backend, profile
       creation, and role resolution (`User.roles`).
 - [ ] Containerized deploy if not already.
-- [ ] Fix `download_staff_qr_code` in `apps/staff/views.py`: it reads
-      `employee.qr_code_image.path`, which raises on Cloudinary storage. The PNG
-      branch beside it already does the portable `.open()`/`.read()`.
+- [x] **[FIXED 2026-08-13]** `download_staff_qr_code` in `apps/staff/views.py`
+      read `employee.qr_code_image.path`, which raises on Cloudinary storage.
+      Now uses the same portable `.open()`/`.read()` pattern the PNG branch
+      beside it already did, passed to reportlab's `Image`/`LinkedImage` as a
+      `BytesIO` instead of a path string (reportlab accepts both). No
+      Employee record exists locally to test the view end-to-end, so verified
+      the underlying assumption directly instead: built a real QR PNG,
+      constructed `RLImage` from a `BytesIO` of it, and rendered a full PDF —
+      confirmed reportlab handles the file-like object correctly.
 
 ---
 
@@ -1013,13 +1019,22 @@ work, still open as originally filed unless marked fixed.
    (previously would have compounded to 2, then 3, ...).
 3. **[FIXED 2026-08-06]** Navbar/banner/footer commented out on
    `staff/profile_update.html` — uncommented during the nav-wiring pass.
-4. **[MED]** Track/unit filter combo isn't cross-validated client or
-   server side — a stale URL like `?track=teaching&unit=service:5` renders
-   a disabled-yet-selected option with no indication the combo is
-   contradictory.
-5. **[MED]** `hx-trigger` override on the filter form drops the implicit
-   `submit` trigger — clicking Apply/pressing Enter does a full page
-   reload while typing/select changes stay AJAX.
+4. **[FIXED 2026-08-13]** Track/unit filter combo isn't cross-validated
+   client or server side — a stale URL like `?track=teaching&unit=service:5`
+   rendered a disabled-yet-selected option with no indication the combo
+   was contradictory. `EmployeeListView._validated_unit()` now
+   cross-checks the unit's type prefix against the validated track
+   (same allowlist pattern as `_validated_track()`) and returns `""` on
+   a mismatch — an invalid combo is simply never selected, both for the
+   queryset filter and for what the template renders. Verified live:
+   `?track=teaching&unit=service:1` resolves to no unit selected;
+   `?track=service&unit=service:1` still resolves correctly.
+5. **[FIXED 2026-08-13]** `hx-trigger` override on the filter form
+   dropped the implicit `submit` trigger — clicking Apply/pressing Enter
+   did a full page reload while typing/select changes stayed AJAX.
+   Added `submit` to the explicit trigger list. Verified live: clicking
+   Apply now fires a request with `HX-Request: true` and updates via
+   pushState, no full navigation.
 6. **[MED]** `EmployeeListView`'s own docstring calls it a "Public staff
    directory," but it's `LoginRequiredMixin` and the navbar links to it
    from the unauthenticated branch — confirm which behavior is intended.
@@ -1062,9 +1077,10 @@ work, still open as originally filed unless marked fixed.
     `request.session['auth_time']` on login, step-up re-auth via Google if
     stale on POST to these specific views (not staff).
 
-**Suggested order:** ~~#1/#2 first (user-facing security/breakage)~~ both
-fixed 2026-08-13. Next: #4-#7, then cleanup as time allows. #13-15 are
-separate future initiatives.
+**Suggested order:** ~~#1/#2/#4/#5~~ all fixed 2026-08-13. Left: #6
+(needs a decision, not code — is the staff directory meant to require
+login?) and #7 (low priority, needs manual test). Then cleanup (#8-12)
+as time allows. #13-15 are separate future initiatives.
 
 ---
 

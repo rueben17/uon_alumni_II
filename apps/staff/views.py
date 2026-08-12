@@ -137,10 +137,9 @@ class EmployeeListView(LoginRequiredMixin, ListView):
                 | Q(user__profile__middle_name__icontains=query)
             )
 
-        # Unified unit filter:
-        # ?unit=department:<id> | service:<id> | research:<id>
-        unit = self.request.GET.get("unit", "").strip()
-        if unit and ":" in unit:
+        # Unified unit filter: ?unit=department:<id> | service:<id> | research:<id>
+        unit = self._validated_unit()
+        if unit:
             unit_type, unit_id = unit.split(":", 1)
             if unit_type == "department":
                 qs = qs.filter(department_id=unit_id)
@@ -172,6 +171,36 @@ class EmployeeListView(LoginRequiredMixin, ListView):
         valid_tracks = {value for value, _label in Employee.StaffTrack.choices}
         return track if track in valid_tracks else ""
 
+    # Which track each unit *type* prefix belongs to -- same mapping the
+    # template's Alpine x-bind:disabled expressions encode client-side
+    # (department options disable unless track=='teaching', etc.). Kept
+    # here as the one server-side source of truth for that pairing.
+    _UNIT_TYPE_TRACK = {"department": "teaching", "service": "service", "research": "research"}
+
+    def _validated_unit(self):
+        """Allowlist ?unit= against real unit types/ids AND cross-check
+        it against the current track (code review finding #4,
+        2026-08-13 fix). A stale or hand-built URL like
+        ?track=teaching&unit=service:5 used to reach both the queryset
+        filter and `selected_unit` unchecked -- the filter never
+        actually matched anything real (an Employee can't be
+        staff_track='teaching' and have a service_unit), and the
+        template rendered that option both `selected` and (correctly)
+        `disabled`, a confusing combination browsers don't clearly
+        surface and which drops silently from the next real submit
+        anyway. Returning "" for a mismatched combo means it's simply
+        never selected in the first place -- nothing to reconcile."""
+        unit = self.request.GET.get("unit", "").strip()
+        if not unit or ":" not in unit:
+            return ""
+        unit_type, _, unit_id = unit.partition(":")
+        if unit_type not in self._UNIT_TYPE_TRACK or not unit_id.isdigit():
+            return ""
+        track = self._validated_track()
+        if track and self._UNIT_TYPE_TRACK[unit_type] != track:
+            return ""
+        return unit
+
     def get_template_names(self):
         if self.request.headers.get("HX-Request") == "true":
             return ["staff/partials/employee_table.html"]
@@ -180,7 +209,7 @@ class EmployeeListView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["query"] = self.request.GET.get("q", "")
-        context["selected_unit"] = self.request.GET.get("unit", "")
+        context["selected_unit"] = self._validated_unit()
         context["selected_track"] = self._validated_track()
         context["track_choices"] = Employee.StaffTrack.choices
         departments = Department.objects.order_by("name")
@@ -405,12 +434,19 @@ def download_staff_qr_code(request, staff_slug, pk):
     elements.append(unit_label)
     elements.append(Spacer(1, 0.25 * inch))
 
-    qr_path = employee.qr_code_image.path
+    # .path raises on Cloudinary storage (no local filesystem) -- same
+    # fix as the PNG branch above: read the bytes through the storage
+    # backend's own API instead of assuming a filesystem path exists.
+    # reportlab's Image (and LinkedImage, which just forwards to it)
+    # accepts a file-like object here as readily as a path string.
+    employee.qr_code_image.open("rb")
+    qr_bytes = io.BytesIO(employee.qr_code_image.read())
+    employee.qr_code_image.close()
     qr_code = getattr(employee, "employee_qrcode", None)
     if qr_code is not None:
-        img = LinkedImage(qr_path, width=5 * inch, height=5 * inch, url=qr_code.scan_url)
+        img = LinkedImage(qr_bytes, width=5 * inch, height=5 * inch, url=qr_code.scan_url)
     else:
-        img = RLImage(qr_path, width=5 * inch, height=5 * inch)
+        img = RLImage(qr_bytes, width=5 * inch, height=5 * inch)
     img.hAlign = "CENTER"
     elements.append(img)
 
