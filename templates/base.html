@@ -11,7 +11,6 @@
 
         <link href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.4/css/lightbox.min.css" rel="stylesheet">
         <script src="https://unpkg.com/htmx.org@1.9.9" integrity="sha384-QFjmbokDn2DjBjq+fM+8LUIVrAgqcNW2s0PjAxHETgRn9l4fvX31ZxDxvwQnyMOX" crossorigin="anonymous"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
         <title>{% block title %}{{ name_title }}{% endblock %}</title>
         <style>[x-cloak] { display: none !important; }</style>
 
@@ -102,9 +101,6 @@
         <!-- Lightbox JS -->
         <script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.4/js/lightbox.min.js"></script>
         <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-        <script src="{% static 'js/web/viewer.html' %}" defer ></script>
-        <script src="{% static 'js/htmx.js' %}" defer ></script>
-        <script src="{% static 'js/main.js' %}" defer ></script>
         <script>
             // Vanilla JS, not jQuery's $(window).on('load', ...) --
             // that depended on the jQuery CDN <script> above succeeding
