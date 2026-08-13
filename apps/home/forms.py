@@ -430,7 +430,12 @@ class AlumniRegistrationForm(AlumniProfileForm):
     # directly, it only gates submission.
     privacy_consent = forms.BooleanField(
         required=True,
-        label="I have read and agree to the Privacy Policy",
+        # Trailing period, not a fragment: this is a checkbox's full
+        # declarative statement, not a field prompt. Also means
+        # label_tag's own label_suffix (":") doesn't get appended on
+        # top of it -- Django skips the suffix when the label already
+        # ends in :.!? -- which would otherwise read as "...Policy:".
+        label="I have read and agree to the Privacy Policy.",
         help_text="Required under the Data Protection Act, 2019. Read it first: /uon-alumni-page/privacy/",
     )
 

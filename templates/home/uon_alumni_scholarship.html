@@ -26,7 +26,7 @@
                                 {% for field in form %}
                                     {% if field.name in "first_name,middle_name,surname,gender,date_of_birth" %}
                                         <div>
-                                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-slate-700">{{ field.label }}{% if field.field.required %} *{% endif %}</label>
+                                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-slate-700">{{ field.label }}:{% if field.field.required %} *{% endif %}</label>
                                             {{ field }}
                                             {% if field.help_text %}<p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>{% endif %}
                                             {% for error in field.errors %}<p class="mt-1 text-xs text-red-600">{{ error }}</p>{% endfor %}
@@ -42,7 +42,7 @@
                                 {% for field in form %}
                                     {% if field.name in "registration_number,current_course,year_of_study,department,faculty" %}
                                         <div>
-                                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-slate-700">{{ field.label }}{% if field.field.required %} *{% endif %}</label>
+                                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-slate-700">{{ field.label }}:{% if field.field.required %} *{% endif %}</label>
                                             {{ field }}
                                             {% if field.help_text %}<p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>{% endif %}
                                             {% for error in field.errors %}<p class="mt-1 text-xs text-red-600">{{ error }}</p>{% endfor %}
@@ -58,7 +58,7 @@
                                 {% for field in form %}
                                     {% if field.name in "mobile_no,alternative_mobile_no,email" %}
                                         <div>
-                                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-slate-700">{{ field.label }}{% if field.field.required %} *{% endif %}</label>
+                                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-slate-700">{{ field.label }}:{% if field.field.required %} *{% endif %}</label>
                                             {{ field }}
                                             {% if field.help_text %}<p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>{% endif %}
                                             {% for error in field.errors %}<p class="mt-1 text-xs text-red-600">{{ error }}</p>{% endfor %}
@@ -74,7 +74,7 @@
                                 {% for field in form %}
                                     {% if field.name in "county_of_residence,sub_county,ward,location,sub_location" %}
                                         <div>
-                                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-slate-700">{{ field.label }}{% if field.field.required %} *{% endif %}</label>
+                                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-slate-700">{{ field.label }}:{% if field.field.required %} *{% endif %}</label>
                                             {{ field }}
                                             {% if field.help_text %}<p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>{% endif %}
                                             {% for error in field.errors %}<p class="mt-1 text-xs text-red-600">{{ error }}</p>{% endfor %}
@@ -90,7 +90,7 @@
                                 {% for field in form %}
                                     {% if field.name in "school_name,kcse_grade,kcse_year,school_phone_no,head_teacher_no,school_county" %}
                                         <div>
-                                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-slate-700">{{ field.label }}{% if field.field.required %} *{% endif %}</label>
+                                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-slate-700">{{ field.label }}:{% if field.field.required %} *{% endif %}</label>
                                             {{ field }}
                                             {% if field.help_text %}<p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>{% endif %}
                                             {% for error in field.errors %}<p class="mt-1 text-xs text-red-600">{{ error }}</p>{% endfor %}
@@ -106,7 +106,7 @@
                                 {% for field in form %}
                                     {% if field.name in "other_achievement_1,other_achievement_2,physical_copy" %}
                                         <div>
-                                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-slate-700">{{ field.label }}{% if field.field.required %} *{% endif %}</label>
+                                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-slate-700">{{ field.label }}:{% if field.field.required %} *{% endif %}</label>
                                             {{ field }}
                                             {% if field.help_text %}<p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>{% endif %}
                                             {% for error in field.errors %}<p class="mt-1 text-xs text-red-600">{{ error }}</p>{% endfor %}

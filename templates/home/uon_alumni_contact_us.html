@@ -62,7 +62,7 @@
                             {% csrf_token %}
                             {% for field in form %}
                                 <div>
-                                    <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ field.label }}</label>
+                                    <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ field.label }}:</label>
                                     {{ field }}
                                     {% if field.errors %}
                                         <p class="mt-1 text-sm text-red-600">{{ field.errors|striptags }}</p>

@@ -22,7 +22,7 @@ class CompleteProfileForm(TailwindStyledFormMixin, forms.ModelForm):
     given_name = forms.CharField(max_length=255)
     family_name = forms.CharField(max_length=255)
     date_of_birth = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
-    national_id = forms.CharField(max_length=50, required=False)
+    national_id = forms.CharField(max_length=50, required=False, label="National ID")
     phone = forms.CharField(max_length=20)
     alt_phone = forms.CharField(max_length=20, required=False)
     photo = forms.ImageField(required=False, widget=forms.ClearableFileInput(attrs={"accept": "image/*"}))

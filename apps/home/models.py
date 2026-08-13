@@ -1629,7 +1629,7 @@ class ScholarshipApplication(models.Model):
     head_teacher_no = models.CharField(max_length=20, blank=True)
     school_county = models.CharField(max_length=100)
     other_achievement_1 = models.TextField(
-        blank=True, verbose_name="State any other Academic achievement"
+        blank=True, verbose_name="State any other academic achievement"
     )
     other_achievement_2 = models.TextField(blank=True)  # second achievement field
 
