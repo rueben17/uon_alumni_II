@@ -11,11 +11,13 @@ from django.utils import timezone
 from django.views.generic import CreateView, DetailView, ListView, TemplateView, UpdateView, View
 
 from apps.home.forms import (
-    AlumniProfileForm, AlumniRegistrationForm, ContactForm, MembershipUpdateForm, ScholarshipApplicationForm,
+    AlumniProfileForm, AlumniRegistrationForm, ContactForm, MembershipUpdateForm,
 )
 from apps.home.models import*
 from apps.home.payments import initiate_payment
 from apps.home import services
+from apps.student.forms import ScholarshipApplicationForm
+from apps.student.models import ScholarshipApplication
 from apps.user.mixins import StaffOrSuperuserRequiredMixin
 
 # Create your views here.
@@ -701,10 +703,37 @@ def uon_alumni_donate(request):
     return render(request, 'home/uon_alumni_donate.html')
 
 
+def _students_subdomain_url(request, path):
+    """
+    Build an absolute URL on the students subdomain, preserving the dev
+    port -- same pattern as apps/user/adapter.py's _staff_subdomain_url,
+    needed here for the same reason: a bare redirect to `path` while the
+    browser is on the main domain never actually switches hosts, so it
+    404s against apps.home.urls instead of reaching apps.student.urls.
+    """
+    domain = settings.SUBDOMAIN_DOMAIN
+    host = request.get_host()
+    port = f":{host.split(':')[1]}" if ":" in host else ""
+    scheme = "https" if request.is_secure() else "http"
+    return f"{scheme}://students.{domain}{port}{path}"
+
+
 def uon_alumni_scholarship(request):
-    """Public, no login required -- applicants are current undergraduate
-    students, not necessarily existing alumni-portal accounts. Same
-    GET-display/POST-validate/messages.success/redirect pattern as
+    """Strictly students (2026-08-14) -- applicants must be signed up as
+    a Student via the students subdomain first. An anonymous visitor is
+    sent to sign in there (a real cross-subdomain redirect, so
+    request.subdomain reads "students" for the whole OAuth round trip --
+    see apps/user/adapter.py's pre_social_login()/get_login_redirect_url
+    for why that matters: it's what applies the @students.uonbi.ac.ke
+    domain restriction and routes a Student-less login to
+    student:register). An already-authenticated user missing a Student
+    record goes straight to that registration form instead -- no need to
+    re-run the Google handshake, and StudentRegisterView re-checks the
+    email domain itself regardless of how it was reached. Either path
+    stashes this page in the session so the user lands back here once
+    they're done, not on some generic landing page.
+
+    Same GET-display/POST-validate/messages.success/redirect pattern as
     uon_alumni_contact_us() below; request.FILES is needed here for
     physical_copy, which uon_alumni_contact_us's form doesn't have.
 
@@ -726,6 +755,24 @@ def uon_alumni_scholarship(request):
     62 <option> labels fired 62 separate Faculty lookups. That N+1,
     not the map-building query, was almost certainly the real cost.
     """
+    if not request.user.is_authenticated:
+        messages.info(request, "Please sign in with your @students.uonbi.ac.ke account to apply.")
+        request.session["post_login_next"] = request.build_absolute_uri()
+        return redirect(_students_subdomain_url(request, "/accounts/google/login/"))
+
+    student = getattr(request.user, "student", None)
+    if student is None:
+        messages.info(request, "Please complete student sign-up first to apply for the scholarship.")
+        request.session["post_login_next"] = request.build_absolute_uri()
+        return redirect("student:register")
+
+    existing_application = ScholarshipApplication.objects.filter(student=student).first()
+    if existing_application:
+        return render(
+            request, 'home/uon_alumni_scholarship.html',
+            {"existing_application": existing_application},
+        )
+
     form = ScholarshipApplicationForm(request.POST or None, request.FILES or None)
 
     # Assign before reading back, not after: ModelChoiceField.queryset's
@@ -756,6 +803,7 @@ def uon_alumni_scholarship(request):
     }
 
     if request.method == "POST" and form.is_valid():
+        form.instance.student = student
         form.save()
         messages.success(
             request,

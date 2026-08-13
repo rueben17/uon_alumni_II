@@ -5,18 +5,28 @@
 
 {% block content %}
 
-        <div  class="container mx-auto min-h-screen space-y-2" style="max-width: 1700px;important;">
+        <div  class="container mx-auto min-h-screen space-y-2 bg-[url('https://res.cloudinary.com/doh3hvrdz/image/upload/v1786040065/Fountain_of_Knowledge_-_Prof_Yanjik_k2qvyp.png')] bg-cover" style="max-width: 1700px;important;">
             {% include "snippets/navbar.html" %}
 
-            {% include "snippets/banner.html" %}
+            {% comment %} {% include "snippets/banner.html" %}  {% endcomment %}
 
-            <section class="max-w-full min-h-screen mx-auto px-4 py-8">
-                <div class="mx-auto max-w-4xl rounded-sm border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+            <section class="flex min-h-screen items-center justify-center px-4 py-8">
+                <div class="w-full max-w-4xl rounded-sm border border-slate-200 bg-white p-6 shadow-sm md:p-8">
                     <div class="mb-6 flex flex-col gap-1">
-                        <h1 class="text-2xl font-semibold text-slate-900">Undergraduate Scholarship Application</h1>
+                        <h1 class="text-3xl text-center font-semibold text-slate-900">Undergraduate Scholarship Application</h1>
                         <p class="text-sm text-slate-600">Open to currently enrolled University of Nairobi undergraduate students only.</p>
                     </div>
 
+                    {% if existing_application %}
+                        <div class="rounded-sm border border-slate-200 bg-slate-50 p-4 text-slate-700">
+                            <p class="font-medium">You've already submitted a scholarship application.</p>
+                            <p class="mt-1 text-sm text-slate-600">
+                                Submitted {{ existing_application.submitted_at|date:"j F Y" }},
+                                registration number {{ existing_application.registration_number }}.
+                                If you need to make changes, contact the Alumni Office.
+                            </p>
+                        </div>
+                    {% else %}
                     <form method="post" enctype="multipart/form-data" class="flex flex-col gap-8">
                         {% csrf_token %}
 
@@ -128,12 +138,14 @@
                             </button>
                         </div>
                     </form>
+                    {% endif %}
                 </div>
             </section>
 
-            {% include "snippets/footer.html" %}
+
         </div>
 
+{% if not existing_application %}
 {{ department_map|json_script:"department-map" }}
 <script>
     (function () {
@@ -179,4 +191,5 @@
         }
     })();
 </script>
+{% endif %}
 {% endblock content %}

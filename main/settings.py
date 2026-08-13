@@ -13,7 +13,10 @@ Environment variables required in production (.env or server environment):
   GOOGLE_OAUTH_CLIENT_ID        — from Google Auth Platform → Clients
   GOOGLE_OAUTH_CLIENT_SECRET    — from Google Auth Platform → Clients
   ALLOWED_GOOGLE_LOGIN_DOMAINS  — comma-separated email domains allowed to
-                                  sign in via Google (defaults to uonbi.ac.ke)
+                                  sign in via Google on staff. (defaults to
+                                  uonbi.ac.ke)
+  ALLOWED_STUDENT_LOGIN_DOMAINS — same, for students. (defaults to
+                                  students.uonbi.ac.ke)
   RESTRICT_GOOGLE_LOGIN_DOMAINS — set to "False" to allow any Google account
                                   (for local dev/testing only)
 """
@@ -421,18 +424,29 @@ SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
 # Email domains allowed to sign in via Google -- enforced in
 # apps/user/adapter.py's pre_social_login(), staff subdomain ONLY. Staff
 # identity is verified via an institutional email, so this stays
-# meaningful there. The main/students subdomains accept any Google
-# account: most alumni lose @uonbi.ac.ke access at graduation, so gating
-# the public alumni site the same way just blocks ordinary registration.
-# Add 'alumni.uonbi.ac.ke' to the env var once the ICT Directorate issues
-# that extension — no code change needed, just update .env and redeploy.
+# meaningful there. The main subdomain accepts any Google account: most
+# alumni lose @uonbi.ac.ke access at graduation, so gating the public
+# alumni site the same way just blocks ordinary registration.
+# A list, not a single domain (2026-08-14): UoN staff aren't only issued
+# bare @uonbi.ac.ke addresses -- unes.uonbi.ac.ke (University of Nairobi
+# Enterprises & Services) and alumni.uonbi.ac.ke are real UoN-issued
+# domains too. Add more to the env var as they come up -- no code change
+# needed, just update .env and redeploy.
 ALLOWED_GOOGLE_LOGIN_DOMAINS = split_env_list(
-    os.getenv('ALLOWED_GOOGLE_LOGIN_DOMAINS', 'uonbi.ac.ke')
+    os.getenv('ALLOWED_GOOGLE_LOGIN_DOMAINS', 'uonbi.ac.ke,unes.uonbi.ac.ke,alumni.uonbi.ac.ke')
 )
 
-# Toggle the staff-subdomain domain restriction for local development/
-# testing. Set RESTRICT_GOOGLE_LOGIN_DOMAINS=False in .env to allow any
-# Google account onto staff too (main/students already do, always).
+# Same idea, students subdomain -- currently-enrolled students sign in
+# with their @students.uonbi.ac.ke Google Workspace account, not a
+# personal one (2026-08-14, scholarship-page access gate).
+ALLOWED_STUDENT_LOGIN_DOMAINS = split_env_list(
+    os.getenv('ALLOWED_STUDENT_LOGIN_DOMAINS', 'students.uonbi.ac.ke')
+)
+
+# Toggle the staff/students-subdomain domain restrictions for local
+# development/testing. Set RESTRICT_GOOGLE_LOGIN_DOMAINS=False in .env to
+# allow any Google account onto staff/students too (main already does,
+# always).
 RESTRICT_GOOGLE_LOGIN_DOMAINS = os.getenv('RESTRICT_GOOGLE_LOGIN_DOMAINS', 'True') == 'True'
 
 # ----- Google provider -----

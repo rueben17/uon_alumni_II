@@ -20,6 +20,12 @@ ALLOWED_GOOGLE_LOGIN_DOMAINS = getattr(
     ["uonbi.ac.ke"],
 )
 
+ALLOWED_STUDENT_LOGIN_DOMAINS = getattr(
+    settings,
+    "ALLOWED_STUDENT_LOGIN_DOMAINS",
+    ["students.uonbi.ac.ke"],
+)
+
 RESTRICT_GOOGLE_LOGIN_DOMAINS = getattr(
     settings,
     "RESTRICT_GOOGLE_LOGIN_DOMAINS",
@@ -27,7 +33,7 @@ RESTRICT_GOOGLE_LOGIN_DOMAINS = getattr(
 )
 
 STAFF_URLCONF = "apps.staff.site_urls"
-# STUDENT_URLCONF = "apps.student.site_urls"
+STUDENT_URLCONF = "apps.student.urls"
 
 
 # ─────────────────────────────────────────────
@@ -185,31 +191,19 @@ def _employee_exists_for_email(email):
     return Employee.objects.filter(user__email__iexact=email).exists()
 
 
-# ----- Student equivalent (uncomment once apps.student is built) -----
+# ----- Students: no auto-created stub (2026-08-14) -----
 #
-# def _ensure_student(user):
-#     from apps.student.models import Student
-#
-#     student = getattr(user, "student", None)
-#     if student is None:
-#         student, created = Student.objects.get_or_create(
-#             user=user,
-#             defaults={
-#                 "given_name": user.given_name,
-#                 "family_name": user.family_name,
-#                 "google_photo_url": user.google_photo_url,
-#             },
-#         )
-#         if created:
-#             logger.info("Created Student record for user %s", user.pk)
-#
-#     student.given_name = user.given_name
-#     student.family_name = user.family_name
-#     student.google_photo_url = user.google_photo_url
-#     student.save()
-#
-#     user.student = student
-#     return student
+# Employee has an auto-stub-then-complete flow because staff_id is
+# nullable (null=True, blank=True) -- a bare get_or_create(user=user) is
+# always valid there. Student.registration_no is NOT nullable and is
+# unique, so a bare stub would insert "" and collide with the next
+# unregistered signup's own "". Students instead follow the ALUMNI
+# pattern (see AlumniRegisterView/home:uon_alumni_register): Google auth
+# only creates the User/UserProfile; a real form
+# (apps.student.views.StudentRegisterView) collects registration_no and
+# creates the Student row in one step. get_login_redirect_url() below
+# sends anyone without a Student record there instead of auto-creating
+# anything.
 
 
 # ─────────────────────────────────────────────
@@ -294,21 +288,20 @@ class CustomAccountAdapter(DefaultAccountAdapter):
                 if not hasattr(user, "alumni_profile"):
                     return reverse("home:uon_alumni_register")
 
-            # ----- Students (not built yet) -----
-            #
-            # elif subdomain == "students":
-            #     student = getattr(user, "student", None)
-            #     if student is not None:
-            #         if not student.profile_is_complete:
-            #             return reverse(
-            #                 "students:complete_profile",
-            #                 kwargs={"uuid": student.id},
-            #                 urlconf=STUDENT_URLCONF,
-            #             )
-            #         return student.get_absolute_url()
-            #     logger.warning(
-            #         "Student login without Student record: user %s", user.pk
-            #     )
+            elif subdomain == "students":
+                if not hasattr(user, "student"):
+                    return reverse("student:register", urlconf=STUDENT_URLCONF)
+
+                # Sent here by uon_alumni_scholarship() (apps/home/views.py)
+                # for an anonymous visitor -- stashed in the session, not a
+                # `next` GET param, because allauth's own next-param
+                # handling (allauth.account.utils.get_login_redirect_url)
+                # takes priority over this adapter method entirely and
+                # would let it bypass the "no Student record yet" branch
+                # just above.
+                next_url = request.session.pop("post_login_next", None)
+                if next_url and self.is_safe_url(next_url):
+                    return next_url
 
         return super().get_login_redirect_url(request)
 
@@ -345,16 +338,10 @@ class CustomAccountAdapter(DefaultAccountAdapter):
                 if not hasattr(user, "alumni_profile"):
                     return reverse("home:uon_alumni_register")
 
-            # ----- Students (not built yet) -----
-            #
-            # elif subdomain == "students":
-            #     student = getattr(user, "student", None)
-            #     if student is not None:
-            #         return reverse(
-            #             "students:complete_profile",
-            #             kwargs={"uuid": student.id},
-            #             urlconf=STUDENT_URLCONF,
-            #         )
+            elif subdomain == "students":
+                # A brand-new signup can't have a Student record yet --
+                # no existence check needed, unlike get_login_redirect_url.
+                return reverse("student:register", urlconf=STUDENT_URLCONF)
 
         return super().get_signup_redirect_url(request)
 
@@ -384,18 +371,20 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
     def pre_social_login(self, request, sociallogin):
         subdomain = getattr(request, "subdomain", None)
 
-        # 1. Domain restriction — staff only. Staff identity is verified
-        # via an institutional email, so this stays meaningful there.
-        # The main site is a public alumni association: most alumni
-        # lose @uonbi.ac.ke access at graduation, so gating it here too
-        # (the previous behaviour -- "applies to every subdomain") just
-        # silently blocked ordinary alumni from ever registering. Any
-        # Google account may sign in on the main/students subdomains.
-        if subdomain == "staff" and RESTRICT_GOOGLE_LOGIN_DOMAINS:
+        # 1. Domain restriction — staff and students only. Both identities
+        # are verified via an institutional email, so this stays
+        # meaningful there. The main site is a public alumni association:
+        # most alumni lose @uonbi.ac.ke access at graduation, so gating it
+        # here too (the previous behaviour -- "applies to every
+        # subdomain") just silently blocked ordinary alumni from ever
+        # registering. Any Google account may sign in on the main
+        # subdomain.
+        role_domains = {"staff": ALLOWED_GOOGLE_LOGIN_DOMAINS, "students": ALLOWED_STUDENT_LOGIN_DOMAINS}
+        if subdomain in role_domains and RESTRICT_GOOGLE_LOGIN_DOMAINS:
             email = sociallogin.account.extra_data.get("email", "")
             domain = email.split("@")[-1].lower()
 
-            if domain not in ALLOWED_GOOGLE_LOGIN_DOMAINS:
+            if domain not in role_domains[subdomain]:
                 messages.error(
                     request,
                     "Please sign in using your University of Nairobi email.",
@@ -425,28 +414,19 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
                 )
                 raise ImmediateHttpResponse(redirect("account_login"))
 
-            # ----- Students (not built yet) -----
-            #
-            # if subdomain == "students":
-            #     email = sociallogin.account.extra_data.get("email", "")
-            #     has_student = _student_exists_for_email(email)
-            #
-            #     if process == "login" and not has_student:
-            #         messages.warning(
-            #             request,
-            #             "No student profile was found for this Google account. Please sign up to start onboarding.",
-            #         )
-            #         raise ImmediateHttpResponse(redirect("account_signup"))
-            #
-            #     if process == "signup" and has_student:
-            #         messages.warning(
-            #             request,
-            #             "This account already has a student profile. Please sign in instead.",
-            #         )
-            #         raise ImmediateHttpResponse(redirect("account_login"))
+            # Students have no equivalent login-vs-signup gate: unlike
+            # staff (whose Employee records may be provisioned ahead of a
+            # first login), every student's very first sign-in IS their
+            # signup -- is_auto_signup_allowed() below already lets any
+            # domain-restricted account through either way, so there's no
+            # "has no record yet, but tried to log in" case to catch here.
 
         # 2. Login-time record creation for EXISTING users. New users
         #    don't have a saved User yet — save_user() covers them.
+        # Only staff gets a role record here: a Student can't be
+        # auto-created (see the comment above _ensure_employee's Student
+        # equivalent) -- get_login_redirect_url() below routes a
+        # Student-less login to the registration form instead.
         if sociallogin.is_existing:
             subdomain = getattr(request, "subdomain", None)
             user = sociallogin.user
@@ -455,11 +435,6 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
 
             if subdomain == "staff":
                 _ensure_employee(user)
-
-            # ----- Students (not built yet) -----
-            #
-            # elif subdomain == "students":
-            #     _ensure_student(user)
 
         return super().pre_social_login(request, sociallogin)
 
@@ -488,11 +463,6 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         if subdomain == "staff":
             _ensure_employee(user)
 
-        # ----- Students (not built yet) -----
-        #
-        # elif subdomain == "students":
-        #     _ensure_student(user)
-
         return user
 
     def is_auto_signup_allowed(self, request, sociallogin):
@@ -519,18 +489,7 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
                 )
             return employee.get_absolute_url()
 
-        # ----- Students (not built yet) -----
-        #
-        # if subdomain == "students":
-        #     student = getattr(user, "student", None)
-        #     if student is None:
-        #         student = _ensure_student(user)
-        #     if not student.profile_is_complete:
-        #         return reverse(
-        #             "students:complete_profile",
-        #             kwargs={"uuid": student.id},
-        #             urlconf=STUDENT_URLCONF,
-        #         )
-        #     return student.get_absolute_url()
+        if subdomain == "students" and not hasattr(user, "student"):
+            return reverse("student:register", urlconf=STUDENT_URLCONF)
 
         return super().get_connect_redirect_url(request, socialaccount)

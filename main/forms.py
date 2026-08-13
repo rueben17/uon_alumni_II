@@ -1,6 +1,35 @@
 from django import forms
 
 
+class YearAsDateField(forms.IntegerField):
+    """
+    Renders as a native browser date picker (calendar popup) but stores
+    and reads back just the year, matching e.g. AlumniProfile
+    .graduation_year (a plain IntegerField) -- avoids IntegerField's
+    default NumberInput, whose displayed value gets thousand-separator
+    formatted (e.g. "2,015"). Lives here, not in one app's forms.py,
+    because it's genuinely shared: apps.home.forms.AlumniProfileForm
+    and apps.student.forms.ScholarshipApplicationForm both use it
+    (2026-08-13) -- same reasoning as TailwindStyledFormMixin below.
+    """
+    widget = forms.DateInput(attrs={"type": "date"})
+
+    def prepare_value(self, value):
+        if isinstance(value, int):
+            return f"{value}-01-01"
+        return value
+
+    def to_python(self, value):
+        if value in self.empty_values:
+            return None
+        try:
+            # Native date input submits YYYY-MM-DD; keep only the year.
+            year = int(str(value).split("-")[0])
+        except (TypeError, ValueError, IndexError):
+            raise forms.ValidationError("Enter a valid year.", code="invalid")
+        return super().to_python(year)
+
+
 class TailwindStyledFormMixin:
     """
     Applies a consistent Tailwind input style to every field's widget.

@@ -6,6 +6,7 @@ app_name = 'student'
 urlpatterns = [
        # path('', include('apps.home.urls', namespace='home')),
 
-       path("", all_uon_students, name="all_uon_students"), 
+       path("", all_uon_students, name="all_uon_students"),
+       path("register/", StudentRegisterView.as_view(), name="register"),
 
 ]

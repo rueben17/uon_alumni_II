@@ -3,11 +3,11 @@ from decimal import Decimal
 from django import forms
 
 from apps.home.models import (
-    AlumniProfile, ContactMessage, Membership, MembershipTier, Payment, Qualification, ScholarshipApplication,
+    AlumniProfile, ContactMessage, Membership, MembershipTier, Payment, Qualification,
 )
 from apps.user.models import Gender, Honorific, User, UserProfile
 from apps.user.phone import InvalidPhoneNumber, normalize_phone
-from main.forms import TailwindStyledFormMixin
+from main.forms import TailwindStyledFormMixin, YearAsDateField
 
 
 class ContactForm(TailwindStyledFormMixin, forms.ModelForm):
@@ -26,80 +26,6 @@ class ContactForm(TailwindStyledFormMixin, forms.ModelForm):
         self.fields["subject"].help_text = "Optional -- helps us route your message faster."
         self.fields["message"].help_text = "Tell us what's on your mind."
         self.apply_tailwind_styling()
-
-
-class YearAsDateField(forms.IntegerField):
-    """
-    Renders as a native browser date picker (calendar popup) but stores
-    and reads back just the year, matching AlumniProfile.graduation_year
-    (a plain IntegerField) -- avoids IntegerField's default NumberInput,
-    whose displayed value gets thousand-separator formatted (e.g. "2,015").
-    """
-    widget = forms.DateInput(attrs={"type": "date"})
-
-    def prepare_value(self, value):
-        if isinstance(value, int):
-            return f"{value}-01-01"
-        return value
-
-    def to_python(self, value):
-        if value in self.empty_values:
-            return None
-        try:
-            # Native date input submits YYYY-MM-DD; keep only the year.
-            year = int(str(value).split("-")[0])
-        except (TypeError, ValueError, IndexError):
-            raise forms.ValidationError("Enter a valid year.", code="invalid")
-        return super().to_python(year)
-
-
-class ScholarshipApplicationForm(TailwindStyledFormMixin, forms.ModelForm):
-    # Native date-picker for a year-only field, same as graduation_year
-    # on AlumniProfileForm below -- avoids IntegerField's default
-    # NumberInput, which thousand-separator-formats the displayed value
-    # (e.g. "2,019"). year_of_study is NOT this -- it's an ordinal
-    # (1st/2nd/... year of study), not a calendar year, so it stays a
-    # plain number field.
-    kcse_year = YearAsDateField(label="KCSE Year")
-
-    class Meta:
-        model = ScholarshipApplication
-        # academic_level excluded -- this page IS the undergraduate
-        # scholarship's application, so it stays at the model's
-        # UNDERGRADUATE default rather than being user-selectable; the
-        # model's own clean()/save() still enforces it as a backstop
-        # (e.g. if this model is ever reused from a path that does
-        # expose academic_level).
-        exclude = ["submitted_at", "academic_level"]
-        widgets = {
-            "other_achievement_1": forms.Textarea(attrs={"rows": 3}),
-            "other_achievement_2": forms.Textarea(attrs={"rows": 3}),
-            # Native browser date picker -- same pattern as date_of_birth
-            # on CompleteProfileForm elsewhere in this file.
-            "date_of_birth": forms.DateInput(attrs={"type": "date"}),
-            # Plain dropdown matching the field's own 1-7 validator range,
-            # instead of a free-typed number input.
-            "year_of_study": forms.Select(choices=[("", "---------")] + [(i, i) for i in range(1, 8)]),
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.apply_tailwind_styling()
-
-    def clean(self):
-        # faculty/department are independent ModelChoiceFields -- nothing
-        # stops a mismatched pair reaching here otherwise (the cascading
-        # dropdown JS is a UX nicety, not enforcement; a JS-disabled or
-        # hand-crafted submission bypasses it entirely).
-        cleaned_data = super().clean()
-        faculty = cleaned_data.get("faculty")
-        department = cleaned_data.get("department")
-        if faculty and department and department.faculty_id != faculty.id:
-            self.add_error(
-                "department",
-                f'"{department.name}" is not a department of {faculty.faculty_name}.',
-            )
-        return cleaned_data
 
 
 class AlumniProfileForm(TailwindStyledFormMixin, forms.ModelForm):
