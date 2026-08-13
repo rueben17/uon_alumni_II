@@ -136,6 +136,24 @@ class DepartmentAdmin(admin.ModelAdmin):
     def employee_count(self, obj):
         return obj.emp_count
 
+
+@admin.register(Qualification)
+class QualificationAdmin(admin.ModelAdmin):
+    # Wasn't registered at all before -- added so Student.programme (and
+    # ScholarshipApplication/AlumniProfile's own qualification fields)
+    # can use autocomplete_fields, which requires the target model's own
+    # ModelAdmin to define search_fields (2026-08-13).
+    list_per_page = 25
+    list_display = ("name", "level", "faculty")
+    list_filter = ("level", "faculty")
+    search_fields = ("name", "faculty__faculty_name")
+    ordering = ("faculty__faculty_name", "level", "name")
+    autocomplete_fields = ("faculty",)
+
+    @admin.display(description="Employees")
+    def employee_count(self, obj):
+        return obj.emp_count
+
 # ─────────────────────────────────────────────
 # Gallery inlines -- Images has one FK per attachable model (todo.md
 # 0.3b: deliberately not a single generic FK). fk_name is explicit per
