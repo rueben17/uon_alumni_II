@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.views.generic import CreateView, TemplateView, View
 
 from apps.student.forms import SCORE_FIELDS, InterviewScoreSheetForm, StudentRegisterForm, score_field_max
-from apps.student.models import County, Gender, ScholarshipApplication, Student
+from apps.student.models import County, Gender, ParentalStatus, ScholarshipApplication, Student
 from apps.user.mixins import StaffOrSuperuserRequiredMixin
 
 # Counties past this rank in the distribution collapse into a single
@@ -220,9 +220,32 @@ class ApplicantDashboardView(StaffOrSuperuserRequiredMixin, TemplateView):
             chart_counts.append(sum(row["count"] for row in rest))
         return {"labels": chart_labels, "counts": chart_counts}
 
+    def _pipeline_chart_data(self):
+        totals = ScholarshipApplication.objects.aggregate(total=Count("id"), evaluated=Count("score_sheet"))
+        pending = totals["total"] - totals["evaluated"]
+        return {
+            "labels": ["Evaluated", "Pending Evaluation"],
+            "counts": [totals["evaluated"], pending],
+        }
+
+    def _parental_status_chart_data(self):
+        rows = (
+            ScholarshipApplication.objects.exclude(score_sheet__isnull=True)
+            .values("score_sheet__parental_status")
+            .annotate(count=Count("id"))
+            .order_by("-count")
+        )
+        labels = dict(ParentalStatus.choices)
+        return {
+            "labels": [labels.get(row["score_sheet__parental_status"], row["score_sheet__parental_status"]) for row in rows],
+            "counts": [row["count"] for row in rows],
+        }
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["faculty_data"] = self._faculty_chart_data()
         context["gender_data"] = self._gender_chart_data()
         context["county_data"] = self._county_chart_data()
+        context["pipeline_data"] = self._pipeline_chart_data()
+        context["parental_status_data"] = self._parental_status_chart_data()
         return context
