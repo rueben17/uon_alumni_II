@@ -1,4 +1,4 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from apps.home.models import*
 from django.db.models import Count
 from django.utils.html import format_html
@@ -7,6 +7,7 @@ from import_export.admin import ExportMixin
 
 from apps.home.membership_admin_site import membership_admin_site
 from apps.home import services
+from apps.qr_manager.models import QRCode
 # Register your models here.
 
 # ─────────────────────────────────────────────
@@ -383,8 +384,9 @@ class AlumniProfileAdmin(ExportMixin, admin.ModelAdmin):
         'user__profile__given_name', 'user__profile__family_name', 'user__email',
         'user__profile__national_id', 'student_reg_no',
     ]
-    readonly_fields = ['registration_date', 'last_updated']
+    readonly_fields = ['registration_date', 'last_updated', 'qr_code_tag']
     list_per_page = 25
+    actions = ['generate_qr_badge']
     fieldsets = (
         ('User Account', {
             'fields': ('user',)
@@ -398,6 +400,14 @@ class AlumniProfileAdmin(ExportMixin, admin.ModelAdmin):
         }),
         ('Employment', {
             'fields': ('current_employer', 'employment_position')
+        }),
+        # Digital alumni ID (QR) -- advertised membership benefit,
+        # mirrors apps/staff/admin.py's EmployeeAdmin "QR Code" section:
+        # generate/regenerate via the action below (or by attaching this
+        # alumnus to a QRCode directly in the QR admin), qr_code_image
+        # stays editable here in case it ever needs manual replacement.
+        ('QR Code', {
+            'fields': ('qr_code_tag', 'qr_code_image'),
         }),
         ('Meta', {
             'fields': ('is_active', 'registration_date', 'last_updated')
@@ -419,6 +429,28 @@ class AlumniProfileAdmin(ExportMixin, admin.ModelAdmin):
         if membership is None:
             return '—'
         return f"{membership.tier.name} ({membership.get_status_display()})"
+
+    @admin.display(description="QR Code")
+    def qr_code_tag(self, obj):
+        if obj.qr_code_image:
+            url = obj.qr_code_image.url
+            return format_html(
+                '<a href="{}" target="_blank" rel="noopener noreferrer">'
+                '<img src="{}" style="height:160px;" alt="QR badge"/></a>',
+                url,
+                url,
+            )
+        return "—"
+
+    @admin.action(description="Generate / refresh Digital Alumni ID (QR)")
+    def generate_qr_badge(self, request, queryset):
+        done = 0
+        for alumni in queryset:
+            qr, _ = QRCode.objects.get_or_create(alumni_profile=alumni)
+            qr.generate_qr(force=True)
+            done += 1
+        if done:
+            self.message_user(request, f"Generated {done} QR badge(s).", messages.SUCCESS)
 
 
 @admin.register(Membership)

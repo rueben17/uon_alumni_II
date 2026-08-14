@@ -2,13 +2,15 @@ from django import forms
 from django.contrib import admin, messages
 from django.db.models import Count
 
+from apps.home.models import AlumniProfile
 from apps.qr_manager.models import QRCode, ScanLog, Supervisor
 from apps.qr_manager.qr_admin_site import qr_admin_site
 from apps.staff.models import Employee
 
 
-def _regenerate_employee_badge(qr_code):
-    """Rebuild and store the badge PNG for an employee-linked code."""
+def _regenerate_holder_badge(qr_code):
+    """Rebuild and store the badge PNG for an employee- or
+    alumni-linked code."""
     qr_code.generate_qr(force=True)
 
 
@@ -18,6 +20,13 @@ class EmployeeChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, obj):
         unit = obj.unit or "no unit"
         return f"{obj.user.profile.full_name} — {obj.user.email} — {unit}"
+
+
+class AlumniProfileChoiceField(forms.ModelChoiceField):
+    """Richer labels for the alumni dropdown: name — email."""
+
+    def label_from_instance(self, obj):
+        return f"{obj.user.profile.full_name} — {obj.user.email}"
 
 
 @admin.register(QRCode)
@@ -38,6 +47,8 @@ class QRCodeAdmin(admin.ModelAdmin):
         "employee__user__profile__given_name",
         "employee__user__profile__family_name",
         "employee__staff_id",
+        "alumni_profile__user__profile__given_name",
+        "alumni_profile__user__profile__family_name",
         "label",
     )
     readonly_fields = ("id", "token", "issued_at", "status")
@@ -46,7 +57,9 @@ class QRCodeAdmin(admin.ModelAdmin):
     # ---------------------------------------------------------------
     # Unit scoping — a non-superuser can only manage QR codes for
     # employees in a unit they supervise (see Supervisor model).
-    # Superusers are unrestricted.
+    # Superusers are unrestricted. Alumni have no unit concept at all,
+    # so alumni-linked codes fall into the same "superuser-only" bucket
+    # as visitor/event codes below, not a scoping rule of their own.
     # ---------------------------------------------------------------
 
     def _supervisor_unit_q(self, request, prefix=""):
@@ -58,7 +71,7 @@ class QRCodeAdmin(admin.ModelAdmin):
 
     def _object_in_scope(self, request, obj):
         """Supervisors may only touch employee-linked codes in their
-        own unit — visitor/event codes with no employee are
+        own unit — visitor/event/alumni codes with no employee are
         superuser-only."""
         if obj.employee_id is None:
             return False
@@ -113,15 +126,16 @@ class QRCodeAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         """Generating on save is what makes the QRCode add form 'just
-        work': create (or edit) a code with an employee attached and
-        the badge image is built immediately — no separate action
-        needed. This is the hook the old signal used to provide."""
+        work': create (or edit) a code with an employee or alumni
+        profile attached and the badge image is built immediately — no
+        separate action needed. This is the hook the old signal used
+        to provide."""
         super().save_model(request, obj, form, change)
-        if obj.employee_id:
+        if obj.employee_id or obj.alumni_profile_id:
             obj.generate_qr(force=True)
             self.message_user(
                 request,
-                f"QR badge image generated for {obj.employee.user.profile.full_name}.",
+                f"QR badge image generated for {obj.holder.user.profile.full_name}.",
                 messages.SUCCESS,
             )
 
@@ -139,11 +153,24 @@ class QRCodeAdmin(admin.ModelAdmin):
                 queryset = queryset.filter(q)
             kwargs["queryset"] = queryset
             kwargs["form_class"] = EmployeeChoiceField
+        elif db_field.name == "alumni_profile":
+            # Superuser-only, matching _object_in_scope's treatment of
+            # alumni-linked codes -- a non-superuser supervisor could
+            # otherwise create one here and then immediately lose the
+            # ability to view/change it.
+            queryset = AlumniProfile.objects.select_related("user", "user__profile").order_by(
+                "user__profile__family_name", "user__profile__given_name"
+            )
+            if not request.user.is_superuser:
+                queryset = queryset.none()
+            kwargs["queryset"] = queryset
+            kwargs["form_class"] = AlumniProfileChoiceField
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     @admin.display(description="Holder")
     def holder(self, obj):
-        return obj.employee.user.profile.full_name if obj.employee else (obj.label or "—")
+        holder = obj.holder
+        return holder.user.profile.full_name if holder else (obj.label or "—")
 
     @admin.display(description="Scans", ordering="scan_count")
     def scan_count_display(self, obj):
@@ -174,22 +201,22 @@ class QRCodeAdmin(admin.ModelAdmin):
         )
 
     @admin.action(
-        description="Rotate token (lost badge) — regenerates employee badge image"
+        description="Rotate token (lost badge) — regenerates holder's badge image"
     )
     def rotate_tokens(self, request, queryset):
         rotated = 0
         for qr in queryset:
             qr.rotate_token()
             # Keep the stored badge image in sync with the new token —
-            # otherwise Employee.qr_code_image shows a QR whose token
-            # no longer matches. Non-employee codes store no image.
-            if qr.employee_id:
-                _regenerate_employee_badge(qr)
+            # otherwise the holder's qr_code_image shows a QR whose
+            # token no longer matches. Label-only codes store no image.
+            if qr.employee_id or qr.alumni_profile_id:
+                _regenerate_holder_badge(qr)
             rotated += 1
         self.message_user(
             request,
             f"Rotated {rotated} token(s). Previously printed copies now fail "
-            f"the token check; employee badge images were regenerated for "
+            f"the token check; holder badge images were regenerated for "
             f"reprinting.",
             messages.SUCCESS,
         )
@@ -225,21 +252,23 @@ class ScanLogAdmin(admin.ModelAdmin):
         "qrcode__employee__user",
         "qrcode__employee__user__profile",
         "qrcode__employee__department",
+        "qrcode__alumni_profile__user",
+        "qrcode__alumni_profile__user__profile",
     )
     readonly_fields = [f.name for f in ScanLog._meta.fields]
 
     @admin.display(description="Scanned badge of")
     def holder(self, obj):
-        if obj.qrcode and obj.qrcode.employee:
-            return obj.qrcode.employee.user.profile.full_name
+        if obj.qrcode and obj.qrcode.holder:
+            return obj.qrcode.holder.user.profile.full_name
         if obj.qrcode:
             return obj.qrcode.label or "unassigned"
         return "— unknown QR —"
 
     @admin.display(description="Email")
     def holder_email(self, obj):
-        if obj.qrcode and obj.qrcode.employee:
-            return obj.qrcode.employee.user.email
+        if obj.qrcode and obj.qrcode.holder:
+            return obj.qrcode.holder.user.email
         return "—"
 
     @admin.display(description="Department / Unit")

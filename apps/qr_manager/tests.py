@@ -1,13 +1,15 @@
 import shutil
 import tempfile
+from datetime import datetime
 
 from django.contrib.admin.sites import site as admin_site
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
-from django.test import RequestFactory, TestCase, override_settings
+from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from apps.qr_manager.models import QRCode, ScanLog, Supervisor
+from apps.qr_manager.utils import humanize_duration
 from apps.staff.models import Employee, ServiceUnit
 
 User = get_user_model()
@@ -564,3 +566,62 @@ class QRAdminSiteBrandingTests(TestCase):
         resp = self.client.get(reverse("qr_admin:index"), HTTP_HOST="staff.lvh.me")
         self.assertIn("All Units (Superuser)", resp.context["site_header"])
         self.assertNotIn("Library", resp.context["site_header"])
+
+
+class HumanizeDurationTests(SimpleTestCase):
+    """apps/qr_manager/utils.py's humanize_duration() -- pure function,
+    no DB needed. Naive datetimes throughout: the aware/naive handling
+    (timezone.localtime() when aware) is a thin wrapper around the same
+    calendar math these cases exercise, not separate logic worth
+    re-testing per case."""
+
+    def test_same_calendar_day(self):
+        start = datetime(2026, 8, 14, 8, 0)
+        end = datetime(2026, 8, 14, 20, 0)
+        self.assertEqual(humanize_duration(start, end), "Today")
+
+    def test_twenty_nine_days(self):
+        start = datetime(2026, 7, 1)
+        end = datetime(2026, 7, 30)
+        self.assertEqual(humanize_duration(start, end), "29 days")
+
+    def test_thirty_days_is_one_calendar_month_not_a_day_count(self):
+        # April has 30 days -- Apr 1 + 30 days = May 1, exactly one
+        # calendar month, proving the switch at the 30-day mark lands
+        # on real calendar math rather than a day/30 approximation.
+        start = datetime(2026, 4, 1)
+        end = datetime(2026, 5, 1)
+        self.assertEqual(humanize_duration(start, end), "1 month")
+
+    def test_eleven_months(self):
+        start = datetime(2025, 1, 15)
+        end = datetime(2025, 12, 15)
+        self.assertEqual(humanize_duration(start, end), "11 months")
+
+    def test_exactly_twelve_months_is_one_year(self):
+        start = datetime(2025, 1, 15)
+        end = datetime(2026, 1, 15)
+        self.assertEqual(humanize_duration(start, end), "1 year")
+
+    def test_leap_day_signup_not_yet_recurred_reads_as_eleven_months(self):
+        # Feb 29 2024 -> Feb 28 2025: the 29th doesn't exist in 2025, so
+        # this is NOT yet a full calendar year -- calendar-aware math
+        # must decrement to 11 months here, not round up to 12/"1 year".
+        start = datetime(2024, 2, 29)
+        end = datetime(2025, 2, 28)
+        self.assertEqual(humanize_duration(start, end), "11 months")
+
+    def test_future_dated_signup_returns_today_never_negative(self):
+        start = datetime(2026, 8, 20)
+        end = datetime(2026, 8, 14)
+        self.assertEqual(humanize_duration(start, end), "Today")
+
+    def test_singular_one_day(self):
+        start = datetime(2026, 8, 13)
+        end = datetime(2026, 8, 14)
+        self.assertEqual(humanize_duration(start, end), "1 day")
+
+    def test_singular_one_month(self):
+        start = datetime(2026, 1, 15)
+        end = datetime(2026, 2, 15)
+        self.assertEqual(humanize_duration(start, end), "1 month")
