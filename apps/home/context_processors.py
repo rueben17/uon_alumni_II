@@ -138,6 +138,13 @@ def contacts(request):
     # the navbar always matches what a user can actually get into,
     # without duplicating each site's permission logic in the template.
     admin_links = []
+    # UoN Alumni Scholarships: its own submenu inside the Admin dropdown
+    # (2026-08-14), not flat entries alongside Django Admin/Membership
+    # Admin/etc. -- both views are gated by the same
+    # StaffOrSuperuserRequiredMixin (apps/user/mixins.py) as Membership
+    # Analytics above, no separate admin site to defer permission to,
+    # so checked directly here exactly like that one already is.
+    scholarship_admin_links = []
     if request.user.is_authenticated:
         if default_admin.site.has_permission(request):
             admin_links.append({"label": "Django Admin", "url": f"{base}/2005/"})
@@ -151,12 +158,12 @@ def contacts(request):
         # plain view, so checked directly here instead.
         if request.user.is_staff or request.user.is_superuser:
             admin_links.append({"label": "Membership Analytics", "url": f"{base}{home_url('membership_analytics')}"})
-            # EvaluateApplicationView (apps/student/views.py) is gated by
-            # the same StaffOrSuperuserRequiredMixin -- same condition
-            # here, no separate admin site to defer to, same reasoning
-            # as Membership Analytics just above.
             evaluate_url = reverse("student:evaluate_application_list", urlconf="main.urls")
-            admin_links.append({"label": "Evaluate Applicants", "url": f"{base}{evaluate_url}"})
+            dashboard_url = reverse("student:applicant_dashboard", urlconf="main.urls")
+            scholarship_admin_links = [
+                {"label": "Evaluate Applicants", "url": f"{base}{evaluate_url}"},
+                {"label": "Charts", "url": f"{base}{dashboard_url}"},
+            ]
 
     website = 'uonalumni.or.ke'
     email = 'alumni@uonbi.ac.ke'
@@ -245,4 +252,5 @@ def contacts(request):
         "url_cookies":             f"{base}{home_url('standing_page', page_key='cookies')}",
         "url_shop":                f"{base}{home_url('standing_page', page_key='shop')}",
         "admin_links": admin_links,
+        "scholarship_admin_links": scholarship_admin_links,
     }
