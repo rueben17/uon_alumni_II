@@ -8,7 +8,7 @@
         <div class="flex items-center justify-between gap-4">
             <!-- Logo -->
             <div class="shrink-0">
-                <img src="https://res.cloudinary.com/doh3hvrdz/image/upload/q_auto/f_auto/v1781224354/UONAA_Original_Logo_Blue_1_lgwkmu.png" alt="" class="h-20 w-20 sm:h-28 sm:w-28 md:h-32 md:w-32 lg:h-36 lg:w-36 object-contain">
+                <img src="{{ site_logo_url }}" alt="" class="h-20 w-20 sm:h-28 sm:w-28 md:h-32 md:w-32 lg:h-36 lg:w-36 object-contain">
             </div>
 
             <!-- ===================== DESKTOP MENU ===================== -->
@@ -270,7 +270,7 @@
                     <div class="fixed top-0 left-0 right-0 bottom-0 z-50 flex flex-col bg-white shadow-lg overflow-y-auto" x-show="open" x-transition.opacity @click.away="open = false" x-cloak>
                         <div class="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
                             <div class="shrink-0">
-                                <img src="https://res.cloudinary.com/doh3hvrdz/image/upload/v1777421735/media/banner/logo/2026/04/29/UONAA_BW3_-_Copy_no-bg_xqawec.png" alt="" class="h-12 w-12 object-contain">
+                                <img src="{{ site_logo_url }}" alt="" class="h-12 w-12 object-contain">
                             </div>
                             <button class="flex-none px-2 btn btn-link btn-icon cursor-pointer" @click="open = false">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

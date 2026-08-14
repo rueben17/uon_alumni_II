@@ -6,12 +6,65 @@ from django.utils import timezone
 from django.shortcuts import render, redirect, get_object_or_404
 
 
+DEFAULT_PAGE_BACKGROUND_URL = (
+    "https://res.cloudinary.com/doh3hvrdz/image/upload/v1786040065/"
+    "Fountain_of_Knowledge_-_Prof_Yanjik_k2qvyp.png"
+)
+DEFAULT_TOP_BANNER_URL = (
+    "https://res.cloudinary.com/doh3hvrdz/image/upload/v1/media/gallery/"
+    "uploads/2026/04/27/old_pic_uon_great_court_yl18hh"
+)
+DEFAULT_SITE_LOGO_URL = (
+    "https://res.cloudinary.com/doh3hvrdz/image/upload/q_auto/f_auto/"
+    "v1781224354/UONAA_Original_Logo_Blue_1_lgwkmu.png"
+)
+DEFAULT_FOOTER_BACKGROUND_URL = (
+    "https://res.cloudinary.com/doh3hvrdz/image/upload/v1777444013/"
+    "65cb94b385f8fa001e7f6fb7_hhlhzt.jpg"
+)
+DEFAULT_FOOTER_LOGO_URL = (
+    "https://res.cloudinary.com/doh3hvrdz/image/upload/q_auto/f_auto/"
+    "v1777444403/UONAA_Original_Logo_White_xca2yr.png"
+)
+
+
+def _first_image_url(banners, field_name, default):
+    """First non-empty <field_name> across every Banner row, or default
+    if none has one set. Iterates an already-fetched list rather than a
+    fresh .exclude(...).first() query per field -- images() needs this
+    for five different fields now, and banner_images is already fetched
+    for its own sake (used elsewhere), so this reuses that one query
+    instead of five more.
+    """
+    for banner in banners:
+        file = getattr(banner, field_name)
+        if file:
+            return file.url
+    return default
+
+
 def images(request):
-    banner_images = Banner.objects.all()
-    
+    banner_images = list(Banner.objects.all())
+
+    # One admin-editable image per site-wide visual instead of a
+    # Cloudinary URL hardcoded into every template that uses it
+    # (2026-08-14) -- see the Banner model's own comments for which
+    # field maps to which visual. Each falls back to the original
+    # hardcoded image so nothing changes visually until an admin
+    # actually uploads a replacement.
+    page_background_url = _first_image_url(banner_images, "page_background", DEFAULT_PAGE_BACKGROUND_URL)
+    top_banner_url = _first_image_url(banner_images, "top_banner", DEFAULT_TOP_BANNER_URL)
+    site_logo_url = _first_image_url(banner_images, "logo", DEFAULT_SITE_LOGO_URL)
+    footer_background_url = _first_image_url(banner_images, "bottom_banner", DEFAULT_FOOTER_BACKGROUND_URL)
+    footer_logo_url = _first_image_url(banner_images, "footer_logo", DEFAULT_FOOTER_LOGO_URL)
+
     return {
         "banner_images": banner_images,
-        
+        "page_background_url": page_background_url,
+        "top_banner_url": top_banner_url,
+        "site_logo_url": site_logo_url,
+        "footer_background_url": footer_background_url,
+        "footer_logo_url": footer_logo_url,
     }
 
 # def ads(request):

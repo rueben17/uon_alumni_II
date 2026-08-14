@@ -240,23 +240,60 @@ class Banner(models.Model):
         null=True,
         blank=True,
     )
+    # Used site-wide (2026-08-14, apps/home/context_processors.py's
+    # images()) -- top_banner is the homepage hero (templates/snippets
+    # /banner.html), bottom_banner is the footer background (templates
+    # /snippets/footer.html). middle_banner/image stay generic/unused
+    # for now, same as before this pass.
     top_banner = ResizedImageField(size=[2200, 2200], quality=85,
                         upload_to='banner/top_banner/%Y/%m/%d/',
-                        help_text=_("Upload your item images "), blank=True, null=True)
+                        help_text=_("Homepage hero background (templates/snippets/banner.html)."), blank=True, null=True)
     middle_banner = ResizedImageField(size=[2200, 2200], quality=85,
                         upload_to='banner/middle_banner/%Y/%m/%d/',
                         help_text=_("Upload your item images "), blank=True, null=True)
 
     bottom_banner = ResizedImageField(size=[2200, 2200], quality=85,
                         upload_to='banner/bottom_banner/%Y/%m/%d/',
-                        help_text=_("Upload your item images "), blank=True, null=True)
+                        help_text=_("Footer background image (templates/snippets/footer.html)."), blank=True, null=True)
 
     image = ResizedImageField(size=[2200, 2200], quality=85,
                         upload_to='banner/image/%Y/%m/%d/',
                         help_text=_("Upload banner images "), blank=True, null=True)
     logo = ResizedImageField(size=[500, 500], quality=90,
                         upload_to='banner/logo/%Y/%m/%d/',
-                        help_text=_("Upload your item images "), blank=True, null=True)
+                        help_text=_("Site logo -- navbar, top-left (templates/snippets/navbar.html)."), blank=True, null=True)
+    footer_logo = ResizedImageField(size=[500, 500], quality=90,
+                        upload_to='banner/footer_logo/%Y/%m/%d/',
+                        help_text=_("Footer logo -- usually a white/reversed variant of the main logo, "
+                                     "for contrast against the footer's dark background."), blank=True, null=True)
+
+    # Site-wide background used on secondary pages (scholarship, alumni
+    # profile, membership categories/analytics, etc.) -- one admin-editable
+    # place instead of a Cloudinary URL hardcoded into every one of those
+    # templates (2026-08-14). apps/home/context_processors.py's images()
+    # exposes whichever Banner row has this set as page_background_url,
+    # falling back to the original hardcoded image if none do yet.
+    page_background = ResizedImageField(size=[2200, 2200], quality=85,
+                        upload_to='banner/page_background/%Y/%m/%d/',
+                        help_text=_("Background image shown behind the scholarship, profile, and analytics pages."),
+                        blank=True, null=True)
+
+    # Small crest pasted into the center of generated QR codes
+    # (apps/qr_manager/models.py's QRCode.generate_qr()) -- two separate
+    # fields, not one, since staff and alumni badges carry different
+    # institutional marks. Sized much smaller than the other Banner
+    # image fields above: this is a watermark PIL shrinks to ~25% of
+    # the QR's own size, not a full-page image, and the previous
+    # hardcoded static file was large enough to trip Pillow's
+    # decompression-bomb warning on every generation.
+    staff_qr_watermark = ResizedImageField(size=[800, 800], quality=90,
+                        upload_to='banner/staff_qr_watermark/%Y/%m/%d/',
+                        help_text=_("Crest embedded in the center of STAFF QR codes. Falls back to the UoN crest if unset."),
+                        blank=True, null=True)
+    alumni_qr_watermark = ResizedImageField(size=[800, 800], quality=90,
+                        upload_to='banner/alumni_qr_watermark/%Y/%m/%d/',
+                        help_text=_("Crest embedded in the center of ALUMNI QR codes. Falls back to the UoNAA crest if unset."),
+                        blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True, editable=False)
     updated_at = models.DateTimeField(auto_now=True)
@@ -938,6 +975,14 @@ class Qualification(models.Model):
         return f"{self.name} ({self.faculty.faculty_name})"
 
 
+def alumni_qr_upload_path(instance, filename):
+    """qr_codes/alumni/<alumni-uuid>.png -- mirrors apps/staff/models.py's
+    qr_upload_path, minus the unit-slug folder: alumni have no
+    department/service/research unit to sort by. Incoming filename
+    ignored so regenerations overwrite in place."""
+    return f"qr_codes/alumni/{instance.pk}.png"
+
+
 class AlumniProfile(models.Model):
     """Academic and external-employment data only. Personal data lives on
     UserProfile; membership data lives on Membership (both split out per
@@ -993,6 +1038,21 @@ class AlumniProfile(models.Model):
         always_update=True,
         blank=True,
         null=True,
+    )
+
+    # "Digital alumni ID (QR)" -- advertised as a membership benefit
+    # (templates/home/membership_categories.html's tier copy), generated
+    # via apps.qr_manager.models.QRCode.generate_qr() the same way as
+    # Employee.qr_code_image (apps/staff/models.py) -- see
+    # apps/home/admin.py's AlumniProfileAdmin for the admin action that
+    # creates/regenerates it. Blank until an admin runs that action;
+    # nothing generates it automatically.
+    qr_code_image = models.ImageField(
+        upload_to=alumni_qr_upload_path,
+        blank=True,
+        null=True,
+        verbose_name=_("QR Code"),
+        help_text=_("Auto-generated QR code linking to this alumnus's profile page."),
     )
 
     def __str__(self):
