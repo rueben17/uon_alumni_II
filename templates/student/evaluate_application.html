@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}{{ name_title }} | Evaluate {{ application.first_name }} {{ application.surname }}{% endblock %}
+
+{% block content %}
+<div class="relative mx-auto min-h-screen" style="max-width: 1700px;">
+    {% comment %}
+    Same background treatment as templates/home/membership_categories.html
+    -- position:fixed backdrop, admin-editable via Banner.page_background
+    (apps/home/context_processors.py's images()), navbar only.
+    {% endcomment %}
+    <div class="fixed inset-0 -z-10 bg-cover bg-top bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
+    {% include "snippets/navbar.html" %}
+
+    <div class="grid grid-cols-1 gap-4 p-4 lg:grid-cols-2">
+        <!-- Left pane: uploaded application PDF -->
+        <div class="lg:sticky lg:top-4" style="height: calc(100vh - 2rem);">
+            {% if application.physical_copy %}
+                <iframe
+                    src="{{ application.physical_copy.url }}"
+                    class="h-full w-full rounded-sm border border-slate-200 bg-white"
+                    style="height: 100%;"
+                ></iframe>
+            {% elif application %}
+                <div class="flex h-full w-full items-center justify-center rounded-sm border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+                    No application form uploaded.
+                </div>
+            {% else %}
+                <div class="flex h-full w-full items-center justify-center rounded-sm border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+                    Select an applicant to see their application form here.
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Right pane: applicant picker on top, scoring form below --
+             same width as this column (previously a full-page-wide bar
+             above both panes; narrowed to match the matrix it sits
+             above, per 2026-08-14 feedback). -->
+        <div class="rounded-sm border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+            <div class="mb-6">
+                <label for="applicant-picker" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Jump to applicant
+                </label>
+                <select id="applicant-picker" class="w-full" style="width: 100%;">
+                    <option value=""{% if not application %} selected{% endif %}>Search by name or registration number&hellip;</option>
+                    {% for applicant in applicants %}
+                        <option
+                            value="{% url 'student:evaluate_application' pk=applicant.pk %}"
+                            {% if application and application.pk == applicant.pk %}selected{% endif %}
+                        >
+                            {{ applicant.surname }}, {{ applicant.first_name }} &mdash; {{ applicant.registration_number }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            {% if not application %}
+                <div class="flex h-40 w-full items-center justify-center rounded-sm border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+                    Select an applicant above to begin their evaluation.
+                </div>
+            {% else %}
+            <div class="mb-6 flex flex-col gap-1">
+                <h1 class="text-xl font-semibold text-slate-900 sm:text-2xl">
+                    Evaluate: {{ application.first_name }} {{ application.surname }}
+                </h1>
+                <p class="text-sm text-slate-600">
+                    {{ application.registration_number }} &middot; {{ application.current_course }}
+                </p>
+            </div>
+
+            {% if form.non_field_errors %}
+                <div class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+                    {% for error in form.non_field_errors %}
+                        <p>{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <form method="post" id="evaluation-form" novalidate class="space-y-8">
+                {% csrf_token %}
+
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">Interview Details</h2>
+                    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {% include "snippets/form_field.html" with field=form.venue %}
+                        {% include "snippets/form_field.html" with field=form.interview_date %}
+                        {% include "snippets/form_field.html" with field=form.time_start %}
+                        {% include "snippets/form_field.html" with field=form.time_stop %}
+                        {% include "snippets/form_field.html" with field=form.course_undertaking %}
+                        {% include "snippets/form_field.html" with field=form.parental_status %}
+                        {% include "snippets/form_field.html" with field=form.received_other_funding %}
+                        {% include "snippets/form_field.html" with field=form.verdict %}
+                        {% include "snippets/form_field.html" with field=form.prepared_by_name %}
+                        {% include "snippets/form_field.html" with field=form.prepared_by_signature %}
+                    </div>
+                    <div class="mt-4">
+                        {% include "snippets/form_field.html" with field=form.other_remarks %}
+                    </div>
+                </div>
+
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">Scoring Matrix</h2>
+                    <div class="mt-4 overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                                    <th class="py-1 pr-2">Criterion</th>
+                                    <th class="py-1 pr-2">Max</th>
+                                    <th class="py-1">Score</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for field, max_score in score_rows %}
+                                    <tr class="border-t border-slate-100">
+                                        <td class="py-2 pr-2 text-slate-800">{{ field.label }}</td>
+                                        <td class="py-2 pr-2 tabular-nums text-slate-500">{{ max_score }}</td>
+                                        <td class="py-2">{{ field }}</td>
+                                    </tr>
+                                    {% if field.errors %}
+                                        <tr>
+                                            <td colspan="3" class="pb-2 text-xs text-red-600">{{ field.errors|join:", " }}</td>
+                                        </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="mt-4 flex items-center justify-between rounded-sm border border-slate-200 bg-slate-50 p-4">
+                        <span class="text-sm font-semibold text-slate-700">Total</span>
+                        <span class="text-lg font-semibold text-slate-900 tabular-nums">
+                            <span id="total-current">0</span> / {{ total_possible }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-3 pt-2">
+                    <button type="submit" class="inline-flex items-center justify-center rounded-sm bg-slate-900 px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300">
+                        Save Evaluation
+                    </button>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Select2 (jQuery already loaded globally in base.html, near the end
+     of <body> -- defer here guarantees this executes after that script
+     has run, regardless of DOM order, without touching base.html. -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script defer src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        // DOMContentLoaded fires after every synchronous/deferred
+        // script on the page has run (jQuery's own tag included), so
+        // by this point $ and $.fn.select2 are both guaranteed to
+        // exist, regardless of where in the document any of these
+        // <script> tags physically sit.
+        $("#applicant-picker").select2({
+            placeholder: "Search by name or registration number…",
+            width: "100%",
+        });
+
+        $("#applicant-picker").on("change", function () {
+            if (this.value) {
+                window.location.href = this.value;
+            }
+        });
+    });
+</script>
+
+{% if application %}
+<script>
+    (function () {
+        var form = document.getElementById("evaluation-form");
+        var totalCurrent = document.getElementById("total-current");
+
+        function recomputeTotal() {
+            var total = 0;
+            form.querySelectorAll("[data-score-select]").forEach(function (select) {
+                total += parseInt(select.value, 10) || 0;
+            });
+            totalCurrent.textContent = total;
+        }
+
+        // Single listener on the form container, filtered to score
+        // selects inside the handler -- not one listener per <select>,
+        // and header selects (verdict, parental_status) are excluded
+        // since they don't carry data-score-select.
+        form.addEventListener("change", function (event) {
+            if (event.target.matches("[data-score-select]")) {
+                recomputeTotal();
+            }
+        });
+
+        recomputeTotal();
+    })();
+</script>
+{% endif %}
+{% endblock content %}

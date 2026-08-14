@@ -1,7 +1,45 @@
+from django.core.validators import MaxValueValidator
+
 from django import forms
 
-from apps.student.models import ScholarshipApplication, Student
+from apps.student.models import InterviewScoreSheet, ScholarshipApplication, Student
 from main.forms import TailwindStyledFormMixin, YearAsDateField
+
+# Ordered so both the form (iterating to build fields) and the template
+# (iterating to render rows) walk the scoring matrix in the same,
+# single defined order -- InterviewScoreSheet's own field declaration
+# order (apps/student/models.py).
+SCORE_FIELDS = [
+    "score_about_yourself",
+    "score_socioeconomic",
+    "score_previous_education",
+    "score_strength_weakness",
+    "score_deserve_scholarship",
+    "score_role_model",
+    "score_family_status",
+    "score_personality",
+]
+
+
+def score_field_max(field_name):
+    """The awardable max for one InterviewScoreSheet score field, read
+    from its own MaxValueValidator -- the model stays the single source
+    of truth for these caps (they sum to 50) rather than re-hardcoding
+    them here where they could drift out of sync."""
+    field = InterviewScoreSheet._meta.get_field(field_name)
+    for validator in field.validators:
+        if isinstance(validator, MaxValueValidator):
+            return validator.limit_value
+    raise ValueError(f"{field_name} has no MaxValueValidator")
+
+
+def score_field_label(field_name):
+    """Criterion display name, derived mechanically from the field name
+    (strip the score_ prefix, title-case) -- InterviewScoreSheet's score
+    fields have no verbose_name of their own to draw a "real" label
+    from, so this reformats the actual field name rather than inventing
+    rubric wording that isn't in the model."""
+    return field_name.removeprefix("score_").replace("_", " ").title()
 
 
 class ScholarshipApplicationForm(TailwindStyledFormMixin, forms.ModelForm):
@@ -83,4 +121,48 @@ class StudentRegisterForm(TailwindStyledFormMixin, forms.ModelForm):
         self.fields["year_of_study"].required = False
         self.fields["county"].required = False
         self.fields["alt_phone"].required = False
+        self.apply_tailwind_styling()
+
+
+class InterviewScoreSheetForm(TailwindStyledFormMixin, forms.ModelForm):
+    """Staff-only interview scoring form (apps.student.views
+    .EvaluateApplicationView). application and evaluator are excluded --
+    both are set server-side in the view (application from the URL,
+    evaluator from request.user.employee), never user-chosen.
+
+    The 8 score_* fields are rebuilt below as integer dropdowns (0..max,
+    max read from each field's own MaxValueValidator via
+    score_field_max) instead of ModelForm's default NumberInput -- this
+    is the "scoring matrix" UI: one row per criterion, an actual
+    integer choice, not free-typed input that could exceed the cap
+    client-side.
+    """
+
+    class Meta:
+        model = InterviewScoreSheet
+        exclude = ["application", "evaluator"]
+        widgets = {
+            "interview_date": forms.DateInput(attrs={"type": "date"}),
+            "time_start": forms.TimeInput(attrs={"type": "time"}),
+            "time_stop": forms.TimeInput(attrs={"type": "time"}),
+            "other_remarks": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name in SCORE_FIELDS:
+            max_score = score_field_max(field_name)
+            self.fields[field_name] = forms.TypedChoiceField(
+                label=score_field_label(field_name),
+                choices=[(i, i) for i in range(max_score + 1)],
+                coerce=int,
+                # data-score-select marks this <select> for the live-total
+                # JS listener in templates/student/evaluate_application.html
+                # -- so header selects (verdict, parental_status) never get
+                # summed in by accident.
+                widget=forms.Select(attrs={"data-score-select": "1"}),
+            )
+        # Last, so the rebuilt score selects above also get styled --
+        # apply_tailwind_styling() only touches fields present at call
+        # time (same ordering already used by ScholarshipApplicationForm).
         self.apply_tailwind_styling()

@@ -151,6 +151,12 @@ def contacts(request):
         # plain view, so checked directly here instead.
         if request.user.is_staff or request.user.is_superuser:
             admin_links.append({"label": "Membership Analytics", "url": f"{base}{home_url('membership_analytics')}"})
+            # EvaluateApplicationView (apps/student/views.py) is gated by
+            # the same StaffOrSuperuserRequiredMixin -- same condition
+            # here, no separate admin site to defer to, same reasoning
+            # as Membership Analytics just above.
+            evaluate_url = reverse("student:evaluate_application_list", urlconf="main.urls")
+            admin_links.append({"label": "Evaluate Applicants", "url": f"{base}{evaluate_url}"})
 
     website = 'uonalumni.or.ke'
     email = 'alumni@uonbi.ac.ke'
