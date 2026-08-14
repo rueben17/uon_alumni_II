@@ -202,6 +202,27 @@ class Student(models.Model):
 # would silently change what values are valid here.
 # -------------------------------------------------------------------
 
+def _scholarship_physical_copy_path(instance, filename):
+    """Renames the upload to the applicant's own name-slug instead of
+    keeping the browser/scanner-supplied filename (2026-08-14) --
+    "scan.pdf"/"IMG_0001.pdf" collide constantly across submissions, and
+    Django's default collision handling just appends a random suffix
+    (e.g. app_zXCuekM.pdf), which is neither readable nor predictable.
+    Reuses get_student_slug's exact slug when a Student is linked
+    (always true going through the public form now that the scholarship
+    page gates on student sign-up -- see apps.home.views
+    .uon_alumni_scholarship); falls back to the application's own name
+    fields for the nullable legacy/admin-imported path where no Student
+    is linked.
+    """
+    slug = get_student_slug(instance.student) if instance.student_id else slugify(
+        f"{instance.first_name} {instance.surname}"
+    )
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    year = timezone.now().year
+    return f"scholarship_applications/{year}/{slug}.{ext}" if ext else f"scholarship_applications/{year}/{slug}"
+
+
 class ScholarshipApplication(models.Model):
     """Undergraduate-only alumni scholarship application, sourced from a
     Google Form. Undergraduate-only is enforced here at the model layer
@@ -268,10 +289,13 @@ class ScholarshipApplication(models.Model):
     )
     other_achievement_2 = models.TextField(blank=True)  # second achievement field
 
-    # Physical/printed copy of the application, scanned or photographed
+    # Physical/printed copy of the application, scanned or photographed.
+    # PDF only (2026-08-14) -- was pdf/jpg/jpeg/png; the printed form is
+    # always scanned to PDF in practice, and narrowing the accepted type
+    # avoids phone-camera photos of varying quality/orientation.
     physical_copy = models.FileField(
-        upload_to="scholarship_applications/%Y/",
-        validators=[FileExtensionValidator(["pdf", "jpg", "jpeg", "png"])],
+        upload_to=_scholarship_physical_copy_path,
+        validators=[FileExtensionValidator(["pdf"])],
     )
 
     # Undergraduate-only enforcement -- see clean()/save() below.

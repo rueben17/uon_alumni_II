@@ -33,6 +33,11 @@ class ScholarshipApplicationForm(TailwindStyledFormMixin, forms.ModelForm):
             # Plain dropdown matching the field's own 1-7 validator range,
             # instead of a free-typed number input.
             "year_of_study": forms.Select(choices=[("", "---------")] + [(i, i) for i in range(1, 8)]),
+            # Browser-level filter matching the model's FileExtensionValidator
+            # (PDF only, 2026-08-14) -- a UX nicety, not the actual
+            # enforcement; the validator is what a JS-disabled or
+            # hand-crafted submission still has to pass.
+            "physical_copy": forms.ClearableFileInput(attrs={"accept": "application/pdf"}),
         }
 
     def __init__(self, *args, **kwargs):
