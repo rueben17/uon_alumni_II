@@ -177,6 +177,12 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'main.urls'
 
+# SAMEORIGIN, not the Django default of DENY -- the applicant evaluation
+# screen (apps/student/views.py's EvaluateApplicationView) iframes an
+# uploaded PDF served from this same site, and DENY blocks that even
+# though it's same-origin. Still blocks third-party clickjacking, which
+# is the actual protection this setting exists for.
+X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 # ─────────────────────────────────────────────
 # Templates
