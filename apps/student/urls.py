@@ -11,5 +11,6 @@ urlpatterns = [
        path("evaluate/", EvaluateApplicationView.as_view(), name="evaluate_application_list"),
        path("evaluate/<int:pk>/", EvaluateApplicationView.as_view(), name="evaluate_application"),
        path("dashboard/", ApplicantDashboardView.as_view(), name="applicant_dashboard"),
+       path("dashboard/export/", ScholarshipAnalyticsExportView.as_view(), name="analytics_export"),
 
 ]

@@ -2,10 +2,17 @@ from allauth.account.adapter import get_adapter
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.generic import CreateView, TemplateView, View
+from openpyxl import Workbook
+from openpyxl.chart import BarChart, PieChart, Reference
+from openpyxl.styles import Font
+from openpyxl.utils import get_column_letter
 
+from apps.student import analytics
 from apps.student.forms import SCORE_FIELDS, InterviewScoreSheetForm, StudentRegisterForm, score_field_max
 from apps.student.models import County, Gender, ParentalStatus, ScholarshipApplication, Student
 from apps.user.mixins import StaffOrSuperuserRequiredMixin
@@ -249,3 +256,275 @@ class ApplicantDashboardView(StaffOrSuperuserRequiredMixin, TemplateView):
         context["pipeline_data"] = self._pipeline_chart_data()
         context["parental_status_data"] = self._parental_status_chart_data()
         return context
+
+
+# ---------------------------------------------------------------------
+# Scholarship analytics Excel export -- apps/student/analytics.py holds
+# the queries, everything below just renders their output into an
+# .xlsx workbook. Kept as module-level functions (one per sheet), not
+# methods, since none of them need view state.
+# ---------------------------------------------------------------------
+
+def _write_header_row(ws, headers, row=1):
+    for col_idx, header in enumerate(headers, start=1):
+        cell = ws.cell(row=row, column=col_idx, value=header)
+        cell.font = Font(bold=True)
+    ws.freeze_panes = "A2"
+
+
+def _autosize_columns(ws, headers, min_width=10, max_width=40):
+    for col_idx, header in enumerate(headers, start=1):
+        width = max(min_width, min(max_width, len(str(header)) + 4))
+        ws.column_dimensions[get_column_letter(col_idx)].width = width
+
+
+def _round_or_zero(value, digits=2):
+    return round(value, digits) if value is not None else 0
+
+
+def _build_summary_sheet(ws, totals, distribution):
+    """Metric groups 1 and 2 (exercise_totals, score_distribution) as
+    label/value rows, plus the score-band bar chart."""
+    headers = ["Metric", "Value"]
+    _write_header_row(ws, headers)
+
+    rows_data = [
+        ("Total Applicants", totals["applicants"]),
+        ("Evaluated", totals["evaluated"]),
+        ("Unevaluated (Pending)", totals["unevaluated"]),
+        ("Completion Rate (%)", _round_or_zero(totals["completion_rate"])),
+        ("Distinct Evaluators", totals["distinct_evaluators"]),
+        ("Earliest Evaluation Date", totals["earliest_evaluation"]),
+        ("Latest Evaluation Date", totals["latest_evaluation"]),
+        ("", ""),
+        (
+            "Note",
+            "Score statistics below, and on every other sheet, cover EVALUATED "
+            "applicants only. Unevaluated applicants are counted above but "
+            "excluded from every score statistic.",
+        ),
+        ("", ""),
+        ("Min Score", distribution["min"]),
+        ("Max Score", distribution["max"]),
+        ("Mean Score", _round_or_zero(distribution["mean"])),
+        ("Median Score", _round_or_zero(distribution["median"])),
+        ("Standard Deviation", _round_or_zero(distribution["stdev"])),
+        ("Q1 (25th percentile)", _round_or_zero(distribution["q1"])),
+        ("Q3 (75th percentile)", _round_or_zero(distribution["q3"])),
+    ]
+    for row_idx, (label, value) in enumerate(rows_data, start=2):
+        ws.cell(row=row_idx, column=1, value=label)
+        ws.cell(row=row_idx, column=2, value=value)
+
+    _autosize_columns(ws, headers, min_width=22)
+    ws.column_dimensions["B"].width = 60
+
+    # Score-band table, placed clear of the label/value rows above, with
+    # its own bar chart -- the one native chart this sheet needs.
+    band_start_row = len(rows_data) + 4
+    ws.cell(row=band_start_row, column=1, value="Score Band").font = Font(bold=True)
+    ws.cell(row=band_start_row, column=2, value="Count").font = Font(bold=True)
+    for i, band in enumerate(distribution["bands"], start=1):
+        ws.cell(row=band_start_row + i, column=1, value=band["band"])
+        ws.cell(row=band_start_row + i, column=2, value=band["count"])
+
+    last_band_row = band_start_row + len(distribution["bands"])
+    chart = BarChart()
+    chart.title = "Score Distribution (bands)"
+    chart.y_axis.title = "Applicants"
+    data = Reference(ws, min_col=2, min_row=band_start_row, max_row=last_band_row)
+    cats = Reference(ws, min_col=1, min_row=band_start_row + 1, max_row=last_band_row)
+    chart.add_data(data, titles_from_data=True)
+    chart.set_categories(cats)
+    ws.add_chart(chart, "D2")
+
+
+def _build_applicant_scores_sheet(ws, rows):
+    """One row per evaluated applicant -- metric group data feeding
+    this sheet is analytics.applicant_scores(), not one of the 8 metric
+    groups (it's the underlying per-row data, not an aggregate)."""
+    criterion_labels = [name.replace("score_", "").replace("_", " ").title() for name in SCORE_FIELDS]
+    headers = (
+        ["Registration Number", "Name", "Faculty", "Gender", "County"]
+        + criterion_labels
+        + ["Total Score", "Percentage of Max (%)", "Evaluator", "Evaluation Date"]
+    )
+    _write_header_row(ws, headers)
+
+    for row_idx, row in enumerate(rows, start=2):
+        col = 1
+        for value in (row["registration_number"], row["name"], row["faculty_name"], row["gender_label"], row["county_label"]):
+            ws.cell(row=row_idx, column=col, value=value)
+            col += 1
+        for name in SCORE_FIELDS:
+            ws.cell(row=row_idx, column=col, value=row["scores"][name])
+            col += 1
+        ws.cell(row=row_idx, column=col, value=row["total"])
+        col += 1
+        ws.cell(row=row_idx, column=col, value=_round_or_zero(row["percentage_of_max"]))
+        col += 1
+        ws.cell(row=row_idx, column=col, value=row["evaluator_name"])
+        col += 1
+        ws.cell(row=row_idx, column=col, value=row["evaluation_date"])
+
+    _autosize_columns(ws, headers)
+
+
+def _build_by_faculty_sheet(ws, rows):
+    headers = ["Faculty", "Count", "Share of Total (%)", "Mean Score", "Median Score", "Highest Score"]
+    _write_header_row(ws, headers)
+    for row_idx, row in enumerate(rows, start=2):
+        ws.cell(row=row_idx, column=1, value=row["faculty_name"])
+        ws.cell(row=row_idx, column=2, value=row["count"])
+        ws.cell(row=row_idx, column=3, value=_round_or_zero(row["share_of_total"]))
+        ws.cell(row=row_idx, column=4, value=_round_or_zero(row["mean"]))
+        ws.cell(row=row_idx, column=5, value=_round_or_zero(row["median"]))
+        ws.cell(row=row_idx, column=6, value=row["highest"])
+    _autosize_columns(ws, headers)
+
+    if rows:
+        last_row = len(rows) + 1
+        chart = BarChart()
+        chart.title = "Applicants Evaluated by Faculty"
+        chart.y_axis.title = "Count"
+        data = Reference(ws, min_col=2, min_row=1, max_row=last_row)
+        cats = Reference(ws, min_col=1, min_row=2, max_row=last_row)
+        chart.add_data(data, titles_from_data=True)
+        chart.set_categories(cats)
+        ws.add_chart(chart, "H2")
+
+
+def _build_by_county_sheet(ws, rows):
+    headers = ["County", "Count", "Mean Score"]
+    _write_header_row(ws, headers)
+    for row_idx, row in enumerate(rows, start=2):
+        ws.cell(row=row_idx, column=1, value=row["county_label"])
+        ws.cell(row=row_idx, column=2, value=row["count"])
+        ws.cell(row=row_idx, column=3, value=_round_or_zero(row["mean"]))
+    _autosize_columns(ws, headers)
+
+    if rows:
+        last_row = len(rows) + 1
+        chart = BarChart()
+        chart.title = "Applicants Evaluated by County"
+        chart.y_axis.title = "Count"
+        data = Reference(ws, min_col=2, min_row=1, max_row=last_row)
+        cats = Reference(ws, min_col=1, min_row=2, max_row=last_row)
+        chart.add_data(data, titles_from_data=True)
+        chart.set_categories(cats)
+        ws.add_chart(chart, "E2")
+
+
+def _build_by_gender_sheet(ws, rows):
+    headers = ["Gender", "Count", "Share (%)", "Mean Score", "Median Score"]
+    _write_header_row(ws, headers)
+    for row_idx, row in enumerate(rows, start=2):
+        ws.cell(row=row_idx, column=1, value=row["gender_label"])
+        ws.cell(row=row_idx, column=2, value=row["count"])
+        ws.cell(row=row_idx, column=3, value=_round_or_zero(row["share"]))
+        ws.cell(row=row_idx, column=4, value=_round_or_zero(row["mean"]))
+        ws.cell(row=row_idx, column=5, value=_round_or_zero(row["median"]))
+    _autosize_columns(ws, headers)
+
+    if rows:
+        last_row = len(rows) + 1
+        chart = PieChart()
+        chart.title = "Applicants Evaluated by Gender"
+        data = Reference(ws, min_col=2, min_row=1, max_row=last_row)
+        cats = Reference(ws, min_col=1, min_row=2, max_row=last_row)
+        chart.add_data(data, titles_from_data=True)
+        chart.set_categories(cats)
+        ws.add_chart(chart, "G2")
+
+
+def _build_criterion_diagnostics_sheet(ws, rows):
+    headers = ["Criterion", "Mean", "Max Possible", "Mean (% of Max)", "Std Dev", "Low Variance Flag"]
+    _write_header_row(ws, headers)
+    for row_idx, row in enumerate(rows, start=2):
+        ws.cell(row=row_idx, column=1, value=row["label"])
+        ws.cell(row=row_idx, column=2, value=_round_or_zero(row["mean"]))
+        ws.cell(row=row_idx, column=3, value=row["max_possible"])
+        ws.cell(row=row_idx, column=4, value=_round_or_zero(row["mean_pct_of_max"]))
+        ws.cell(row=row_idx, column=5, value=_round_or_zero(row["stdev"]))
+        ws.cell(row=row_idx, column=6, value="Yes" if row["low_variance_flag"] else "No")
+    _autosize_columns(ws, headers)
+
+
+def _build_evaluator_consistency_sheet(ws, rows):
+    headers = ["Evaluator", "Applicants Evaluated", "Mean Score Awarded", "Difference from Overall Mean"]
+    _write_header_row(ws, headers)
+    for row_idx, row in enumerate(rows, start=2):
+        ws.cell(row=row_idx, column=1, value=row["evaluator_name"])
+        ws.cell(row=row_idx, column=2, value=row["count"])
+        ws.cell(row=row_idx, column=3, value=_round_or_zero(row["mean"]))
+        ws.cell(row=row_idx, column=4, value=_round_or_zero(row["difference_from_overall_mean"]))
+    _autosize_columns(ws, headers)
+
+
+def _build_cutoff_simulation_sheet(ws, rows):
+    if not rows:
+        headers = ["Decile (%)", "Threshold", "Surviving Count"]
+        _write_header_row(ws, headers)
+        _autosize_columns(ws, headers)
+        return
+
+    gender_keys = list(rows[0]["by_gender"].keys())
+    faculty_keys = list(rows[0]["by_faculty"].keys())
+    headers = (
+        ["Decile (%)", "Threshold", "Surviving Count"]
+        + [f"{g} (survivors)" for g in gender_keys]
+        + [f"{f} (survivors)" for f in faculty_keys]
+    )
+    _write_header_row(ws, headers)
+
+    for row_idx, row in enumerate(rows, start=2):
+        ws.cell(row=row_idx, column=1, value=row["decile"])
+        ws.cell(row=row_idx, column=2, value=row["threshold"])
+        ws.cell(row=row_idx, column=3, value=row["surviving_count"])
+        col = 4
+        for gender in gender_keys:
+            ws.cell(row=row_idx, column=col, value=row["by_gender"][gender])
+            col += 1
+        for faculty in faculty_keys:
+            ws.cell(row=row_idx, column=col, value=row["by_faculty"][faculty])
+            col += 1
+    _autosize_columns(ws, headers)
+
+
+class ScholarshipAnalyticsExportView(StaffOrSuperuserRequiredMixin, View):
+    """Full scholarship-exercise analytics as a downloadable .xlsx
+    workbook -- one sheet per apps/student/analytics.py metric group,
+    plus a per-applicant Applicant Scores sheet. See that module's
+    docstring for the schema ground truth this was built against."""
+
+    def get(self, request):
+        totals = analytics.exercise_totals()
+        distribution = analytics.score_distribution()
+        faculty_rows = analytics.by_faculty()
+        county_rows = analytics.by_county()
+        gender_rows = analytics.by_gender()
+        criterion_rows = analytics.criterion_diagnostics()
+        evaluator_rows = analytics.evaluator_consistency()
+        cutoff_rows = analytics.cutoff_simulation()
+        applicant_rows = analytics.applicant_scores()
+
+        wb = Workbook()
+        summary_ws = wb.active
+        summary_ws.title = "Summary"
+        _build_summary_sheet(summary_ws, totals, distribution)
+
+        _build_applicant_scores_sheet(wb.create_sheet("Applicant Scores"), applicant_rows)
+        _build_by_faculty_sheet(wb.create_sheet("By Faculty"), faculty_rows)
+        _build_by_county_sheet(wb.create_sheet("By County"), county_rows)
+        _build_by_gender_sheet(wb.create_sheet("By Gender"), gender_rows)
+        _build_criterion_diagnostics_sheet(wb.create_sheet("Criterion Diagnostics"), criterion_rows)
+        _build_evaluator_consistency_sheet(wb.create_sheet("Evaluator Consistency"), evaluator_rows)
+        _build_cutoff_simulation_sheet(wb.create_sheet("Cutoff Simulation"), cutoff_rows)
+
+        response = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        filename = f"scholarship_analytics_{timezone.now():%Y%m%d_%H%M}.xlsx"
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        wb.save(response)
+        return response
