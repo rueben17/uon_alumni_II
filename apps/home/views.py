@@ -383,6 +383,15 @@ class MembershipCategoriesView(TemplateView):
     """
     template_name = "home/membership_categories.html"
 
+    # A tier at or above this many newly-listed benefits renders as a
+    # wide (2-per-row, 2-column benefit list) card instead of the
+    # default narrow (3-per-row, flex-wrap list) one -- otherwise a
+    # 6-11+ item list gets cramped into the same narrow column a 2-item
+    # tier fits fine in (2026-08-18). Sits in this tier ladder's actual
+    # gap in new-benefit counts (2, 2, 5, 6, 7 | 11, 13, 14, 18) rather
+    # than being an arbitrary round number.
+    WIDE_CARD_BENEFIT_THRESHOLD = 10
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         included_qs = (
@@ -432,6 +441,9 @@ class MembershipCategoriesView(TemplateView):
         for tier in corporate_tiers:
             tier.previous_tier_name = None
             tier.new_benefits = tier.included_benefits
+
+        for tier in individual_tiers + corporate_tiers:
+            tier.wide_card = len(tier.new_benefits) >= self.WIDE_CARD_BENEFIT_THRESHOLD
 
         # Rendered in one shared grid (see membership_categories.html) so
         # Corporate lands in whatever row the individual ladder's last row

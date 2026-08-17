@@ -7,9 +7,18 @@
     column would otherwise get forced into a cramped fixed-width track
     regardless of how much room it actually has.
   {% endcomment %}
-  <div class="grid grid-cols-1 gap-4 sm:items-stretch md:gap-8 {% if tiers|length > 1 %}sm:grid-cols-2 md:grid-cols-3{% endif %}">
+  {% comment %}
+    lg:grid-cols-6 (not 3) is the base unit so a card can be either
+    lg:col-span-2 (three per row, the default -- unchanged from before)
+    or lg:col-span-3 (two per row, tier.wide_card -- 2026-08-18) without
+    two separate grids. tier.wide_card is set in
+    apps/home/views.py's MembershipCategoriesView, not computed here --
+    a lone tier (e.g. the alumni profile page's own-tier panel) never
+    sets it, so it's simply falsy and this is a no-op there.
+  {% endcomment %}
+  <div class="grid grid-cols-1 gap-4 sm:items-stretch md:gap-8 {% if tiers|length > 1 %}sm:grid-cols-2 lg:grid-cols-6{% endif %}">
     {% for tier in tiers %}
-      <div tabindex="0" class="divide-y divide-gray-200 rounded-sm border border-gray-200 bg-white shadow-xs cursor-pointer transition-colors hover:bg-sky-50 focus:bg-sky-50">
+      <div tabindex="0" class="divide-y divide-gray-200 rounded-sm border border-gray-200 bg-white shadow-xs cursor-pointer transition-colors hover:bg-sky-50 focus:bg-sky-50 {% if tiers|length > 1 %}{% if tier.wide_card %}sm:col-span-2 lg:col-span-3{% else %}lg:col-span-2{% endif %}{% endif %}">
         <div class="p-6 sm:px-8">
           {% if heading %}
             <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{{ heading }}</p>
@@ -36,17 +45,20 @@
           {% endif %}
 
           {% comment %}
-            Multi-tier grid (narrow ~1/3-width cards): flex-wrap, so items
-            pack based on their own text length -- a rigid 2-column grid
-            there forces every column to the same width regardless of
-            content, and this grid's cards are narrow enough that long
-            benefit text would overflow into the neighboring card (tried,
-            2026-08-12). Single tier (e.g. the alumni profile page's own
-            card, wide enough to spare): a real 2-column grid instead, for
+            Narrow (~1/3-width) cards: flex-wrap, so items pack based on
+            their own text length -- a rigid 2-column grid there forces
+            every column to the same width regardless of content, and
+            these cards are narrow enough that long benefit text would
+            overflow into the neighboring card (tried, 2026-08-12). Wide
+            cards -- a single standalone tier (e.g. the alumni profile
+            page's own-tier panel) or a multi-tier tier.wide_card
+            (2026-08-18, apps/home/views.py's MembershipCategoriesView --
+            a long benefit list cramped into the same narrow column a
+            2-item tier fits fine in): a real 2-column grid instead, for
             the clean aligned readability flex-wrap's organic packing
             doesn't give you.
           {% endcomment %}
-          <ul class="mt-2 sm:mt-4 gap-x-4 gap-y-2 {% if tiers|length > 1 %}flex flex-row flex-wrap{% else %}grid grid-cols-2{% endif %}">
+          <ul class="mt-2 sm:mt-4 gap-x-4 gap-y-2 {% if tiers|length == 1 or tier.wide_card %}grid grid-cols-2{% else %}flex flex-row flex-wrap{% endif %}">
             {% for tb in tier.new_benefits %}
               <li class="flex items-center gap-1">
                 <svg
