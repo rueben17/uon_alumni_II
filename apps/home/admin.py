@@ -335,11 +335,34 @@ class TierBenefitInline(admin.TabularInline):
 @admin.register(MembershipTier)
 class MembershipTierAdmin(admin.ModelAdmin):
     list_per_page = 25
-    list_display = ['name', 'fee', 'track', 'tier_type', 'duration_months', 'is_active']
+    list_display = [
+        'name', 'code', 'fee', 'track', 'tier_type', 'duration_months', 'is_active',
+        'provisions_confirmed', 'fee_is_provisional',
+    ]
     list_editable = ['fee', 'is_active']
-    list_filter = ['tier_type', 'is_active']
+    list_filter = ['tier_type', 'is_active', 'provisions_confirmed', 'holder_type']
     ordering = ['order']
     inlines = [TierBenefitInline]
+    fieldsets = [
+        (None, {
+            'fields': ['name', 'code', 'fee', 'tier_type', 'duration_months', 'is_active', 'order', 'ladder_rank'],
+        }),
+        ('Constitutional provisions (Art. 8)', {
+            'fields': [
+                'display_order', 'holder_type', 'fee_amount', 'fee_basis', 'fee_is_provisional',
+                'is_life', 'max_term_years', 'membership_cap', 'minimum_age',
+                'requires_general_assembly_election', 'requires_executive_ratification',
+                'can_vote_governing_body', 'can_stand_for_executive_committee',
+                'eligible_for_appointment', 'constitution_reference', 'provisions_confirmed',
+                'eligibility_notes',
+            ],
+            'description': (
+                'Populated by the reconcile_constitutional_categories management command. '
+                'Blank/null means the supplied Constitutional text is silent on that point for '
+                'this category -- leave it that way rather than guessing a value by hand.'
+            ),
+        }),
+    ]
 
 
 @admin.register(Benefit)

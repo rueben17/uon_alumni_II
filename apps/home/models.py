@@ -804,6 +804,77 @@ class MembershipTier(models.Model):
     # this -- `order` is display-only and can't carry that.
     ladder_rank = models.PositiveSmallIntegerField(null=True, blank=True)
 
+    # ------------------------------------------------------------------
+    # Constitutional provisions (2026-08-18) -- reconciles this model
+    # against the eleven membership categories in the UONAA Constitution
+    # (Art. 8). Populated by
+    # management/commands/reconcile_constitutional_categories.py, never
+    # by hand. Deliberately additive/overlapping with name/fee/tier_type/
+    # duration_months/order above rather than replacing them -- a
+    # separate reconciliation pass, not a refactor of the existing tier
+    # system (explicit 2026-08-18 decision, not an oversight).
+    #
+    # Nullable is load-bearing on most of these: null means the
+    # Constitution's supplied text is SILENT on that point for that
+    # category, which is a different fact from False/0 and must never be
+    # backfilled with an inferred value.
+    # ------------------------------------------------------------------
+    class HolderType(models.TextChoices):
+        INDIVIDUAL = "individual", _("Individual")
+        ORGANISATION = "organisation", _("Organisation")
+
+    class FeeBasis(models.TextChoices):
+        ONE_OFF = "one_off", _("One-off")
+        ANNUAL = "annual", _("Annual")
+        PER_TERM = "per_term", _("Per Term")
+        NONE = "none", _("None")
+
+    code = models.SlugField(
+        max_length=50, unique=True, null=True, blank=True,
+        help_text=_(
+            "Stable key for this category, independent of the display name above -- "
+            "get_or_create in the reconciliation command keys off this, never off name."
+        ),
+    )
+    display_order = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text=_(
+            "Position (1-11) in the Constitution's own category list. Separate from the "
+            "existing 'order' field above, which predates this reconciliation."
+        ),
+    )
+    holder_type = models.CharField(max_length=20, choices=HolderType.choices, null=True, blank=True)
+    fee_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text=_(
+            "Constitutional/provisional fee -- separate from the existing 'fee' field above, "
+            "which is the actual current list price."
+        ),
+    )
+    fee_basis = models.CharField(max_length=20, choices=FeeBasis.choices, null=True, blank=True)
+    fee_is_provisional = models.BooleanField(
+        default=False,
+        help_text=_(
+            "True for every row the reconciliation command writes a fee_amount for -- the "
+            "Constitution says 'prescribed fee' throughout and prescribes no amount."
+        ),
+    )
+    is_life = models.BooleanField(null=True, blank=True, help_text=_("True means no expiry."))
+    max_term_years = models.PositiveSmallIntegerField(null=True, blank=True)
+    membership_cap = models.PositiveIntegerField(null=True, blank=True)
+    minimum_age = models.PositiveSmallIntegerField(null=True, blank=True)
+    requires_general_assembly_election = models.BooleanField(null=True, blank=True)
+    requires_executive_ratification = models.BooleanField(null=True, blank=True)
+    can_vote_governing_body = models.BooleanField(null=True, blank=True)
+    can_stand_for_executive_committee = models.BooleanField(null=True, blank=True)
+    eligible_for_appointment = models.BooleanField(null=True, blank=True)
+    constitution_reference = models.CharField(max_length=50, blank=True, default="")
+    provisions_confirmed = models.BooleanField(
+        default=False,
+        help_text=_("False where the supplied constitutional text defines no provisions for this category."),
+    )
+    eligibility_notes = models.TextField(blank=True, default="")
+
     # M-Pesa eligibility (Association decision 2026-08-07): "up to Gold"
     # implemented as fee <= this ceiling, not ladder_rank <= Gold's rank --
     # ladder_rank is null for Honorary/Student (cheaper than Gold, should
