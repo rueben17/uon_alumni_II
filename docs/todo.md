@@ -748,7 +748,13 @@ actually *see* — but it must not consume the time self-service needs.
 - [ ] RSS feed + `sitemap.xml` — Django ships both (`contrib.syndication`,
       `contrib.sitemaps`). Near-free.
 - [ ] Tags / related content for cross-linking.
-- [ ] Branded 404 / 500 pages.
+- [x] **[DONE 2026-08-18]** Branded 404 / 500 pages — `templates/{400,403,404,500}.html`.
+      404/403/400 extend `base.html` (full nav/footer/background, get a real
+      RequestContext); 500 is deliberately standalone (Django renders it with
+      no request/context at all, so it can't use any of that). Only render via
+      Django's own handlers when `DEBUG=False` — verified against a real
+      `DEBUG=False` local instance, not just DEBUG=True dev serving, which
+      silently bypasses all four in favor of Django's own debug pages.
 - [ ] Structured data (schema.org `Article`, `Event`).
 
 ### C.5 Content areas already modelled but unrouted
@@ -933,6 +939,31 @@ purely a data-entry/copywriting task.
     `MembershipCategoriesView`, live at `/uon-alumni-membership-categories/`,
     rendering real per-tier benefit copy with incremental "everything in
     X, plus:" diffing.
+10b. **[NEW 2026-08-18]** Reconciled `MembershipTier` against the eleven
+    UONAA Constitution (Art. 8) membership categories — new flat fields
+    (`code`, `holder_type`, `fee_amount`, governance/eligibility flags,
+    etc.) added and backfilled via
+    `apps/home/management/commands/reconcile_constitutional_categories.py`
+    (idempotent, safe to rerun). "Platinum Life Membership" was renamed
+    to "Founder" and its 25 existing benefits carried over with it — see
+    that command's own module docstring for the full reasoning. Left
+    open, still needs a person (not a rerun of the command):
+    - **No `TierBenefit` rows for Honorary, Affiliate, or Senior
+      Citizen** — all three now exist as real categories with correct
+      constitutional provisions, but zero benefits, so none of them
+      show on the public Categories & Benefits page yet (same "empty =
+      invisible" behavior as everything else in this list).
+    - **Affiliate is additionally excluded outright** by
+      `tier_type="registered"` (the closest existing legacy value it
+      could be given — Affiliate isn't really any of the 6 existing
+      `tier_type` choices) regardless of whether it gets benefits.
+      Worth revisiting once real benefits exist for it.
+    - **"Diamond Life Membership" and "Associate"** (`MembershipTier`
+      pk 4 and 11) have no seat in the eleven Constitutional categories
+      — flagged explicitly during reconciliation, deliberately left
+      untouched per instruction — but they still carry 25 real benefits
+      each and are still showing publicly on the Categories & Benefits
+      page today. Decide: pull them from the public page, or leave them.
 11. **Publications** (`Publication` model) — newsletters, minutes, annual
     reports. Zero rows; Downloads page (built, routed) has nothing to list.
 
@@ -944,14 +975,24 @@ pass) — the remaining gap is purely the words on the page.
 12. **Donate** — body is still literally `<p>Donate page</p>`. No giving
     instructions (M-Pesa paybill/bank details), fund designations, impact
     stories, or receipt/tax info.
-13. **Scholarship** — **[application form built 2026-08-11]**, so this is
-    narrower than it was: the page is no longer empty below the banner,
-    it's a full `ScholarshipApplicationForm` (personal/university/contact/
-    home/school/achievements, cascading Faculty→Department dropdowns,
-    file upload). Still needed: actual copy *around* the form — which
+13. **Scholarship** — **[application form built 2026-08-11, evaluation +
+    analytics pipeline built 2026-08-14/18]**, so this is narrower again:
+    the public page has a full `ScholarshipApplicationForm` (personal/
+    university/contact/home/school/achievements, cascading Faculty→
+    Department dropdowns, file upload). Behind it, staff now have a full
+    working pipeline that didn't exist before this session — the two-pane
+    evaluation screen (`apps/student/views.py`'s
+    `EvaluateApplicationView`: applicant's uploaded PDF alongside the
+    interview scoring matrix, Select2 picker), the Applicant Dashboard
+    (`ApplicantDashboardView` — faculty/gender/county/evaluation-pipeline/
+    parental-status charts, an "Export to Excel" button), and
+    `apps/student/analytics.py` backing an 8-sheet `.xlsx` workbook export
+    with native charts (query-count-budgeted, verified against real
+    Postgres aggregates). None of this is copy/content work — still
+    needed on that front: actual copy *around* the public form (which
     programme(s) this is, eligibility criteria, what happens after you
-    apply, past-recipient stories. Right now it's just a one-line subtitle
-    straight into the form.
+    apply, past-recipient stories). Right now it's just a one-line
+    subtitle straight into the form.
 14. **In Memoriam** — `<p>In Memoriam page</p>` placeholder. Needs a real
     listing (feeds from the now-built `InMemoriam` model, once #entries
     exist) and a "submit a tribute" path.
@@ -1081,6 +1122,32 @@ work, still open as originally filed unless marked fixed.
 (needs a decision, not code — is the staff directory meant to require
 login?) and #7 (low priority, needs manual test). Then cleanup (#8-12)
 as time allows. #13-15 are separate future initiatives.
+
+---
+
+## Infrastructure findings (2026-08-18 session)
+
+Discovered while previewing `DEBUG=False` behavior locally (needed to check
+the branded error pages actually render, since `DEBUG=True` dev serving
+bypasses them). Unrelated to that task, not fixed, not tracked anywhere else.
+
+1. **`STATICFILES_STORAGE` (WhiteNoise's `CompressedManifestStaticFilesStorage`)
+   isn't actually active.** `main/settings.py` sets it via the legacy setting
+   name, but `django.contrib.staticfiles.storage.staticfiles_storage` resolves
+   to plain `StaticFilesStorage` instead — confirmed directly
+   (`type(staticfiles_storage)` in a shell, and `collectstatic` never writes
+   the `staticfiles.json` manifest the Manifest storage class requires no
+   matter how many times it's rerun). Static files still serve correctly
+   either way (`{% static %}` just falls back to plain, unhashed URLs, and
+   WhiteNoise serves whatever's actually at that path) — nothing is broken
+   for users. What's missing is the compression + cache-busting/immutable-
+   caching WhiteNoise's Manifest storage is specifically for. Likely fix:
+   Django 4.2+'s `STORAGES` dict setting takes precedence over the legacy
+   `STATICFILES_STORAGE`/`DEFAULT_FILE_STORAGE` names when *both* exist in
+   the same settings module in certain combinations — `DEFAULT_FILE_STORAGE`
+   is also set conditionally nearby (Cloudinary), which may be the actual
+   interaction suppressing it. Worth a focused look, not guessed at further
+   here.
 
 ---
 
