@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Page Not Found | {{ name_title }}{% endblock %}
+
+{% block content %}
+<div class="relative mx-auto min-h-screen" style="max-width: 1700px;">
+    {% comment %}
+    Same background treatment as templates/home/alumni_home.html --
+    position:fixed backdrop, admin-editable via Banner.page_background
+    (apps/home/context_processors.py's images()). This template DOES get
+    a full RequestContext (context processors run, navbar/footer work
+    normally) -- unlike 500.html, which Django renders with no request
+    at all and so can't use any of this.
+    {% endcomment %}
+    <div class="fixed inset-0 -z-10 bg-cover bg-top bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
+    {% include "snippets/navbar.html" %}
+
+    <section class="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center gap-6 p-4 text-center">
+        <div class="w-full rounded-sm border border-slate-200 bg-white p-8 shadow-xl sm:p-12">
+            <p class="text-sm font-semibold uppercase tracking-widest text-blue-600">Error 404</p>
+            <h1 class="mt-2 text-4xl font-semibold tracking-wide text-gray-900 sm:text-5xl">Page Not Found</h1>
+            <p class="mt-4 text-lg font-light text-slate-600 text-balance">
+                The page you're looking for doesn't exist or may have moved. Double-check the link, or head back to somewhere familiar.
+            </p>
+            <div class="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+                <a href="{% url 'home:uon_alumni_home' %}" class="inline-flex items-center justify-center rounded-sm bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300">
+                    Return Home
+                </a>
+                <a href="{{ url_contact }}" class="inline-flex items-center justify-center rounded-sm border border-slate-300 bg-white px-6 py-2.5 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300">
+                    Contact Us
+                </a>
+            </div>
+        </div>
+    </section>
+
+    {% include "snippets/footer.html" %}
+</div>
+{% endblock content %}

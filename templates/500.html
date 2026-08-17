@@ -1,0 +1,41 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Server Error | University of Nairobi Alumni Association</title>
+    {% comment %}
+    Django renders 500.html with NO context and NO request at all
+    (django.views.defaults.server_error calls template.render() with
+    zero arguments) -- context processors never run here, so this page
+    cannot extend base.html, include navbar.html/footer.html, or
+    reference any {{ variable }} that normally comes from
+    apps/home/context_processors.py (page_background_url, admin_links,
+    url_contact, etc.). {% load static %}/{% static %} still work --
+    they read settings.STATIC_URL directly, not the request context --
+    which is how the stylesheet and logo below still render on-brand
+    even though nothing else from the site chrome is available.
+    {% endcomment %}
+    <link rel="stylesheet" href="{% static 'css/output.css' %}">
+</head>
+<body class="flex min-h-screen items-center justify-center bg-slate-100 p-4">
+    <div class="w-full max-w-lg rounded-sm border border-slate-200 bg-white p-8 text-center shadow-xl sm:p-12">
+        <img
+            src="https://res.cloudinary.com/doh3hvrdz/image/upload/q_auto/f_auto/v1781224354/UONAA_Original_Logo_Blue_1_lgwkmu.png"
+            alt="University of Nairobi Alumni Association"
+            class="mx-auto h-16 w-auto"
+        >
+        <p class="mt-6 text-sm font-semibold uppercase tracking-widest text-blue-600">Error 500</p>
+        <h1 class="mt-2 text-4xl font-semibold tracking-wide text-gray-900 sm:text-5xl">Something Went Wrong</h1>
+        <p class="mt-4 text-lg font-light text-slate-600 text-balance">
+            Something broke on our end, not yours. We've been notified and are looking into it -- please try again shortly.
+        </p>
+        <div class="mt-8">
+            <a href="/" class="inline-flex items-center justify-center rounded-sm bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300">
+                Return Home
+            </a>
+        </div>
+    </div>
+</body>
+</html>
