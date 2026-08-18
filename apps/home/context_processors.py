@@ -1,5 +1,9 @@
+import json
+
 from apps.home.models import *
 from datetime import*
+from django.conf import settings
+from django.urls import reverse
 from django.utils import timezone as tz
 from django.utils.timezone import now
 from django.utils import timezone
@@ -26,6 +30,17 @@ DEFAULT_FOOTER_LOGO_URL = (
     "https://res.cloudinary.com/doh3hvrdz/image/upload/q_auto/f_auto/"
     "v1777444403/UONAA_Original_Logo_White_xca2yr.png"
 )
+
+# Promoted to module level (2026-08-18, SEO audit) so seo()'s JSON-LD
+# Organization block and contacts()'s template context read the exact
+# same values -- previously these were local to contacts() only, and
+# duplicating them into seo() as separate literals would have been a
+# drift risk (edit one, forget the other) for facts that also feed
+# structured data search engines actually validate against.
+ASSOCIATION_NAME = 'University of Nairobi Alumni Association'
+ASSOCIATION_WEBSITE = 'uonalumni.or.ke'
+ASSOCIATION_ADDRESS = 'KOLOBOT DRIVE, OFF STATE HOUSE RD, OFF ABORETUM DRIVE.'
+ASSOCIATION_POSTAL = 'P. O. BOX 30490 - 00100, NAIROBI.'
 
 
 def _first_image_url(banners, field_name, default):
@@ -74,6 +89,72 @@ def images(request):
 #         "ads": ads
 #     }
 
+
+
+def seo(request):
+    """Canonical URL + a sensible default robots directive, computed once
+    per request so every page gets a correct value without repeating this
+    logic in every template. base.html renders both inside overridable
+    blocks (canonical_url / robots) -- a specific page (e.g. an
+    authenticated or admin-adjacent view that isn't already covered by
+    the subdomain-wide or pagination rules below) overrides the block
+    directly rather than this processor growing per-page special cases.
+
+    canonical_url: request.build_absolute_uri(request.path) -- deliberately
+    path only (query string dropped), so a paginated/filtered URL
+    canonicalizes to the same page as its plain form, one canonical per
+    page as required. Uses the real request host, so it's correct on
+    whichever subdomain served the request without a lookup table.
+
+    default_robots: staff./students. subdomains are noindex, nofollow on
+    every page (SEO audit decision, 2026-08-18 -- both are internal/
+    enrollment-gated tooling). A paginated page beyond page 1 is noindex,
+    follow. Everything else defaults to index, follow.
+
+    organization_jsonld: pre-serialized via json.dumps(), not interpolated
+    field-by-field in the template -- Django's {{ var }} auto-escaping is
+    HTML escaping (turns '"' into '&quot;'), not JSON/JS escaping, which
+    would silently produce invalid JSON-LD the moment any of these values
+    ever contained a double quote. json.dumps() here is the correct
+    escaping for a <script type="application/ld+json"> body. Uses the
+    static DEFAULT_SITE_LOGO_URL, not images()'s per-request
+    Banner-overridden site_logo_url -- structured data should reflect the
+    association's one canonical brand logo, not whatever seasonal banner
+    image happens to be set, and this avoids a second Banner query on
+    every single request just for that.
+    """
+    canonical_url = request.build_absolute_uri(request.path)
+    # Pinned to main.urls (only urlconf 'sitemap' is defined in) same as
+    # every other cross-subdomain reverse() in this file -- robots.txt is
+    # served on staff./students. too (apps/staff/site_urls.py,
+    # apps/student/urls.py both mount templates/robots.txt), where the
+    # active urlconf has no 'sitemap' name at all.
+    sitemap_url = request.build_absolute_uri(reverse('sitemap', urlconf='main.urls'))
+
+    subdomain = getattr(request, 'subdomain', None)
+    if subdomain in ('staff', 'students'):
+        default_robots = 'noindex, nofollow'
+    elif request.GET.get('page') not in (None, '', '1'):
+        default_robots = 'noindex, follow'
+    else:
+        default_robots = 'index, follow'
+
+    base = 'http://lvh.me:8000' if settings.DEBUG else 'https://uonalumni.or.ke'
+    organization_jsonld = json.dumps({
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": ASSOCIATION_NAME,
+        "url": f"{base}/",
+        "logo": DEFAULT_SITE_LOGO_URL,
+        "address": f"{ASSOCIATION_ADDRESS} {ASSOCIATION_POSTAL}",
+    })
+
+    return {
+        'canonical_url': canonical_url,
+        'default_robots': default_robots,
+        'organization_jsonld': organization_jsonld,
+        'sitemap_url': sitemap_url,
+    }
 
 
 def date_timer(request):
@@ -165,15 +246,15 @@ def contacts(request):
                 {"label": "Charts", "url": f"{base}{dashboard_url}"},
             ]
 
-    website = 'uonalumni.or.ke'
+    website = ASSOCIATION_WEBSITE
     email = 'alumni@uonbi.ac.ke'
     landline = '020 491 6713'
     mobile = '0724 820 908'
-    address = 'KOLOBOT DRIVE, OFF STATE HOUSE RD, OFF ABORETUM DRIVE.'
-    postal = 'P. O. BOX 30490 - 00100, NAIROBI.'
+    address = ASSOCIATION_ADDRESS
+    postal = ASSOCIATION_POSTAL
     mission = 'To safeguard the best interests of its members, to use the talents and resources of the Alumni and friends of the University in achieving international distinction in quality teaching, research and service.'
     vision = 'To be a leader in promoting active, visible leadership in the community and to foster interaction between alumni and students of the University of Nairobi and the industry.'
-    name_title = 'University of Nairobi Alumni Association'
+    name_title = ASSOCIATION_NAME
 
     # url_membership_update: empty string (not a URL) unless the user has
     # actually paid at some point -- an active OR expired Membership, not

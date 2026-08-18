@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-<title>{% block title %} {{name_title}} | {{ employee.user.profile.display_name }} | Staff Profile {% endblock %}</title>
+{% block page_title %}{{ employee.user.profile.display_name }} | Staff Profile{% endblock %}
 
 
 {% block content %}

@@ -1,0 +1,13 @@
+{% comment %}
+Served on every subdomain (each mounts its own path to this same
+template -- see main/urls.py, apps/staff/site_urls.py,
+apps/student/urls.py) -- content branches on request.subdomain, set by
+main.middleware.SubdomainRoutingMiddleware.
+{% endcomment %}{% if request.subdomain == "staff" or request.subdomain == "students" %}User-agent: *
+Disallow: /
+{% else %}User-agent: *
+Disallow: /2005/
+Disallow: /membership-admin/
+
+Sitemap: {{ sitemap_url }}
+{% endif %}

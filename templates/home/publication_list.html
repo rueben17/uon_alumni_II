@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ name_title }} | {% if selected_category %}News Letters{% else %}Downloads{% endif %}{% endblock %}
+{% block page_title %}{% if selected_category %}News Letters{% else %}Downloads{% endif %}{% endblock %}
 
 {% block content %}
 

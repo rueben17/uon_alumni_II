@@ -202,6 +202,7 @@ TEMPLATES = [
                 'apps.home.context_processors.images',
                 'apps.home.context_processors.date_timer',
                 'apps.home.context_processors.contacts',
+                'apps.home.context_processors.seo',
             ],
             # Registered as a builtin so {% subdomain_url %} is available
             # in every template without {% load subdomain_urls %}.

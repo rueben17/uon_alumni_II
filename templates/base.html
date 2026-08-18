@@ -5,13 +5,60 @@
         <meta http-equiv="Content-Security-Policy">
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta name="description" content="">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="google-site-verification" content="O6Z9A_OaNjkFcxrtnOYjriqLEv9IxNP8OOJdmrxcJ5c" />
+        {% comment %}
+            SEO metadata framework (2026-08-18). Site-wide defaults live
+            here; a child template overrides a block directly rather than
+            repeating this whole head. Django's block tag can't appear
+            twice with the same name in one template file (parse error,
+            confirmed directly) -- so page_title/meta_description/
+            canonical_url/robots each have exactly one render point
+            (title / description / canonical link / robots meta). Open
+            Graph and Twitter tags reuse the SAME site-wide default
+            ({{ name_title }} / {{ canonical_url }} / {{ site_logo_url }})
+            rather than the page-specific override -- a page can still
+            give its share preview distinct text via og_title/
+            og_description if it matters enough to be worth the extra
+            block, but nothing requires it.
+        {% endcomment %}
+        <title>{% block page_title %}{{ name_title }}{% endblock %} | UONAA</title>
+        <meta name="description" content="{% block meta_description %}{{ name_title }}{% endblock %}">
+        <link rel="canonical" href="{% block canonical_url %}{{ canonical_url }}{% endblock %}">
+        {% comment %}
+            default_robots (apps/home/context_processors.py's seo()):
+            noindex,nofollow site-wide on staff./students., noindex,follow
+            past page 1 of any paginated list, index,follow otherwise. A
+            specific view overrides {% block robots %} directly for cases
+            those rules don't cover (e.g. an authenticated or admin-
+            adjacent page on the public subdomain).
+        {% endcomment %}
+        <meta name="robots" content="{% block robots %}{{ default_robots }}{% endblock %}">
+
+        <!-- Open Graph -->
+        <meta property="og:title" content="{% block og_title %}{{ name_title }}{% endblock %}">
+        <meta property="og:description" content="{% block og_description %}{{ name_title }}{% endblock %}">
+        <meta property="og:url" content="{{ canonical_url }}">
+        <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+        <meta property="og:site_name" content="{{ name_title }}">
+        <meta property="og:image" content="{% block og_image %}{{ site_logo_url }}{% endblock %}">
+
+        <!-- Twitter Card -->
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="{{ name_title }}">
+        <meta name="twitter:description" content="{{ name_title }}">
+        <meta name="twitter:image" content="{{ site_logo_url }}">
+
+        <!-- Structured data: Organization, every page. A page describing a
+             distinct event or article adds its own additional JSON-LD
+             block below rather than replacing this one. -->
+        <script type="application/ld+json">{{ organization_jsonld|safe }}</script>
+        {% block json_ld_extra %}{% endblock %}
+
         <link rel="stylesheet" href="{% static 'css/output.css' %}">
 
         <link href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.4/css/lightbox.min.css" rel="stylesheet">
         <script src="https://unpkg.com/htmx.org@1.9.9" integrity="sha384-QFjmbokDn2DjBjq+fM+8LUIVrAgqcNW2s0PjAxHETgRn9l4fvX31ZxDxvwQnyMOX" crossorigin="anonymous"></script>
-        <title>{% block title %}{{ name_title }}{% endblock %}</title>
         <style>[x-cloak] { display: none !important; }</style>
 
     </head>

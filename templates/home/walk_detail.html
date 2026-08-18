@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}{{ name_title }} | {{ event.title }}{% endblock %}
+{% block page_title %}{{ event.title }}{% endblock %}
+{% block meta_description %}{{ event.title }}{% endblock %}
+{% block og_type %}website{% endblock %}
+{% block og_title %}{{ event.title }}{% endblock %}
+{% block og_description %}{{ event.title }}{% endblock %}
+{% block og_image %}{% if event.thumbnail %}{{ event.thumbnail.url }}{% else %}{{ site_logo_url }}{% endif %}{% endblock %}
+{% block json_ld_extra %}<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Event", "name": "{{ event.title|escapejs }}"}</script>{% endblock %}
 
 {% block content %}
 

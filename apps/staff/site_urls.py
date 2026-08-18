@@ -1,10 +1,15 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import include, path
+from django.views.generic import TemplateView
 
 from apps.qr_manager.qr_admin_site import qr_admin_site
 
 urlpatterns = [
+    # 2026-08-18 SEO audit: staff. is noindex,nofollow site-wide, and
+    # robots.txt itself must be served per-host, at this subdomain's own
+    # root -- templates/robots.txt branches on request.subdomain.
+    path('robots.txt', TemplateView.as_view(template_name='robots.txt', content_type='text/plain'), name='robots_txt'),
     path('', include('apps.staff.urls')),
     # Every badge encodes <QR_SCAN_ORIGIN>/qr/<uuid>/?t=<token> (see
     # QRCode.generate_qr) -- QR_SCAN_ORIGIN is this subdomain, so the

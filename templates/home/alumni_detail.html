@@ -1,7 +1,14 @@
 {% extends "base.html" %}
 {% load l10n %}
 
-{% block title %}{{ name_title }} | {{ alumni.user.profile.display_name }} | Alumni Profile{% endblock %}
+{% block page_title %}{{ alumni.user.profile.display_name }} | Alumni Profile{% endblock %}
+{% comment %}
+    noindex (2026-08-18 SEO audit, confirmed with the user): same
+    reasoning as the QR badge verification rule -- a member's name,
+    tier, and county shouldn't be permanently searchable, even though
+    this page itself is public-by-link.
+{% endcomment %}
+{% block robots %}noindex, nofollow{% endblock %}
 
 {% block content %}
 
