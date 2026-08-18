@@ -1674,9 +1674,18 @@ class EmailLog(models.Model):
     class EmailType(models.TextChoices):
         ALUMNI_REGISTRATION_CONFIRMATION = 'alumni_registration_confirmation', _('Alumni Registration Confirmation')
         EVALUATION_RECEIPT = 'evaluation_receipt', _('Evaluation Receipt')
+        # related_object_id is a composite "{publication_id}:{user_id}" --
+        # this is a bulk send (one row per recipient per newsletter), not
+        # one row per Publication, so the plain pk alone isn't unique.
+        NEWSLETTER_ANNOUNCEMENT = 'newsletter_announcement', _('Newsletter Announcement')
 
     email_type = models.CharField(max_length=50, choices=EmailType.choices)
-    related_object_id = models.CharField(max_length=64)
+    # 128, not a tighter guess: this project's PKs are UUIDs (36 chars)
+    # throughout, and NEWSLETTER_ANNOUNCEMENT already needs a composite
+    # "{publication_id}:{user_id}" -- two UUIDs plus a separator is 73
+    # chars, so anything near that boundary risks the same truncation on
+    # the next composite key a future email type needs.
+    related_object_id = models.CharField(max_length=128)
     recipient_email = models.EmailField(blank=True)
     sent_at = models.DateTimeField(null=True, blank=True)
     error = models.TextField(blank=True)

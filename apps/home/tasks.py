@@ -58,6 +58,65 @@ def send_alumni_registration_confirmation(alumni_profile_id):
     log.save(update_fields=["recipient_email", "sent_at", "error"])
 
 
+def send_newsletter_email(publication_id, user_id):
+    """Sends one newsletter-announcement email to one recipient. Called
+    once per opted-in alumnus (apps.home.admin.PublicationAdmin's "Send by
+    email" action fans out one of these per recipient -- never one task
+    looping over the whole recipient list, so a single bad address can't
+    block or slow down the rest of the batch). Idempotent via EmailLog's
+    UniqueConstraint on (email_type, related_object_id), where
+    related_object_id is "{publication_id}:{user_id}" -- rerunning the
+    admin action on the same Publication is a no-op for anyone already
+    sent to.
+    """
+    from django.urls import reverse
+
+    from apps.home.models import EmailLog, Publication
+    from apps.user.models import User
+
+    log, _created = EmailLog.objects.get_or_create(
+        email_type=EmailLog.EmailType.NEWSLETTER_ANNOUNCEMENT,
+        related_object_id=f"{publication_id}:{user_id}",
+    )
+    if log.sent_at is not None:
+        return
+
+    try:
+        publication = Publication.objects.get(pk=publication_id)
+        user = User.objects.select_related("profile").get(pk=user_id)
+        recipient = user.email
+
+        # Same base-URL pattern as apps/home/context_processors.py's
+        # home_url() -- a background task has no request to build an
+        # absolute URL from, so the production/dev domain is picked the
+        # same way that context processor already does.
+        base = 'http://lvh.me:8000' if settings.DEBUG else 'https://uonalumni.or.ke'
+        downloads_url = base + reverse("home:uon_alumni_downloads", urlconf="main.urls") + "?category=newsletter"
+
+        send_mail(
+            subject=f"New newsletter: {publication.title}",
+            message=(
+                f"Dear {user.profile.given_name},\n\n"
+                f"A new issue of the UoN Alumni Association newsletter is "
+                f"now available: \"{publication.title}\" ({publication.document_date}).\n\n"
+                f"Read it here: {downloads_url}\n\n"
+                "Regards,\nUoN Alumni Association"
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[recipient],
+            fail_silently=False,
+        )
+    except Exception as exc:
+        log.error = str(exc)
+        log.save(update_fields=["error"])
+        raise
+
+    log.recipient_email = recipient
+    log.sent_at = timezone.now()
+    log.error = ""
+    log.save(update_fields=["recipient_email", "sent_at", "error"])
+
+
 def expire_lapsed_installment_plans():
     """Proof task for the Q2 cluster itself (2026-08-18). Wraps the
     existing, already-idempotent management command

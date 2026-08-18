@@ -1,7 +1,9 @@
 from django.contrib import admin, messages
 from apps.home.models import*
+from django.db import transaction
 from django.db.models import Count
 from django.utils.html import format_html
+from django_q.tasks import async_task
 from import_export import resources, fields
 from import_export.admin import ExportMixin
 
@@ -278,6 +280,50 @@ class PublicationAdmin(admin.ModelAdmin):
     date_hierarchy = 'document_date'
     readonly_fields = ['created_at', 'updated_at']
     inlines = [PublicationImagesInline]
+    actions = ['send_newsletter_email']
+
+    @admin.action(description="Send by email to opted-in alumni")
+    def send_newsletter_email(self, request, queryset):
+        # PublicationListView (the only page that lets an alumnus actually
+        # find and open a published item) hardcodes visibility=PUBLIC --
+        # members/committee-only visibility isn't wired to any
+        # access-controlled view yet. Emailing a link nobody can open
+        # would be worse than not sending it, so that's refused here
+        # rather than silently mailed out broken.
+        valid = queryset.filter(
+            category=Publication.Category.NEWSLETTER,
+            visibility=Publication.Visibility.PUBLIC,
+        )
+        skipped = queryset.exclude(pk__in=valid.values_list('pk', flat=True))
+        for pub in skipped:
+            self.message_user(
+                request,
+                f"Skipped '{pub.title}' -- only public Newsletter publications can be emailed "
+                f"(this one is {pub.get_category_display()} / {pub.get_visibility_display()}).",
+                level=messages.WARNING,
+            )
+
+        recipients = list(
+            AlumniProfile.objects.filter(
+                is_active=True,
+                user__is_active=True,
+                user__profile__email_opt_in=True,
+            ).values_list('user_id', flat=True)
+        )
+
+        for pub in valid:
+            with transaction.atomic():
+                publication_id = pub.pk
+                for user_id in recipients:
+                    transaction.on_commit(
+                        lambda uid=user_id, pid=publication_id: async_task(
+                            "apps.home.tasks.send_newsletter_email", pid, uid
+                        )
+                    )
+            self.message_user(
+                request,
+                f"Queued newsletter email to {len(recipients)} opted-in alumni for '{pub.title}'.",
+            )
 
 
 @admin.register(InMemoriam)
