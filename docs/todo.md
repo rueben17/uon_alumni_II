@@ -1164,3 +1164,38 @@ bypasses them). Unrelated to that task, not fixed, not tracked anywhere else.
 - `docs/uon_faculty_mapping.json` — reference data (the 2021 college→
   faculty restructure + constituent colleges), consumed by the seed
   commands. Not a todo list.
+
+---
+
+## Deferred / low priority
+
+- **[DEFERRED 2026-08-18]** Paginated PDF report of the scholarship
+  exercise for institutional filing (cover page, executive summary,
+  faculty/county/gender distribution, criterion diagnostics, evaluator
+  consistency, cutoff simulation, full per-applicant appendix — reading
+  from `apps/student/analytics.py`, same data the Excel export already
+  uses). Decided against for now: the Excel export already covers
+  actually crunching the numbers, and that's what the PDF would have
+  been for. Ground truth already gathered, so a future pickup doesn't
+  need to redo the investigation:
+  - Every number the spec wanted is already returned by
+    `apps/student/analytics.py`'s functions (see that module for the
+    exact keys) — nothing missing, no gap to ask about.
+  - The only existing ReportLab code in this repo is the QR badge PDF
+    (`apps/staff/views.py`'s `download_staff_qr_code`) — reusable:
+    the `SimpleDocTemplate` → `HttpResponse` pattern, `getSampleStyleSheet()`.
+    Not reusable / doesn't exist yet: A4 pagesize (badge uses `letter`),
+    any font registration (none anywhere in this codebase), any
+    `Table`/`LongTable` usage (badge has zero tables), any page-number/
+    footer mechanism (would need a fresh `NumberedCanvas`, the standard
+    two-pass ReportLab recipe).
+  - `applicant_scores()`'s per-applicant row has 17 columns (identity +
+    faculty/gender/county + 8 criteria + total/percentage + evaluator +
+    date) — almost certainly too wide for A4 portrait, so the appendix
+    would need `NextPageTemplate`/landscape switching, also not
+    reusable from anywhere existing.
+  - Decided: real names throughout if this gets picked up later (no
+    anonymized variant, no application-number substitution) — the
+    aggregate sections (everything except the appendix) never had
+    individual names in them to begin with, so there was nothing to
+    anonymize there regardless.
