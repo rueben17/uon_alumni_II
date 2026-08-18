@@ -117,6 +117,22 @@ def send_newsletter_email(publication_id, user_id):
     log.save(update_fields=["recipient_email", "sent_at", "error"])
 
 
+def dispatch_sms(phone_number, message):
+    """Q2 wrapper around apps.home.sms.send_sms() -- primitives only, a
+    phone number and message string. Not wired to any real trigger yet
+    (see apps/home/sms.py's own docstring for why) -- exercised directly
+    for now, the same role expire_lapsed_installment_plans below played
+    for the Q2 cluster itself before any real workload existed. No
+    delivery-log/idempotency here: unlike EmailLog's callers, there's no
+    real business object yet to key idempotency off of -- that shape
+    should come from whatever the first real caller turns out to be,
+    same as EmailLog's did.
+    """
+    from apps.home.sms import send_sms
+
+    send_sms(phone_number, message)
+
+
 def expire_lapsed_installment_plans():
     """Proof task for the Q2 cluster itself (2026-08-18). Wraps the
     existing, already-idempotent management command
