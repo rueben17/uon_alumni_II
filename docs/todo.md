@@ -1199,3 +1199,35 @@ bypasses them). Unrelated to that task, not fixed, not tracked anywhere else.
     aggregate sections (everything except the appendix) never had
     individual names in them to begin with, so there was nothing to
     anonymize there regardless.
+
+- **[DEFERRED 2026-08-18]** Q2 Workload 2 — "AlumniProfile creation" as an
+  async task (originally next in the Q2 migration sequence after
+  transactional email; see the Django Q2 cluster work above/in
+  `apps/home/tasks.py`). Decided against for now, moved downstream:
+  `AlumniRegisterView.form_valid()` (`apps/home/views.py`) has no genuine
+  async target today —
+  - `get_success_url()` returns `self.object.get_absolute_url()`, which
+    needs a real pk (and slug) before the response is built. Deferring
+    the AlumniProfile row itself means there's no page to redirect to
+    yet without adding a "processing your registration" interstitial.
+  - Membership assignment and Payment creation both reference
+    `self.object` directly, so they can't stay synchronous while the
+    profile creation that feeds them goes async — the boundary doesn't
+    split cleanly into "one workload."
+  - Nothing in the current path is actually slow: no external API
+    calls, no image generation, no file uploads. `initiate_payment()`
+    only reaches `ManualGateway` (a synchronous no-op logger). Every
+    write is a fast local Postgres insert — unlike email, there's no
+    real latency to hide here.
+  - Forward-looking risk: a real payment gateway (M-Pesa STK push,
+    Stripe) will likely need to redirect/prompt the user synchronously
+    in the same request (see PHASE 2 above) — deferring registration
+    onto a queue now would work against that later.
+  - Checked whether QR code generation (`apps/qr_manager`'s
+    `QRCode.generate_qr()`) was the real deferrable piece hiding inside
+    "AlumniProfile creation" — it isn't; it's staff-triggered later from
+    Django admin (`QRCodeAdmin.save_model()` etc.), not called from
+    self-service registration at all.
+  - Revisit if either changes: a real payment gateway forces a redesign
+    of this view anyway, or a genuine bottleneck shows up in this path.
+  - Q2 sequence continues at Workload 3 (e-newsletter) instead.
