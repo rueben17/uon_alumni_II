@@ -4,11 +4,13 @@ from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.mail import send_mail
+from django.db import transaction
 from django.db.models import Count, Prefetch, Sum
 from django.db.models.functions import TruncMonth
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.generic import CreateView, DetailView, ListView, TemplateView, UpdateView, View
+from django_q.tasks import async_task
 
 from apps.home.forms import (
     AlumniProfileForm, AlumniRegistrationForm, ContactForm, MembershipUpdateForm,
@@ -313,6 +315,11 @@ class AlumniRegisterView(MpesaEligibilityMixin, QualificationMapMixin, LoginRequ
             payment_method=form.cleaned_data["payment_method"],
         )
         initiate_payment(payment)
+
+        alumni_profile_id = self.object.pk
+        transaction.on_commit(
+            lambda: async_task("apps.home.tasks.send_alumni_registration_confirmation", alumni_profile_id)
+        )
 
         messages.success(self.request, "Welcome! Your alumni profile is complete.")
         return response

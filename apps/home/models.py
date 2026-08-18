@@ -1661,3 +1661,35 @@ class PaymentTransaction(models.Model):
         return f"{self.payment} - {self.transaction_type} - {self.created_at.strftime('%Y-%m-%d %H:%M')}"
 
 
+class EmailLog(models.Model):
+    """
+    One flat delivery-log row per (email_type, related_object). Deliberately
+    generic across email types (not one model per type) so every future
+    transactional email reuses this same table. related_object_id is the
+    pk of whatever the email is ABOUT (e.g. an AlumniProfile or an
+    InterviewScoreSheet id), not the recipient -- the recipient is
+    recipient_email, captured only once the send actually happens.
+    """
+
+    class EmailType(models.TextChoices):
+        ALUMNI_REGISTRATION_CONFIRMATION = 'alumni_registration_confirmation', _('Alumni Registration Confirmation')
+        EVALUATION_RECEIPT = 'evaluation_receipt', _('Evaluation Receipt')
+
+    email_type = models.CharField(max_length=50, choices=EmailType.choices)
+    related_object_id = models.CharField(max_length=64)
+    recipient_email = models.EmailField(blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['email_type', 'related_object_id'], name='unique_email_log_per_object'),
+        ]
+
+    def __str__(self):
+        status = 'sent' if self.sent_at else ('failed' if self.error else 'pending')
+        return f"{self.get_email_type_display()} #{self.related_object_id} ({status})"
+
+

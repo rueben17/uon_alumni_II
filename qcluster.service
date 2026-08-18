@@ -1,0 +1,22 @@
+[Unit]
+Description=Django Q2 cluster for UON Alumni
+After=network.target
+
+[Service]
+User=armando_salazar
+Group=armando_salazar
+WorkingDirectory=/home/armando_salazar/webapps/uon_alumni_II
+Environment="PATH=/home/armando_salazar/webapps/uon_alumni_II/venv/bin"
+Environment="ALLOWED_HOSTS=www.uonalumni.or.ke,uonalumni.or.ke"
+Environment="DEBUG=False"
+ExecStart=/home/armando_salazar/webapps/uon_alumni_II/venv/bin/python manage.py qcluster
+Restart=on-failure
+RestartSec=10
+# Longer than uon_alumni.service's default (30s) on purpose: Q_CLUSTER's
+# own 'timeout' (main/settings.py) is 90s, so a worker mid-task needs
+# real room to either finish or be cleanly reaped by Q2 itself before
+# systemd's stop sequence escalates to SIGKILL and loses track of it.
+TimeoutStopSec=100
+
+[Install]
+WantedBy=multi-user.target

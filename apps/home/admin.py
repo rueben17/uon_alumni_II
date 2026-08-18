@@ -629,6 +629,21 @@ class PaymentTransactionAdmin(admin.ModelAdmin):
         return False
 
 
+@admin.register(EmailLog)
+class EmailLogAdmin(admin.ModelAdmin):
+    list_per_page = 25
+    list_display = ['id', 'email_type', 'related_object_id', 'recipient_email', 'sent_at', 'created_at']
+    list_filter = ['email_type']
+    search_fields = ['related_object_id', 'recipient_email', 'error']
+    readonly_fields = ['email_type', 'related_object_id', 'recipient_email', 'sent_at', 'error', 'created_at']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 # ─────────────────────────────────────────────
 # UoNAA Secretariat's Membership Admin (mounted at /membership-admin/,
 # see main/urls.py) -- payment confirmation, membership tier/number

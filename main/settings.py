@@ -120,6 +120,7 @@ INSTALLED_APPS = [
     'django_extensions',
     'phonenumber_field',
     'import_export',
+    'django_q',
 
     # Project apps
     'apps.home',
@@ -219,23 +220,19 @@ WSGI_APPLICATION = 'main.wsgi.application'
 # ─────────────────────────────────────────────
 
 if DEBUG:
-    # USE_NEON_LOCALLY is a temporary, manual escape hatch — set it in your
-    # local .env when you specifically want to test against the production
-    # Neon DB while keeping DEBUG=True (avoids ALLOWED_HOSTS/SSL issues on
-    # lvh.me). Remove this block and the env var once testing is done.
-    if os.getenv('USE_NEON_LOCALLY', 'False').lower() in ('true', '1', 'yes'):
-        _db_url = os.getenv('DATABASE_URL')
-        if not _db_url:
-            raise RuntimeError(
-                'DATABASE_URL is required when USE_NEON_LOCALLY is set'
-            )
+    # Local Postgres via DATABASE_URL (see .env) -- 2026-08-18, replaces
+    # the old USE_NEON_LOCALLY escape hatch now that local dev has its own
+    # Postgres instance instead of pointing at production. Falls back to
+    # SQLite when DATABASE_URL isn't set, so a fresh checkout still works
+    # with zero DB setup.
+    _db_url = os.getenv('DATABASE_URL')
+    if _db_url:
         DATABASES = {
             'default': dj_database_url.parse(
                 _db_url, conn_max_age=600, conn_health_checks=True
             )
         }
     else:
-        # SQLite for local development — no setup required.
         DATABASES = {
             'default': {
                 'ENGINE': 'django.db.backends.sqlite3',
@@ -260,6 +257,62 @@ else:
             _db_url, conn_max_age=600, conn_health_checks=True
         )
     }
+
+
+# ─────────────────────────────────────────────
+# Task queue (Django Q2)
+# ─────────────────────────────────────────────
+
+# ORM broker, not Redis -- deliberate 2026-08-18 decision, do not revisit
+# without re-checking the reasoning below. Redis would mean a second
+# process to install/monitor/keep alive on the VPS for no real gain here;
+# the ORM broker needs nothing beyond the database connection this project
+# already has. The one real cost is 'poll' below -- see its own comment.
+Q_CLUSTER = {
+    'name': 'uon_alumni',
+    'orm': 'default',
+    'workers': 2,
+    'timeout': 90,
+    # Must stay > timeout, or Q2 requeues a task before it could ever
+    # finish. Two full timeout-lengths of headroom, not just one.
+    'retry': 120,
+    # ORM broker default is 0.2s -- confirmed via the Django Q2 docs,
+    # not assumed -- which is ~5 queries/second/worker against the
+    # database, continuously, forever. Fine on a normal self-hosted
+    # Postgres; a real, avoidable cost on Neon specifically, which is
+    # serverless (connection ceiling, usage-based billing) -- this
+    # project's DB is still on Neon as of 2026-08-18, moving to the VPS
+    # itself later (separate, already-decided task). Nothing queued here
+    # (email/SMS/profile creation/newsletter, once migrated) is
+    # sub-second-latency-sensitive, so 10s cuts that load by ~98% for
+    # however long the DB stays on Neon. Safe to lower once it doesn't.
+    'poll': 10,
+    'save_limit': 250,
+    'label': 'Task Queue',
+    # Default is 0 (unlimited) -- a permanently-failing task (e.g. a
+    # malformed recipient address) would otherwise requeue itself every
+    # `retry` seconds forever. 5 gives real transient failures (a flaky
+    # SMTP connection, a momentary DB blip) room to clear before Q2 stops
+    # retrying and the failure just sits in EmailLog.error / the Failure
+    # admin for a human to see.
+    'max_attempts': 5,
+}
+
+
+# ─────────────────────────────────────────────
+# Email
+# ─────────────────────────────────────────────
+
+# Console backend (2026-08-18) -- no EMAIL_BACKEND existed at all before
+# this; the one pre-existing send_mail() call site (contact-form
+# notification, apps/home/views.py) was silently failing against
+# Django's own default (smtp to localhost:25, nothing listening there).
+# This writes the email to stdout instead of sending it, same
+# "real pipeline, stub destination" shape as apps/home/payments.py's
+# ManualGateway -- swap in real SMTP settings later, no code change
+# needed anywhere that calls send_mail().
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = 'UoN Alumni Association <noreply@uonalumni.or.ke>'
 
 
 # ─────────────────────────────────────────────

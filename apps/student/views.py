@@ -1,12 +1,14 @@
 from allauth.account.adapter import get_adapter
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.db.models import Count
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.generic import CreateView, TemplateView, View
+from django_q.tasks import async_task
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, PieChart, Reference
 from openpyxl.styles import Font
@@ -172,6 +174,10 @@ class EvaluateApplicationView(StaffOrSuperuserRequiredMixin, View):
                 sheet.application = application
                 sheet.evaluator = evaluator
                 sheet.save()
+                sheet_id = sheet.pk
+                transaction.on_commit(
+                    lambda: async_task("apps.student.tasks.send_evaluation_receipt", sheet_id)
+                )
                 messages.success(request, f"Evaluation saved -- total score {sheet.total_score}/{self._total_possible()}.")
                 return redirect("student:evaluate_application", pk=pk)
 
