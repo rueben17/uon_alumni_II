@@ -23,11 +23,22 @@ class UonAlumniSitemap(Sitemap):
 
     Same DEBUG-conditional domain construction as SUBDOMAIN_DOMAIN/
     QR_SCAN_ORIGIN (main/settings.py) -- deliberately not a new pattern.
+
+    'www.' + SUBDOMAIN_DOMAIN in production, not settings.SUBDOMAIN_DOMAIN
+    bare (2026-08-19, SEO Search Console readiness audit,
+    docs/seo-search-console-readiness-2026-08-19.md finding 2.2): the
+    production web server 301s the bare domain to www. on every path
+    (confirmed live via curl, not read from this repo -- that redirect
+    lives in nginx config, not here), so every one of this sitemap's URLs
+    was a 301, not a final destination. lvh.me in DEBUG is untouched --
+    local dev has no such redirect (main/settings.py's SUBDOMAIN_URLCONFS
+    maps both None and 'www' to main.urls directly), so there's nothing to
+    correct there.
     """
     protocol = 'http' if settings.DEBUG else 'https'
 
     def get_domain(self, site=None):
-        return 'lvh.me:8000' if settings.DEBUG else settings.SUBDOMAIN_DOMAIN
+        return 'lvh.me:8000' if settings.DEBUG else f'www.{settings.SUBDOMAIN_DOMAIN}'
 
 
 class UonAlumniStaticSitemap(UonAlumniSitemap):

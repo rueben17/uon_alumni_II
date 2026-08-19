@@ -28,7 +28,19 @@
                         <p class="text-sm text-slate-600">Open to currently enrolled University of Nairobi undergraduate students only.</p>
                     </div>
 
-                    {% if existing_application %}
+                    {% if needs_login %}
+                        <div class="rounded-sm border border-slate-200 bg-slate-50 p-4 text-slate-700">
+                            <p class="font-medium">Sign in to apply.</p>
+                            <p class="mt-1 text-sm text-slate-600">
+                                This scholarship is open to currently enrolled University of
+                                Nairobi undergraduate students. Sign in with your
+                                @students.uonbi.ac.ke Google account to start your application.
+                            </p>
+                            <a href="{{ login_url }}" class="mt-4 inline-flex items-center justify-center rounded-sm bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500">
+                                Sign in with Google to Apply
+                            </a>
+                        </div>
+                    {% elif existing_application %}
                         <div class="rounded-sm border border-slate-200 bg-slate-50 p-4 text-slate-700">
                             <p class="font-medium">You've already submitted a scholarship application.</p>
                             <p class="mt-1 text-sm text-slate-600">
@@ -156,7 +168,7 @@
 
         </div>
 
-{% if not existing_application %}
+{% if not existing_application and not needs_login %}
 {{ department_map|json_script:"department-map" }}
 <script>
     (function () {

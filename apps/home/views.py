@@ -739,18 +739,28 @@ def _students_subdomain_url(request, path):
 
 def uon_alumni_scholarship(request):
     """Strictly students (2026-08-14) -- applicants must be signed up as
-    a Student via the students subdomain first. An anonymous visitor is
-    sent to sign in there (a real cross-subdomain redirect, so
-    request.subdomain reads "students" for the whole OAuth round trip --
-    see apps/user/adapter.py's pre_social_login()/get_login_redirect_url
-    for why that matters: it's what applies the @students.uonbi.ac.ke
-    domain restriction and routes a Student-less login to
-    student:register). An already-authenticated user missing a Student
-    record goes straight to that registration form instead -- no need to
-    re-run the Google handshake, and StudentRegisterView re-checks the
-    email domain itself regardless of how it was reached. Either path
-    stashes this page in the session so the user lands back here once
-    they're done, not on some generic landing page.
+    a Student via the students subdomain first. An already-authenticated
+    user missing a Student record goes straight to that registration form
+    instead -- no need to re-run the Google handshake, and
+    StudentRegisterView re-checks the email domain itself regardless of
+    how it was reached. That path stashes this page in the session so the
+    user lands back here once they're done, not on some generic landing
+    page.
+
+    An anonymous visitor used to be sent straight into the cross-subdomain
+    OAuth redirect on GET, with no page ever rendering for them -- fixed
+    2026-08-19 (SEO Search Console readiness audit,
+    docs/seo-search-console-readiness-2026-08-19.md finding 2.1): this URL
+    is in the public sitemap, so an anonymous GET (including Googlebot's)
+    now renders this same template with needs_login=True instead --  a
+    real 200 page with the eligibility blurb and a manual sign-in link,
+    not an automatic bounce to a Google-owned domain. The old
+    messages.info() call here never actually reached anyone -- it queued
+    a message for display on the NEXT page load, but the next page was
+    accounts.google.com, which obviously never rendered our messages
+    framework -- so the same text is now inline in the template instead.
+    post_login_next is still stashed on this same GET, same as before,
+    so a visitor who clicks through and signs in still lands back here.
 
     Same GET-display/POST-validate/messages.success/redirect pattern as
     uon_alumni_contact_us() below; request.FILES is needed here for
@@ -775,9 +785,11 @@ def uon_alumni_scholarship(request):
     not the map-building query, was almost certainly the real cost.
     """
     if not request.user.is_authenticated:
-        messages.info(request, "Please sign in with your @students.uonbi.ac.ke account to apply.")
         request.session["post_login_next"] = request.build_absolute_uri()
-        return redirect(_students_subdomain_url(request, "/accounts/google/login/"))
+        return render(request, 'home/uon_alumni_scholarship.html', {
+            "needs_login": True,
+            "login_url": _students_subdomain_url(request, "/accounts/google/login/"),
+        })
 
     student = getattr(request.user, "student", None)
     if student is None:
