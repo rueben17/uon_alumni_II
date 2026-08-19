@@ -148,7 +148,7 @@ def seo(request):
         # into "name" -- 2026-08-18 refinement, so the abbreviation
         # accumulates authority against the full name as the same
         # entity, rather than competing with it as a separate one.
-        "alternateName": "UONAA",
+        "alternateName": "UoNAA",
         "url": f"{base}/",
         "logo": DEFAULT_SITE_LOGO_URL,
         "address": {

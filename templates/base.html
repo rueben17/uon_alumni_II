@@ -39,7 +39,17 @@
 
             TITLE SUFFIX POLICY -- three blocks, a child fills in exactly
             ONE and leaves the other two at their empty default, so
-            concatenating all three always yields exactly one value:
+            concatenating all three always yields exactly one value. ALL
+            THREE must default to nothing -- title_bare briefly defaulted
+            to the plain name_title variable instead (2026-08-18/19 bug),
+            which meant it rendered on top of whichever of its siblings a child
+            DID set, with no separator: every title_interior page showed
+            the page title glued directly onto the full org name (e.g.
+            "Students | UoNAAUniversity of Nairobi Alumni Association").
+            Fixed by emptying title_bare's default to match its siblings --
+            confirmed every template extending base.html now sets exactly
+            one of the three (migration completed 2026-08-19), so there is
+            no remaining case that needs a default to fall back to.
               - title_brand: for the homepage, About-equivalent, and
                 Contact -- pages that establish who the association is.
                 Child supplies the FULL composed string including
@@ -47,22 +57,23 @@
                 leaves 16 chars of real budget under the 60-char cap, so
                 the page-specific text before it must stay short.
               - title_interior: everything else, short suffix. Child
-                supplies the full composed string including " | UONAA"
+                supplies the full composed string including " | UoNAA"
                 (8 chars) -- used whenever the page-specific text alone is
                 short enough (roughly <=45 chars) that adding it stays
                 comfortably under 60.
               - title_bare: no suffix at all. Used two ways: (a) an
                 interior page whose own text already runs long enough
-                that " | UONAA" would risk crowding 60, and (b) ANY page
+                that " | UoNAA" would risk crowding 60, and (b) ANY page
                 whose text is unbounded/dynamic at render time (a
                 person's name, an article title, an email address) --
                 for those, bare is the only length the framework can
                 actually guarantee never overflows, so it's the safe
                 default rather than a per-page judgment call each time.
-            Un-migrated pages fall back to the plain org name via
-            title_bare's own default, never an empty <title>.
+            A future template that forgets to set any of the three simply
+            renders an empty <title> -- deliberately preferred over
+            silently falling back and risking the same double-render bug.
         {% endcomment %}
-        <title>{% block title_brand %}{% endblock %}{% block title_interior %}{% endblock %}{% block title_bare %}{{ name_title }}{% endblock %}</title>
+        <title>{% block title_brand %}{% endblock %}{% block title_interior %}{% endblock %}{% block title_bare %}{% endblock %}</title>
         <meta name="description" content="{% block meta_description %}{{ name_title }}{% endblock %}">
         <link rel="canonical" href="{% block canonical_url %}{{ canonical_url }}{% endblock %}">
         {% comment %}
