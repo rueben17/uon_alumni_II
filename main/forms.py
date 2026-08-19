@@ -48,6 +48,16 @@ class TailwindStyledFormMixin:
         "file:bg-slate-800 file:px-3 file:py-1.5 file:text-sm file:font-medium "
         "file:text-white hover:file:bg-slate-700"
     )
+    # 2026-08-19: checkboxes had no branch of their own here, so every
+    # BooleanField silently inherited base_input_class instead -- a
+    # checkbox stretched to w-full with text-input padding (px-3 py-1.5),
+    # not a normal small square. h-4 w-4 is the standard Tailwind
+    # checkbox size; no mt-1 (the parent row in snippets/form_field.html
+    # handles vertical alignment itself via its own mt-0.5 wrapper).
+    checkbox_input_class = (
+        "h-4 w-4 rounded border-slate-300 text-[#38b6ff] shadow-sm "
+        "focus:ring-2 focus:ring-[#38b6ff] focus:ring-offset-0"
+    )
 
     def apply_tailwind_styling(self):
         for field in self.fields.values():
@@ -56,5 +66,7 @@ class TailwindStyledFormMixin:
 
             if isinstance(widget, forms.ClearableFileInput):
                 widget.attrs["class"] = f"{existing_classes} {self.file_input_class}".strip()
+            elif isinstance(widget, forms.CheckboxInput):
+                widget.attrs["class"] = f"{existing_classes} {self.checkbox_input_class}".strip()
             else:
                 widget.attrs["class"] = f"{existing_classes} {self.base_input_class}".strip()

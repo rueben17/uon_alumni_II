@@ -1,8 +1,31 @@
 <div{% if wrapper_class %} class="{{ wrapper_class }}"{% endif %}>
-    {{ field.label_tag }}
-    {{ field }}
-    {% if field.help_text %}
-        <p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>
+    {% if field.field.widget.input_type == "checkbox" %}
+        {% comment %}
+        Checkbox on the left, label (and help text, if any) to its
+        right, vertically aligned as one row -- 2026-08-19. The
+        default branch below puts label_tag ABOVE field, which is
+        right for a text input but left the checkbox floating under
+        its own label with nothing beside it. items-start (not
+        items-center) + mt-0.5 on the input aligns the box with the
+        FIRST line of text rather than the vertical center of the
+        whole label+help-text block, which looks wrong the moment
+        help_text wraps to two lines.
+        {% endcomment %}
+        <div class="flex items-start gap-2">
+            <span class="mt-0.5">{{ field }}</span>
+            <div>
+                <label for="{{ field.id_for_label }}" class="text-sm font-medium text-slate-700">{{ field.label }}</label>
+                {% if field.help_text %}
+                    <p class="text-xs text-slate-500">{{ field.help_text }}</p>
+                {% endif %}
+            </div>
+        </div>
+    {% else %}
+        {{ field.label_tag }}
+        {{ field }}
+        {% if field.help_text %}
+            <p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>
+        {% endif %}
     {% endif %}
     {% if field.errors %}
         <ul class="mt-2 space-y-1 text-sm text-red-600">

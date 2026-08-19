@@ -20,9 +20,9 @@
                     </h1>
 
                     <div class="mt-4 flex flex-wrap gap-2 text-sm">
-                        <a href="{% url 'home:uon_alumni_downloads' %}" class="rounded-full px-3 py-1 {% if not selected_category %}bg-blue-600 text-white{% else %}bg-slate-100 text-slate-700{% endif %}">All</a>
+                        <a href="{% url 'home:uon_alumni_downloads' %}" class="rounded-full px-3 py-1 {% if not selected_category %}bg-[#38b6ff] text-white{% else %}bg-slate-100 text-slate-700{% endif %}">All</a>
                         {% for value, label in categories %}
-                            <a href="?category={{ value }}" class="rounded-full px-3 py-1 {% if selected_category == value %}bg-blue-600 text-white{% else %}bg-slate-100 text-slate-700{% endif %}">{{ label }}</a>
+                            <a href="?category={{ value }}" class="rounded-full px-3 py-1 {% if selected_category == value %}bg-[#38b6ff] text-white{% else %}bg-slate-100 text-slate-700{% endif %}">{{ label }}</a>
                         {% endfor %}
                     </div>
 
@@ -34,7 +34,7 @@
                                         <p class="font-semibold text-black">{{ pub.title }}</p>
                                         <p class="text-sm text-gray-500">{{ pub.get_category_display }} &middot; {{ pub.document_date }}{% if pub.volume %} &middot; Vol. {{ pub.volume }}{% endif %}{% if pub.issue_number %} #{{ pub.issue_number }}{% endif %}</p>
                                     </div>
-                                    <a href="{{ pub.file.url }}" class="shrink-0 inline-flex items-center rounded-sm bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500" download>Download</a>
+                                    <a href="{{ pub.file.url }}" class="shrink-0 inline-flex items-center rounded-sm bg-[#38b6ff] px-4 py-2 text-xs font-semibold text-white hover:bg-[#2f9bd9]" download>Download</a>
                                 </li>
                             {% endfor %}
                         </ul>

@@ -293,6 +293,22 @@ class AlumniRegisterView(MpesaEligibilityMixin, QualificationMapMixin, LoginRequ
         tier_id = self.request.GET.get("tier")
         if tier_id:
             initial["membership_tier"] = tier_id
+
+        # Pre-fill name from what Google already gave the adapter
+        # (apps/user/adapter.py's _ensure_profile(), UserProfile.given_name/
+        # family_name) -- 2026-08-19, this user reaches this form having
+        # JUST signed in with Google, so retyping a name it already has
+        # is pure friction. Deliberately NOT pre-filling the form's own
+        # `email` field the same way: that field is explicitly an
+        # ALTERNATE address ("separate from your Google login email" --
+        # see its help_text in apps/home/forms.py), so seeding it with
+        # the Google login email would be wrong, not just redundant.
+        profile = getattr(self.request.user, "profile", None)
+        if profile:
+            if profile.given_name:
+                initial["first_name"] = profile.given_name
+            if profile.family_name:
+                initial["surname"] = profile.family_name
         return initial
 
     def form_valid(self, form):
