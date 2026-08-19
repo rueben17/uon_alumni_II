@@ -738,15 +738,27 @@ actually *see* — but it must not consume the time self-service needs.
       Today there is one admin tier over everything.
 
 ### C.4 Findability and sharing
-- [ ] **SEO + Open Graph meta.** Alumni share links on WhatsApp; without
-      `og:title`/`og:image` they render as bare URLs. `Article.thumbnail`
-      already exists — it just is not in a meta tag.
+- [x] **[DONE 2026-08-18/19]** SEO + Open Graph meta. `templates/base.html`
+      now carries a full metadata framework: per-page `meta_description`/
+      `canonical_url`/`robots` blocks, `og:*` + Twitter Card tags (falling
+      back to `Article.thumbnail`/`event.thumbnail` via `og_image` where a
+      page has one), and a sitewide Organization JSON-LD block
+      (`apps/home/context_processors.py`'s `seo()`). The title tag itself
+      was reworked into a three-way `title_brand`/`title_interior`/
+      `title_bare` budget system (60-char cap, see `base.html`'s own
+      comment for the full policy) and every template migrated off the
+      old single `page_title` block. Favicon package (ico/PNG/apple/
+      android/ms icons, manifest.json, browserconfig.xml) tracked and
+      wired in the same pass — was sitting in `static/favicon/` entirely
+      untracked and unlinked before.
 - [ ] Site search. Neon is Postgres, so `SearchVector`/`SearchRank` gives real
       full-text search across articles, publications and events with no extra
       infrastructure.
 - [ ] Pagination on every list view.
-- [ ] RSS feed + `sitemap.xml` — Django ships both (`contrib.syndication`,
-      `contrib.sitemaps`). Near-free.
+- [x] **[DONE 2026-08-18]** `sitemap.xml` + `robots.txt` — `main/urls.py`'s
+      `sitemap` route (`apps/home/sitemaps.py`), served per-host on
+      staff./students. too (both noindex,nofollow site-wide).
+- [ ] RSS feed — `django.contrib.syndication` not started.
 - [ ] Tags / related content for cross-linking.
 - [x] **[DONE 2026-08-18]** Branded 404 / 500 pages — `templates/{400,403,404,500}.html`.
       404/403/400 extend `base.html` (full nav/footer/background, get a real
@@ -755,7 +767,11 @@ actually *see* — but it must not consume the time self-service needs.
       Django's own handlers when `DEBUG=False` — verified against a real
       `DEBUG=False` local instance, not just DEBUG=True dev serving, which
       silently bypasses all four in favor of Django's own debug pages.
-- [ ] Structured data (schema.org `Article`, `Event`).
+- [ ] Structured data (schema.org `Article`, `Event`) — **partial.** Sitewide
+      Organization JSON-LD exists (above); `walk_detail.html` emits a
+      minimal Event block (`name` only, no `startDate`/`location`) via the
+      new `json_ld_extra` block. `article_detail.html` has no Article
+      JSON-LD at all yet despite already setting `og_type=article`.
 
 ### C.5 Content areas already modelled but unrouted
 - [x] **Chapters.** List/detail views + templates built, wired into nav/footer.
@@ -1006,10 +1022,9 @@ pass) — the remaining gap is purely the words on the page.
 16. **Homepage "Latest News & Updates" / benefits section** — the
     featured/highlighted-article loops are still `{% comment %}`ed out on
     the homepage, waiting on #6's content to have something to loop over.
-17. **SEO / social metadata** — `<meta name="description" content="">` is
-    still empty sitewide, no per-page override, no Open Graph/Twitter Card
-    tags. Same item as C.4's findability section above — not duplicated
-    work, just cross-referenced from both angles.
+17. **[DONE 2026-08-18/19]** SEO / social metadata — see C.4's findability
+    section above for the full writeup; was cross-referenced from both
+    angles, now closed from both.
 18. **Newsletter archive** — `AlumniProfile.receive_newsletter` opt-in
     exists with nothing to actually send yet (ties to Phase 3
     Communications).
@@ -1148,6 +1163,53 @@ bypasses them). Unrelated to that task, not fixed, not tracked anywhere else.
    is also set conditionally nearby (Cloudinary), which may be the actual
    interaction suppressing it. Worth a focused look, not guessed at further
    here.
+
+---
+
+## Production incident — site-wide 500s (2026-08-19)
+
+Reported live by a user hitting `students.uonalumni.or.ke`. Two independent
+bugs, both regressions from the 2026-08-18 SEO audit's `main/urls.py`
+change (it stopped `include()`-ing `apps.staff.urls`/`apps.student.urls`
+directly into `main.urls`, so those subdomains' `staff`/`student` namespaces
+no longer exist anywhere main.urls can reverse against — only some call
+sites were updated to match). Both fixed and confirmed live via the VPS
+gunicorn journal (`journalctl -u uon_alumni`), not just guessed from
+reading code.
+
+1. **`templates/{400,403,404}.html`'s "Return Home" link** used
+   `{% url 'home:uon_alumni_home' %}`, which resolves against whichever
+   urlconf is active for the *current* request. On staff./students. that's
+   `apps.staff.urls`/`apps.student.urls`, neither of which has a `home`
+   namespace — so rendering any of these three error pages on those
+   subdomains raised `NoReverseMatch` mid-render, surfacing as a raw 500
+   instead of the intended 400/403/404. Fixed by swapping in `{{ url_home }}`
+   (the cross-subdomain-safe context variable these templates already use
+   one line below for the Contact button) — the safe pattern was already
+   sitting right there, just not applied consistently. (`603504a`)
+2. **`contacts()` context processor — the bigger one.** This runs on
+   *every* page (it's a global context processor), and for any
+   staff/superuser session it called
+   `reverse("student:evaluate_application_list", urlconf="main.urls")` to
+   build the admin dropdown's "Evaluate Applicants"/"Charts" links. Since
+   `apps.student.urls` was removed from `main.urls` in the same 2026-08-18
+   audit, `'student'` isn't a registered namespace there at all, so this
+   raised `NoReverseMatch` on **every single page** any staff/superuser
+   user loaded, sitewide — not just students. Anonymous traffic never hit
+   it, which is why it wasn't caught sooner. Fixed the same way QR Admin
+   (one line above in the same function) already handled the identical
+   staff-namespace problem: a hardcoded path against the subdomain's own
+   base URL (`students_base`, newly added alongside the existing
+   `base`/`staff_base`) instead of `reverse()` against a urlconf that was
+   never going to have that namespace. (`087bced`)
+
+**Lesson, same shape as the 2026-08-10 Neon/staff_faculty incident above:**
+a urlconf/routing restructuring needs every cross-subdomain `reverse()`/
+`{% url %}` call site audited against it, not just the ones the person
+making the change happened to touch. Worth a deliberate grep sweep
+(`reverse(` / `{% url ` for `student:`/`staff:`) after any future change
+to `main/urls.py`'s subdomain wiring — done once during this incident's
+fix (see the two above), not set up as a recurring check.
 
 ---
 
