@@ -1,6 +1,15 @@
 {% extends "base.html" %}
 
-{% block page_title %}Our Alumni, Our Strength{% endblock %}
+{% comment %}
+    BRAND (homepage) -- 47 chars total. The BRAND budget is only 16
+    chars of page-specific text (60 - 44 for " | University of Nairobi
+    Alumni Association"), so the existing "Our Alumni, Our Strength"
+    (25 chars) doesn't fit without exceeding 60 or truncating mid-word.
+    Shortened to "Home" here for the <title> tag specifically -- the
+    on-page copy itself is untouched, this only affects the browser-tab/
+    search-result title.
+{% endcomment %}
+{% block title_brand %}Home | University of Nairobi Alumni Association{% endblock %}
 
 
 {% block content %}

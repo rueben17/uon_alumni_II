@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load l10n %}
 
-{% block page_title %}{{ alumni.user.profile.display_name }} | Alumni Profile{% endblock %}
+{% block title_bare %}{{ alumni.user.profile.display_name }} | Alumni Profile{% endblock %}
 {% comment %}
     noindex (2026-08-18 SEO audit, confirmed with the user): same
     reasoning as the QR badge verification rule -- a member's name,

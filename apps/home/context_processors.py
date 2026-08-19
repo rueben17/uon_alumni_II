@@ -144,9 +144,19 @@ def seo(request):
         "@context": "https://schema.org",
         "@type": "Organization",
         "name": ASSOCIATION_NAME,
+        # alternateName, not a second Organization block and not merged
+        # into "name" -- 2026-08-18 refinement, so the abbreviation
+        # accumulates authority against the full name as the same
+        # entity, rather than competing with it as a separate one.
+        "alternateName": "UONAA",
         "url": f"{base}/",
         "logo": DEFAULT_SITE_LOGO_URL,
-        "address": f"{ASSOCIATION_ADDRESS} {ASSOCIATION_POSTAL}",
+        "address": {
+            "@type": "PostalAddress",
+            "streetAddress": ASSOCIATION_ADDRESS,
+            "addressLocality": "Nairobi",
+            "addressCountry": "KE",
+        },
     })
 
     return {
