@@ -18,12 +18,12 @@
   {% endcomment %}
   <div class="grid grid-cols-1 gap-4 sm:items-stretch md:gap-8 {% if tiers|length > 1 %}sm:grid-cols-2 lg:grid-cols-6{% endif %}">
     {% for tier in tiers %}
-      <div tabindex="0" class="divide-y divide-gray-200 rounded-sm border border-gray-200 bg-white shadow-xs cursor-pointer transition-colors hover:bg-sky-50 focus:bg-sky-50 {% if tiers|length > 1 %}{% if tier.wide_card %}sm:col-span-2 lg:col-span-3{% else %}lg:col-span-2{% endif %}{% endif %}">
+      <div tabindex="0" class="flex flex-col divide-y divide-gray-200 rounded-sm border border-gray-200 bg-white shadow-xs cursor-pointer transition hover:shadow-md focus:shadow-md {% if tiers|length > 1 %}{% if tier.wide_card %}sm:col-span-2 lg:col-span-3{% else %}lg:col-span-2{% endif %}{% endif %}">
         <div class="p-6 sm:px-8">
           {% if heading %}
             <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{{ heading }}</p>
           {% endif %}
-          <h2 class="text-lg font-medium text-gray-900">
+          <h2 class="text-lg font-medium text-black">
             {{ tier.name }}
             <span class="sr-only">Plan</span>
           </h2>
@@ -33,15 +33,15 @@
           </p>
 
           <p class="mt-2 sm:mt-4">
-            <strong class="text-3xl font-bold text-gray-900 sm:text-4xl">KES {{ tier.fee }}</strong>
+            <strong class="text-3xl font-bold text-black sm:text-4xl">KES {{ tier.fee }}</strong>
           </p>
         </div>
 
-        <div class="p-6 sm:px-8">
+        <div class="flex-1 p-6 sm:px-8">
           {% if tier.previous_tier_name %}
-            <p class="text-lg font-medium text-gray-900 sm:text-xl">Everything in {{ tier.previous_tier_name }}, plus:</p>
+            <p class="text-lg font-medium text-black sm:text-xl">Everything in {{ tier.previous_tier_name }}, plus:</p>
           {% else %}
-            <p class="text-lg font-medium text-gray-900 sm:text-xl">What's included:</p>
+            <p class="text-lg font-medium text-black sm:text-xl">What's included:</p>
           {% endif %}
 
           {% comment %}
@@ -81,6 +81,39 @@
               <li class="text-sm text-gray-500 italic">Nothing new at this tier yet.</li>
             {% endfor %}
           </ul>
+        </div>
+
+        {% comment %}
+          url_subscribe (apps/home/context_processors.py's contacts(),
+          2026-08-19) -- NOT url_membership_update/url_register directly:
+          those two are "" for a signed-in user with a profile but no
+          paid membership yet, which used to fall through to
+          url_register here and hit a dead end (AlumniRegisterView
+          silently redirects anyone who already has a profile straight
+          home, no explanation). url_subscribe always points a
+          profile-holder at the membership-update URL regardless of paid
+          status, so AlumniMembershipUpdateView.dispatch()'s own
+          existing "still pending confirmation" message + redirect
+          handles that case properly instead. Still doesn't jump the
+          user to THIS specific tier either way -- neither view reads a
+          tier from the URL, so this only gets them to the right page,
+          not a pre-selected card.
+
+          Gold Life Member's button is gold (#fdbe13), not the sitewide
+          brand blue -- explicit exception, 2026-08-19. tier.code (not
+          tier.name) is the check: MembershipTier.code is the stable key
+          "independent of the display name" (apps/home/models.py's own
+          field help_text), seeded as "gold_life" by
+          reconcile_constitutional_categories.py -- matching on name would
+          break silently if that display string is ever edited.
+        {% endcomment %}
+        <div class="p-6 sm:px-8">
+          <a
+            href="{{ url_subscribe }}"
+            class="inline-flex w-full items-center justify-center rounded-sm px-4 py-2.5 text-sm font-semibold transition {% if tier.code == 'gold_life' %}bg-[#fdbe13] text-black hover:bg-[#d7a110]{% else %}bg-[#38b6ff] text-white hover:bg-[#2f9bd9]{% endif %}"
+          >
+            Subscribe
+          </a>
         </div>
       </div>
     {% endfor %}

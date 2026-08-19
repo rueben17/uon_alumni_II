@@ -8,13 +8,13 @@
     Same background treatment as templates/404.html -- see that file's
     comment for why this is safe here but not in 500.html.
     {% endcomment %}
-    <div class="fixed inset-0 -z-10 bg-cover bg-top bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
+    <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
     {% include "snippets/navbar.html" %}
 
     <section class="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center gap-6 p-4 text-center">
         <div class="w-full rounded-sm border border-slate-200 bg-white p-8 shadow-xl sm:p-12">
             <p class="text-sm font-semibold uppercase tracking-widest text-blue-600">Error 400</p>
-            <h1 class="mt-2 text-4xl font-semibold tracking-wide text-gray-900 sm:text-5xl">Bad Request</h1>
+            <h1 class="mt-2 text-4xl font-semibold tracking-wide text-black sm:text-5xl">Bad Request</h1>
             <p class="mt-4 text-lg font-light text-slate-600 text-balance">
                 We couldn't make sense of that request. Try going back and trying again, or head back to somewhere familiar.
             </p>
@@ -22,7 +22,7 @@
                 <a href="{{ url_home }}" class="inline-flex items-center justify-center rounded-sm bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300">
                     Return Home
                 </a>
-                <a href="{{ url_contact }}" class="inline-flex items-center justify-center rounded-sm border border-slate-300 bg-white px-6 py-2.5 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300">
+                <a href="{{ url_contact }}" class="inline-flex items-center justify-center rounded-sm border border-slate-300 bg-white px-6 py-2.5 text-sm font-semibold text-black shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300">
                     Contact Us
                 </a>
             </div>

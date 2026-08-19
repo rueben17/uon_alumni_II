@@ -15,12 +15,12 @@
     templates/home/membership_categories.html for the same fix and fuller
     rationale.
     {% endcomment %}
-    <div class="fixed inset-0 -z-10 bg-cover bg-top bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
+    <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
     {% include "snippets/navbar.html" %}
 
     <section class="flex min-h-screen items-center justify-center px-4 py-8">
         <div class="w-full max-w-4xl rounded-sm border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-            <h1 class="text-2xl font-bold text-slate-900">Update Your Alumni Profile</h1>
+            <h1 class="text-2xl font-bold text-black">Update Your Alumni Profile</h1>
             <p class="mt-2 mb-8 text-slate-600">Keep your details up to date. Fields marked with * are required.</p>
 
             {% if form.non_field_errors %}
@@ -35,7 +35,7 @@
                 {% csrf_token %}
 
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-900">Personal Details</h2>
+                    <h2 class="text-lg font-semibold text-black">Personal Details</h2>
                     <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         {% include "snippets/form_field.html" with field=form.honorific %}
                         {% include "snippets/form_field.html" with field=form.surname %}
@@ -50,7 +50,7 @@
                 </div>
 
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-900">Contact Information</h2>
+                    <h2 class="text-lg font-semibold text-black">Contact Information</h2>
                     <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         {% include "snippets/form_field.html" with field=form.phone_mobile %}
                         {% include "snippets/form_field.html" with field=form.phone_alt %}
@@ -64,7 +64,7 @@
                 </div>
 
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-900">Graduation Details</h2>
+                    <h2 class="text-lg font-semibold text-black">Graduation Details</h2>
                     <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         {% include "snippets/form_field.html" with field=form.graduation_institution %}
                         {% include "snippets/form_field.html" with field=form.name_at_graduation %}
@@ -89,7 +89,7 @@
                 </div>
 
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-900">Preferences</h2>
+                    <h2 class="text-lg font-semibold text-black">Preferences</h2>
                     <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         {% include "snippets/form_field.html" with field=form.receive_newsletter %}
                         {% include "snippets/form_field.html" with field=form.receive_sms_alerts %}

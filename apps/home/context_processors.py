@@ -291,14 +291,29 @@ def contacts(request):
                 status=Membership.Status.PENDING
             ).exists()
             url_membership_update = f"{base}{alumni_profile.get_membership_update_url()}" if has_paid_membership else ""
+            # url_subscribe: unlike url_membership_update above, this is
+            # NEVER "" for a signed-in user with a profile, paid or not --
+            # tiers.html's Subscribe button (2026-08-19) needs somewhere
+            # to send a pending-only member that isn't back to
+            # registration. AlumniRegisterView.dispatch() just silently
+            # redirects anyone who already has a profile straight to the
+            # homepage with no explanation -- a dead end. Routing to the
+            # SAME membership-update URL instead lets
+            # AlumniMembershipUpdateView.dispatch()'s own existing
+            # "still pending confirmation" message + redirect-to-profile
+            # handle it properly, exactly as it already does for anyone
+            # who reaches that URL directly today.
+            url_subscribe = f"{base}{alumni_profile.get_membership_update_url()}"
         else:
             url_my_profile = f"{base}{home_url('uon_alumni_register')}"
             url_membership_update = ""
+            url_subscribe = f"{base}{home_url('uon_alumni_register')}"
     else:
         # Relative, like the Sign Out link below -- /accounts/ paths are
         # shared across every subdomain regardless of which urlconf is active.
         url_my_profile = "/accounts/google/login/"
         url_membership_update = ""
+        url_subscribe = f"{base}{home_url('uon_alumni_register')}"
 
     return {
         "name_title": name_title,
@@ -331,6 +346,7 @@ def contacts(request):
         "url_in_memoriam": f"{base}{home_url('uon_alumni_in_memoriam')}",
         "url_contact":     f"{base}{home_url('uon_alumni_contact_us')}",
         "url_my_profile":  url_my_profile,
+        "url_subscribe":   url_subscribe,
         "url_membership_update": url_membership_update,
         "url_downloads":   f"{base}{home_url('uon_alumni_downloads')}",
         "url_newsletters": f"{base}{home_url('uon_alumni_downloads')}?category=newsletter",

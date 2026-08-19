@@ -16,7 +16,7 @@
     mobile/cross-browser reliability -- bg-fixed is inconsistently
     supported and disabled outright by transforms/filters on ancestors.
     {% endcomment %}
-    <div class="fixed inset-0 -z-10 bg-cover bg-top bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
+    <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
     {% include "snippets/navbar.html" %}
 
     <section class="flex min-h-screen items-center justify-center px-4 py-8">
@@ -28,8 +28,8 @@
             header card has no padding of its own, so without this it
             sits flush left while the cards start further right (2026-08-18).
             {% endcomment %}
-            <div class="mb-6 ml-4 inline-block rounded-sm border border-slate-200 bg-white p-4 shadow-sm sm:ml-6 sm:p-6 lg:ml-8">
-                <h1 class="text-xl font-semibold text-slate-900 sm:text-2xl">Membership Categories &amp; Benefits</h1>
+            <div class="cursor-pointer mb-6 ml-4 inline-block rounded-sm border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md sm:ml-6 sm:p-6 lg:ml-8">
+                <h1 class="text-xl font-semibold text-black sm:text-2xl">Membership Categories &amp; Benefits</h1>
                 <p class="text-sm text-slate-600">Pick a category to see exactly what it includes.</p>
             </div>
 

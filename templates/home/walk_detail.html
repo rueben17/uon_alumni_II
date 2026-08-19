@@ -19,10 +19,10 @@
                         <img src="{{ event.get_thumbnail }}" alt="{{ event.title }}" class="w-full rounded-sm mb-6 object-cover">
                     {% endif %}
 
-                    <h1 class="text-3xl font-semibold tracking-wide text-gray-900 lg:text-4xl text-balance">{{ event.title }}</h1>
+                    <h1 class="text-3xl font-semibold tracking-wide text-black lg:text-4xl text-balance">{{ event.title }}</h1>
                     <p class="mt-2 text-sm text-gray-500">{{ event.created_at }}</p>
 
-                    <div class="mt-6 prose max-w-none text-gray-800 whitespace-pre-line">{{ event.body }}</div>
+                    <div class="mt-6 prose max-w-none text-black whitespace-pre-line">{{ event.body }}</div>
 
                     {% if event.images.exists %}
                         <div class="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3">

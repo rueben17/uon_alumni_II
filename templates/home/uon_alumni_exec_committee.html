@@ -9,14 +9,14 @@
 
             <section class="max-w-full min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
                 <div class="px-4 py-8 mx-auto md:px-12 max-w-7xl">
-                    <h1 class="text-4xl font-semibold tracking-wide text-gray-900 lg:text-5xl text-balance">Executive Committee</h1>
+                    <h1 class="text-4xl font-semibold tracking-wide text-black lg:text-5xl text-balance">Executive Committee</h1>
 
                     {% if executives %}
                         <div class="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                             {% for executive in executives %}
                                 <div class="rounded-sm border border-slate-200 p-4 text-center">
                                     <img src="{{ executive.get_avatar }}" alt="{{ executive.title }} {{ executive.surname }}" class="mx-auto h-32 w-32 rounded-full object-cover">
-                                    <h2 class="mt-4 text-lg font-semibold text-gray-900">{{ executive.title }} {{ executive.first_name }} {{ executive.middle_name }} {{ executive.surname }}</h2>
+                                    <h2 class="mt-4 text-lg font-semibold text-black">{{ executive.title }} {{ executive.first_name }} {{ executive.middle_name }} {{ executive.surname }}</h2>
                                     <p class="mt-1 text-sm font-semibold uppercase tracking-wide text-blue-700">{{ executive.get_position_display|default:executive.position }}</p>
                                     {% if executive.bio %}
                                         <p class="mt-3 text-sm text-gray-600 text-left">{{ executive.bio }}</p>

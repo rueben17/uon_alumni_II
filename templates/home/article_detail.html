@@ -19,14 +19,14 @@
                     {% endif %}
 
                     <span class="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold uppercase text-blue-700">{{ article.get_type_display }}</span>
-                    <h1 class="mt-3 text-3xl font-semibold tracking-wide text-gray-900 lg:text-4xl text-balance">{{ article.title }}</h1>
+                    <h1 class="mt-3 text-3xl font-semibold tracking-wide text-black lg:text-4xl text-balance">{{ article.title }}</h1>
                     <p class="mt-2 text-sm text-gray-500">{{ article.published_at|default:article.created_at }}{% if article.author %} &middot; {{ article.author }}{% endif %}</p>
 
                     {% if article.quote %}
                         <blockquote class="mt-6 border-l-4 border-blue-500 pl-4 italic text-gray-700">{{ article.quote }}</blockquote>
                     {% endif %}
 
-                    <div class="mt-6 prose max-w-none text-gray-800 whitespace-pre-line">{{ article.body }}</div>
+                    <div class="mt-6 prose max-w-none text-black whitespace-pre-line">{{ article.body }}</div>
 
                     {% if article.images.exists %}
                         <div class="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3">

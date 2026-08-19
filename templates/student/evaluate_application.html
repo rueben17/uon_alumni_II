@@ -9,7 +9,7 @@
     -- position:fixed backdrop, admin-editable via Banner.page_background
     (apps/home/context_processors.py's images()), navbar only.
     {% endcomment %}
-    <div class="fixed inset-0 -z-10 bg-cover bg-top bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
+    <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
     {% include "snippets/navbar.html" %}
 
     <div class="grid grid-cols-1 gap-4 p-4 lg:grid-cols-2">
@@ -60,7 +60,7 @@
                 </div>
             {% else %}
             <div class="mb-6 flex flex-col gap-1">
-                <h1 class="text-xl font-semibold text-slate-900 sm:text-2xl">
+                <h1 class="text-xl font-semibold text-black sm:text-2xl">
                     Evaluate: {{ application.first_name }} {{ application.surname }}
                 </h1>
                 <p class="text-sm text-slate-600">
@@ -80,7 +80,7 @@
                 {% csrf_token %}
 
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-900">Interview Details</h2>
+                    <h2 class="text-lg font-semibold text-black">Interview Details</h2>
                     <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                         {% include "snippets/form_field.html" with field=form.venue %}
                         {% include "snippets/form_field.html" with field=form.interview_date %}
@@ -99,7 +99,7 @@
                 </div>
 
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-900">Scoring Matrix</h2>
+                    <h2 class="text-lg font-semibold text-black">Scoring Matrix</h2>
                     <div class="mt-4 overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead>
@@ -112,7 +112,7 @@
                             <tbody>
                                 {% for field, max_score in score_rows %}
                                     <tr class="border-t border-slate-100">
-                                        <td class="py-2 pr-2 text-slate-800">{{ field.label }}</td>
+                                        <td class="py-2 pr-2 text-black">{{ field.label }}</td>
                                         <td class="py-2 pr-2 tabular-nums text-slate-500">{{ max_score }}</td>
                                         <td class="py-2">{{ field }}</td>
                                     </tr>
@@ -128,7 +128,7 @@
 
                     <div class="mt-4 flex items-center justify-between rounded-sm border border-slate-200 bg-slate-50 p-4">
                         <span class="text-sm font-semibold text-slate-700">Total</span>
-                        <span class="text-lg font-semibold text-slate-900 tabular-nums">
+                        <span class="text-lg font-semibold text-black tabular-nums">
                             <span id="total-current">0</span> / {{ total_possible }}
                         </span>
                     </div>

@@ -9,14 +9,14 @@
 
             <section class="max-w-full min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
                 <div class="px-4 py-8 mx-auto md:px-12 max-w-4xl">
-                    <h1 class="text-4xl font-semibold tracking-wide text-gray-900 lg:text-5xl text-balance">Careers</h1>
+                    <h1 class="text-4xl font-semibold tracking-wide text-black lg:text-5xl text-balance">Careers</h1>
                     <p class="mt-4 text-lg font-light text-black text-balance">Opportunities shared through the alumni network.</p>
 
                     {% if job_postings %}
                         <div class="mt-8 space-y-4">
                             {% for job in job_postings %}
                                 <div class="rounded-sm border border-slate-200 p-5">
-                                    <h2 class="text-lg font-semibold text-gray-900">{{ job.title }}</h2>
+                                    <h2 class="text-lg font-semibold text-black">{{ job.title }}</h2>
                                     <p class="text-sm text-gray-600">{{ job.company }}{% if job.location %} &middot; {{ job.location }}{% endif %}</p>
                                     <p class="mt-3 text-sm text-gray-700 whitespace-pre-line">{{ job.description }}</p>
                                     <p class="mt-3 text-xs text-gray-400">Closes {{ job.expires_on }}</p>

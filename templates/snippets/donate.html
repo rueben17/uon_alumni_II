@@ -1,0 +1,117 @@
+{% comment %}
+Four preset giving amounts. Capped at 2 per row (never lg:grid-cols-4) so
+each card stays wide -- tiers.html gives its cards real width by putting
+only 3 (sometimes 2) per row, never 4; matching that proportion here with
+4 items means 2x2, not 1x4. Larger padding/type than a straight tiers.html
+copy for the same reason. Each card's flex-1 wrapper (description + "this
+supports" checklist, same checkmark pattern as tiers.html) is what pushes
+every button to the same baseline regardless of how many list items a
+given card has.
+{% endcomment %}
+<div class="px-4 py-8 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
+    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:items-stretch md:gap-8">
+        <div class="cursor-pointer flex flex-col rounded-sm border border-gray-200 bg-white p-8 shadow-xs transition hover:shadow-md sm:p-10">
+            <p class="text-sm font-semibold uppercase tracking-wide text-slate-500">Supporter</p>
+            <p class="mt-4 text-5xl font-bold text-black">KES 1,000</p>
+            <div class="mt-4 flex-1">
+                <p class="text-base text-slate-600">A one-off gift that helps keep alumni programmes and events running.</p>
+                <ul class="mt-4 space-y-2">
+                    <li class="flex items-start gap-2">
+                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="mt-0.5 size-4 shrink-0 text-[#38b6ff]"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                        <span class="text-sm text-slate-600">Keeps the newsletter and alumni updates going</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="mt-0.5 size-4 shrink-0 text-[#38b6ff]"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                        <span class="text-sm text-slate-600">Helps cover small chapter meetup costs</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="mt-0.5 size-4 shrink-0 text-[#38b6ff]"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                        <span class="text-sm text-slate-600">Every gift, of any size, genuinely helps</span>
+                    </li>
+                </ul>
+            </div>
+            <a href="{% url 'home:uon_alumni_contact_us' %}" class="mt-8 inline-flex items-center justify-center rounded-sm bg-[#38b6ff] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#2f9bd9]">
+                Give This Amount
+            </a>
+        </div>
+
+        <div class="cursor-pointer flex flex-col rounded-sm border border-gray-200 bg-white p-8 shadow-xs transition hover:shadow-md sm:p-10">
+            <p class="text-sm font-semibold uppercase tracking-wide text-slate-500">Contributor</p>
+            <p class="mt-4 text-5xl font-bold text-black">KES 5,000</p>
+            <div class="mt-4 flex-1">
+                <p class="text-base text-slate-600">Supports mentorship and networking activities that connect alumni with current students.</p>
+                <ul class="mt-4 space-y-2">
+                    <li class="flex items-start gap-2">
+                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="mt-0.5 size-4 shrink-0 text-[#38b6ff]"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                        <span class="text-sm text-slate-600">Funds mentor-mentee pairing sessions</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="mt-0.5 size-4 shrink-0 text-[#38b6ff]"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                        <span class="text-sm text-slate-600">Supports alumni-student networking events</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="mt-0.5 size-4 shrink-0 text-[#38b6ff]"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                        <span class="text-sm text-slate-600">Helps maintain the online alumni directory</span>
+                    </li>
+                </ul>
+            </div>
+            <a href="{% url 'home:uon_alumni_contact_us' %}" class="mt-8 inline-flex items-center justify-center rounded-sm bg-[#38b6ff] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#2f9bd9]">
+                Give This Amount
+            </a>
+        </div>
+
+        <div class="cursor-pointer flex flex-col rounded-sm border border-[#38b6ff] bg-white p-8 shadow-xs transition hover:shadow-md sm:p-10">
+            <p class="text-sm font-semibold uppercase tracking-wide text-[#38b6ff]">Champion</p>
+            <p class="mt-4 text-5xl font-bold text-black">KES 15,000</p>
+            <div class="mt-4 flex-1">
+                <p class="text-base text-slate-600">Goes toward the Undergraduate Scholarship fund, helping a student stay in school.</p>
+                <ul class="mt-4 space-y-2">
+                    <li class="flex items-start gap-2">
+                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="mt-0.5 size-4 shrink-0 text-[#38b6ff]"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                        <span class="text-sm text-slate-600">Contributes directly to a student's scholarship</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="mt-0.5 size-4 shrink-0 text-[#38b6ff]"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                        <span class="text-sm text-slate-600">Helps fund application review and evaluation</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="mt-0.5 size-4 shrink-0 text-[#38b6ff]"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                        <span class="text-sm text-slate-600">Our most popular giving level</span>
+                    </li>
+                </ul>
+            </div>
+            <a href="{% url 'home:uon_alumni_contact_us' %}" class="mt-8 inline-flex items-center justify-center rounded-sm bg-[#38b6ff] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#2f9bd9]">
+                Give This Amount
+            </a>
+        </div>
+
+        <div class="cursor-pointer flex flex-col rounded-sm border border-gray-200 bg-white p-8 shadow-xs transition hover:shadow-md sm:p-10">
+            <p class="text-sm font-semibold uppercase tracking-wide text-slate-500">Patron</p>
+            <p class="mt-4 text-5xl font-bold text-black">KES 50,000</p>
+            <div class="mt-4 flex-1">
+                <p class="text-base text-slate-600">A major gift supporting scholarships, chapter development, and Association initiatives.</p>
+                <ul class="mt-4 space-y-2">
+                    <li class="flex items-start gap-2">
+                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="mt-0.5 size-4 shrink-0 text-[#38b6ff]"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                        <span class="text-sm text-slate-600">Can fund multiple scholarships in one gift</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="mt-0.5 size-4 shrink-0 text-[#38b6ff]"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                        <span class="text-sm text-slate-600">Supports new chapter development</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="mt-0.5 size-4 shrink-0 text-[#38b6ff]"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                        <span class="text-sm text-slate-600">Recognized as a Patron-level supporter</span>
+                    </li>
+                </ul>
+            </div>
+            <a href="{% url 'home:uon_alumni_contact_us' %}" class="mt-8 inline-flex items-center justify-center rounded-sm bg-[#38b6ff] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#2f9bd9]">
+                Give This Amount
+            </a>
+        </div>
+    </div>
+
+    <p class="mt-6 text-center text-sm text-slate-500">
+        Prefer a different amount, or need M-Pesa/bank details? <a href="{% url 'home:uon_alumni_contact_us' %}" class="font-semibold text-[#38b6ff] hover:underline">Get in touch with the Secretariat</a>.
+    </p>
+</div>

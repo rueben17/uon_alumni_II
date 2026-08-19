@@ -10,7 +10,7 @@
 
     <section class="max-w-full min-h-screen mx-auto px-4 py-8">
         <div class="max-w-4xl mx-auto rounded-sm border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-            <h1 class="text-2xl font-bold text-slate-900">Register as a UoN Alumnus</h1>
+            <h1 class="text-2xl font-bold text-black">Register as a UoN Alumnus</h1>
             <p class="mt-2 mb-8 text-slate-600">Please fill in your details below. Fields marked with * are required.</p>
 
             {% if form.non_field_errors %}
@@ -25,7 +25,7 @@
                 {% csrf_token %}
 
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-900">Personal Details</h2>
+                    <h2 class="text-lg font-semibold text-black">Personal Details</h2>
                     <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         {% include "snippets/form_field.html" with field=form.title %}
                         {% include "snippets/form_field.html" with field=form.surname %}
@@ -40,7 +40,7 @@
                 </div>
 
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-900">Contact Information</h2>
+                    <h2 class="text-lg font-semibold text-black">Contact Information</h2>
                     <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         {% include "snippets/form_field.html" with field=form.phone_mobile %}
                         {% include "snippets/form_field.html" with field=form.phone_alt %}
@@ -54,7 +54,7 @@
                 </div>
 
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-900">Graduation Details</h2>
+                    <h2 class="text-lg font-semibold text-black">Graduation Details</h2>
                     <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         {% include "snippets/form_field.html" with field=form.graduation_institution %}
                         {% include "snippets/form_field.html" with field=form.name_at_graduation %}
@@ -79,7 +79,7 @@
                 </div>
 
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-900">Membership Subscription</h2>
+                    <h2 class="text-lg font-semibold text-black">Membership Subscription</h2>
                     <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         {% include "snippets/form_field.html" with field=form.membership_tier %}
                         {% include "snippets/form_field.html" with field=form.payment_method %}
@@ -90,7 +90,7 @@
                 </div>
 
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-900">Preferences</h2>
+                    <h2 class="text-lg font-semibold text-black">Preferences</h2>
                     <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         {% include "snippets/form_field.html" with field=form.receive_newsletter %}
                         {% include "snippets/form_field.html" with field=form.receive_sms_alerts %}
@@ -98,7 +98,7 @@
                 </div>
 
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-900">Privacy</h2>
+                    <h2 class="text-lg font-semibold text-black">Privacy</h2>
                     <div class="mt-4">
                         {% include "snippets/form_field.html" with field=form.privacy_consent %}
                         <p class="mt-1 text-xs text-slate-500">

@@ -9,7 +9,7 @@
 
             <section class="max-w-full min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
                 <div class="px-4 py-8 mx-auto md:px-12 max-w-7xl">
-                    <h1 class="text-4xl font-semibold tracking-wide text-gray-900 lg:text-5xl text-balance">Partners</h1>
+                    <h1 class="text-4xl font-semibold tracking-wide text-black lg:text-5xl text-balance">Partners</h1>
                     <p class="mt-4 text-lg font-light text-black text-balance">Organisations we work with.</p>
 
                     {% if partners %}
@@ -17,7 +17,7 @@
                             {% for partner in partners %}
                                 <div class="rounded-sm border border-slate-200 p-4 text-center">
                                     <img src="{{ partner.get_thumbnail }}" alt="{{ partner.title }}" class="mx-auto h-24 w-24 object-contain">
-                                    <h2 class="mt-3 text-sm font-semibold text-gray-900">{{ partner.title }}</h2>
+                                    <h2 class="mt-3 text-sm font-semibold text-black">{{ partner.title }}</h2>
                                     {% if partner.relation %}
                                         <p class="mt-1 text-xs text-gray-500">{{ partner.relation }}</p>
                                     {% endif %}

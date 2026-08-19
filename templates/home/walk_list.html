@@ -9,7 +9,7 @@
 
             <section class="max-w-full min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
                 <div class="px-4 py-8 mx-auto md:px-12 max-w-7xl">
-                    <h1 class="text-4xl font-semibold tracking-wide text-gray-900 lg:text-5xl text-balance">UoN Alumni Walk</h1>
+                    <h1 class="text-4xl font-semibold tracking-wide text-black lg:text-5xl text-balance">UoN Alumni Walk</h1>
                     <p class="mt-4 text-lg font-light text-black text-balance">The annual charity walk in aid of the UoNAA Scholarship Fund.</p>
 
                     {% if events %}
@@ -20,7 +20,7 @@
                                         <img src="{{ event.get_thumbnail }}" alt="{{ event.title }}" class="w-full h-full object-cover">
                                     </div>
                                     <div class="p-4">
-                                        <h2 class="text-lg font-semibold text-gray-900">{{ event.title }}</h2>
+                                        <h2 class="text-lg font-semibold text-black">{{ event.title }}</h2>
                                         <p class="mt-1 text-sm text-gray-500">{{ event.created_at }}</p>
                                     </div>
                                 </a>

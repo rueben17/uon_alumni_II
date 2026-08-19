@@ -11,7 +11,7 @@
     <title>Badge verification — UoNAA</title>
     <link rel="stylesheet" href="{% static 'css/output.css' %}">
 </head>
-<body class="m-0 min-h-screen bg-slate-100 font-sans text-slate-900">
+<body class="m-0 min-h-screen bg-slate-100 font-sans text-black">
     <div class="mx-auto my-8 max-w-md rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="rounded-t-xl bg-slate-900 px-6 py-4 text-center text-sm font-semibold uppercase tracking-wide text-white">
             UoNAA Badge Verification
@@ -19,7 +19,7 @@
 
         <div class="space-y-4 p-6">
             <div>
-                <h1 class="text-xl font-semibold text-slate-900">{{ display_name }}</h1>
+                <h1 class="text-xl font-semibold text-black">{{ display_name }}</h1>
             </div>
 
             <div>
@@ -30,7 +30,7 @@
                 {% endif %}
             </div>
 
-            <div class="grid grid-cols-1 gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm text-slate-800">
+            <div class="grid grid-cols-1 gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm text-black">
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Membership</p>
                     <p>{{ tier_category|default:"No membership on record" }}</p>

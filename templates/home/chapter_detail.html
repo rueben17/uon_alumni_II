@@ -13,7 +13,7 @@
                         <img src="{{ chapter.get_thumbnail }}" alt="{{ chapter.name }}" class="w-full rounded-sm mb-6 object-cover">
                     {% endif %}
 
-                    <h1 class="text-3xl font-semibold tracking-wide text-gray-900 lg:text-4xl text-balance">{{ chapter.name }} Chapter</h1>
+                    <h1 class="text-3xl font-semibold tracking-wide text-black lg:text-4xl text-balance">{{ chapter.name }} Chapter</h1>
                     {% if chapter.faculty %}
                         <p class="mt-2 text-sm text-gray-500">{{ chapter.faculty.faculty_name }}</p>
                     {% endif %}
@@ -22,7 +22,7 @@
                     {% endif %}
 
                     {% if chapter.about %}
-                        <div class="mt-6 prose max-w-none text-gray-800 whitespace-pre-line">{{ chapter.about }}</div>
+                        <div class="mt-6 prose max-w-none text-black whitespace-pre-line">{{ chapter.about }}</div>
                     {% endif %}
 
                     {% if chapter.images.exists %}
@@ -39,7 +39,7 @@
 
                     {% if chapter.articles.exists %}
                         <div class="mt-10">
-                            <h2 class="text-xl font-semibold text-gray-900">News from this Chapter</h2>
+                            <h2 class="text-xl font-semibold text-black">News from this Chapter</h2>
                             <ul class="mt-3 space-y-2">
                                 {% for article in chapter.articles.all %}
                                     {% if article.is_published %}

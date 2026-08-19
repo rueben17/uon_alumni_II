@@ -9,13 +9,13 @@
 
             <section class="max-w-full min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
                 <div class="px-4 py-8 mx-auto md:px-12 max-w-3xl">
-                    <h1 class="text-4xl font-semibold tracking-wide text-gray-900 lg:text-5xl text-balance">{{ page_label }}</h1>
+                    <h1 class="text-4xl font-semibold tracking-wide text-black lg:text-5xl text-balance">{{ page_label }}</h1>
 
                     {% if article %}
                         {% if article.article_banner_image %}
                             <img src="{{ article.get_article_banner_image }}" alt="{{ page_label }}" class="w-full rounded-sm my-6 object-cover">
                         {% endif %}
-                        <div class="mt-6 prose max-w-none text-gray-800 whitespace-pre-line">{{ article.body }}</div>
+                        <div class="mt-6 prose max-w-none text-black whitespace-pre-line">{{ article.body }}</div>
                     {% else %}
                         <p class="mt-8 text-gray-500">This page's content is being prepared — check back soon.</p>
                     {% endif %}

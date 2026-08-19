@@ -9,13 +9,13 @@
     -- position:fixed backdrop, admin-editable via Banner.page_background
     (apps/home/context_processors.py's images()), navbar only.
     {% endcomment %}
-    <div class="fixed inset-0 -z-10 bg-cover bg-top bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
+    <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
     {% include "snippets/navbar.html" %}
 
     <section class="mx-auto max-w-7xl p-4">
         <div class="mb-6 flex flex-col gap-4 rounded-sm border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
             <div>
-                <h1 class="text-xl font-semibold text-slate-900 sm:text-2xl">Applicant Dashboard</h1>
+                <h1 class="text-xl font-semibold text-black sm:text-2xl">Applicant Dashboard</h1>
                 <p class="text-sm text-slate-600">Scholarship applicant distribution by faculty, gender, and county.</p>
             </div>
             <a
