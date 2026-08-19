@@ -220,9 +220,11 @@ def contacts(request):
     if settings.DEBUG:
         base = 'http://lvh.me:8000'
         staff_base = 'http://staff.lvh.me:8000'
+        students_base = 'http://students.lvh.me:8000'
     else:
         base = 'https://uonalumni.or.ke'
         staff_base = 'https://staff.uonalumni.or.ke'
+        students_base = 'https://students.uonalumni.or.ke'
 
     # Only ever computed for an authenticated user, and each entry only
     # appears if that admin site's OWN has_permission() says yes -- so
@@ -249,11 +251,17 @@ def contacts(request):
         # plain view, so checked directly here instead.
         if request.user.is_staff or request.user.is_superuser:
             admin_links.append({"label": "Membership Analytics", "url": f"{base}{home_url('membership_analytics')}"})
-            evaluate_url = reverse("student:evaluate_application_list", urlconf="main.urls")
-            dashboard_url = reverse("student:applicant_dashboard", urlconf="main.urls")
+            # Hardcoded paths, not reverse(urlconf="main.urls"), same reason
+            # as QR Admin above -- apps.student.urls (the 'student'
+            # namespace) is only ever mounted via the students-subdomain
+            # middleware (SUBDOMAIN_URLCONFS), never included into
+            # main.urls, so a 'student:' reverse pinned to main.urls always
+            # raises NoReverseMatch (confirmed live, 2026-08-19: crashed
+            # this context processor -- which runs on every page -- for
+            # every staff/superuser request site-wide).
             scholarship_admin_links = [
-                {"label": "Evaluate Applicants", "url": f"{base}{evaluate_url}"},
-                {"label": "Charts", "url": f"{base}{dashboard_url}"},
+                {"label": "Evaluate Applicants", "url": f"{students_base}/evaluate/"},
+                {"label": "Charts", "url": f"{students_base}/dashboard/"},
             ]
 
     website = ASSOCIATION_WEBSITE
