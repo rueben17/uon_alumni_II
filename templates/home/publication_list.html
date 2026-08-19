@@ -4,7 +4,13 @@
 
 {% block content %}
 
-        <div class="container mx-auto min-h-screen space-y-1" style="max-width: 1700px;">
+        <div class="container mx-auto min-h-screen space-y-1 relative" style="max-width: 1700px;">
+            {% comment %}
+            Same background treatment as templates/home/alumni_home.html --
+            position:fixed backdrop, admin-editable via Banner.page_background
+            (apps/home/context_processors.py's images()).
+            {% endcomment %}
+            <div class="fixed inset-0 -z-10 bg-cover bg-top bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
             {% include "snippets/navbar.html" %}
 
             <section class="max-w-full min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
