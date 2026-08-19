@@ -280,6 +280,21 @@ class AlumniRegisterView(MpesaEligibilityMixin, QualificationMapMixin, LoginRequ
             return redirect("home:uon_alumni_home")
         return super().dispatch(request, *args, **kwargs)
 
+    def get_initial(self):
+        # Pre-select the tier a "Subscribe" click on snippets/tiers.html
+        # came from (2026-08-19, ?tier=<pk> on the link) -- not
+        # validated against MembershipTier here since it's only ever
+        # used as a ModelChoiceField initial value: an invalid/tampered
+        # id just renders with nothing pre-selected, and the real
+        # validation still happens in form_valid() via
+        # form.cleaned_data["membership_tier"] regardless of how the
+        # form got here.
+        initial = super().get_initial()
+        tier_id = self.request.GET.get("tier")
+        if tier_id:
+            initial["membership_tier"] = tier_id
+        return initial
+
     def form_valid(self, form):
         form.instance.user = self.request.user
         response = super().form_valid(form)
@@ -543,9 +558,13 @@ class AlumniMembershipUpdateView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         alumni = get_object_or_404(AlumniProfile, pk=kwargs["pk"], user=request.user)
         current_membership = Membership.objects.current_for(request.user)
-        form = MembershipUpdateForm(
-            initial={"membership_tier": current_membership.tier_id if current_membership else None}
-        )
+        # ?tier=<pk> (2026-08-19, snippets/tiers.html's Subscribe button)
+        # wins over the member's current tier when present -- someone
+        # who clicked "Subscribe" on a specific card came here to move
+        # TO that tier, not to see their existing one pre-selected.
+        # Same non-validation reasoning as AlumniRegisterView.get_initial().
+        tier_id = request.GET.get("tier") or (current_membership.tier_id if current_membership else None)
+        form = MembershipUpdateForm(initial={"membership_tier": tier_id})
         pending_payment = alumni.payments.filter(
             payment_status__in=["pending", "pending_verification"]
         ).order_by("-payment_date").first()

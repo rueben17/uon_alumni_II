@@ -94,10 +94,12 @@
           profile-holder at the membership-update URL regardless of paid
           status, so AlumniMembershipUpdateView.dispatch()'s own
           existing "still pending confirmation" message + redirect
-          handles that case properly instead. Still doesn't jump the
-          user to THIS specific tier either way -- neither view reads a
-          tier from the URL, so this only gets them to the right page,
-          not a pre-selected card.
+          handles that case properly instead. ?tier={{ tier.pk }}
+          (2026-08-19) is what actually lands the user on THIS card's
+          tier pre-selected -- both AlumniRegisterView.get_initial() and
+          AlumniMembershipUpdateView.get() now read it (falling back to
+          the member's current tier / nothing, same as before, when
+          absent or invalid).
 
           Gold Life Member's button is gold (#fdbe13), not the sitewide
           brand blue -- explicit exception, 2026-08-19. tier.code (not
@@ -109,7 +111,7 @@
         {% endcomment %}
         <div class="p-6 sm:px-8">
           <a
-            href="{{ url_subscribe }}"
+            href="{{ url_subscribe }}?tier={{ tier.pk }}"
             class="inline-flex w-full items-center justify-center rounded-sm px-4 py-2.5 text-sm font-semibold transition {% if tier.code == 'gold_life' %}bg-[#fdbe13] text-black hover:bg-[#d7a110]{% else %}bg-[#38b6ff] text-white hover:bg-[#2f9bd9]{% endif %}"
           >
             Subscribe
