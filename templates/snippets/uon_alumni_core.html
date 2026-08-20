@@ -1,0 +1,70 @@
+<div class="px-4 py-8 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
+{% if foundations or motto_vision_mission or core_values_article %}
+
+    {% if foundations %}
+        <div class="mb-6 cursor-pointer rounded-sm border border-gray-200 bg-white p-6 shadow-xs transition hover:shadow-md sm:px-8">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto mb-2 h-8 w-8 text-[#38b6ff]">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 21h16M5 21V10M9 21V10M15 21V10M19 21V10M3 10l9-6 9 6" />
+            </svg>
+            <h2 class="text-center text-lg font-medium uppercase tracking-wide text-black">{{ foundations.title }}</h2>
+            <p class="mt-2 text-left text-sm text-gray-700">{{ foundations.body }}</p>
+        </div>
+    {% endif %}
+
+    {% if motto_vision_mission %}
+        <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {% for item in motto_vision_mission %}
+                <div class="cursor-pointer rounded-sm border border-gray-200 bg-white p-6 shadow-xs transition hover:shadow-md sm:px-8">
+                    {% if item.page_key == "motto" %}
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto mb-2 h-8 w-8 text-[#38b6ff]">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v18M5 4h11l-3 4 3 4H5" />
+                        </svg>
+                    {% elif item.page_key == "vision" %}
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto mb-2 h-8 w-8 text-[#38b6ff]">
+                            <ellipse cx="12" cy="12" rx="9" ry="5" />
+                            <circle cx="12" cy="12" r="2.5" />
+                        </svg>
+                    {% elif item.page_key == "mission" %}
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto mb-2 h-8 w-8 text-[#38b6ff]">
+                            <circle cx="12" cy="12" r="9" />
+                            <circle cx="12" cy="12" r="5" />
+                            <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+                        </svg>
+                    {% endif %}
+                    <h2 class="text-center text-lg font-medium uppercase tracking-wide text-black">{{ item.title }}</h2>
+                    <p class="mt-2 text-left text-sm text-gray-700">{{ item.body }}</p>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if core_values_article %}
+        <div class="mb-6 cursor-pointer rounded-sm border border-gray-200 bg-white p-6 shadow-xs transition hover:shadow-md sm:px-8">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto mb-2 h-8 w-8 text-[#38b6ff]">
+                <circle cx="12" cy="9" r="6" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.5 14 7 21l5-3 5 3-1.5-7" />
+            </svg>
+            <h2 class="text-center text-lg font-medium uppercase tracking-wide text-black">{{ core_values_article.title }}</h2>
+            {% if core_values_intro %}
+                <p class="mt-2 text-left text-sm text-gray-700">{{ core_values_intro }}</p>
+            {% endif %}
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {% for value in core_values_items %}
+                <div class="cursor-pointer rounded-sm border border-gray-200 bg-white p-6 shadow-xs transition hover:shadow-md sm:px-8">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto mb-2 h-6 w-6 text-[#38b6ff]">
+                        <circle cx="12" cy="12" r="9" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.5 12.5l2.5 2.5 5-5" />
+                    </svg>
+                    <h3 class="text-center text-base font-medium uppercase tracking-wide text-black">{{ value.name }}</h3>
+                    <p class="mt-2 text-left text-sm text-gray-700">{{ value.description }}</p>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+{% else %}
+    <p class="text-center text-gray-500">Content being prepared.</p>
+{% endif %}
+</div>

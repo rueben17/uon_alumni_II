@@ -155,6 +155,13 @@ class Article(ThumbnailMixin, models.Model):
         PRIVACY = "privacy", _("Privacy Policy")
         COOKIES = "cookies", _("Cookie Policy")
         SHOP = "shop", _("Shop")
+        # Seeded from docs/data/core.txt by seed_core_content -- rendered
+        # together on uon_alumni_mission_vision via snippets/uon_alumni_core.html.
+        FOUNDATIONS = "foundations", _("Foundations")
+        MOTTO = "motto", _("Motto")
+        VISION = "vision", _("Vision")
+        MISSION = "mission", _("Mission")
+        CORE_VALUES = "core-values", _("Core Values")
 
     type = models.CharField(
         max_length=20,
@@ -405,6 +412,39 @@ class CoreValue(models.Model):
     
     def get_absolute_url(self):
         return reverse('core_value_detail', kwargs={'pk': self.pk})
+
+
+class ProgramArea(models.Model):
+    """
+    One card on the homepage's "Why We Engage" grid -- seeded from
+    docs/data/front page data.txt (seed_program_areas), admin-editable
+    after that. background_image renders directly on the card
+    (snippets/program_area.html); upload one per row via admin to
+    replace the empty-card fallback.
+    """
+    name = models.CharField(max_length=150, unique=True)
+    description = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0, help_text="Display order")
+    is_active = models.BooleanField(default=True)
+
+    background_image = ResizedImageField(
+        size=[2200, 2200], quality=85,
+        upload_to='program_areas/bg/',
+        blank=True,
+        null=True,
+        help_text="Photo shown on this program's homepage card.",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order', 'name']
+        verbose_name = "Program Area"
+        verbose_name_plural = "Program Areas"
+
+    def __str__(self):
+        return self.name
 
 
 

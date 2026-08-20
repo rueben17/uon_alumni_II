@@ -1,0 +1,21 @@
+<div class="mt-6">
+    {% for program in program_areas %}
+        {% if forloop.counter0|divisibleby:2 %}<div class="mb-6 grid grid-cols-3 gap-x-6 gap-y-6">{% endif %}
+            <div class="rounded bg-white p-1 shadow-xs cursor-pointer {% cycle 'col-span-2' 'col-span-1' 'col-span-1' 'col-span-2' %}">
+                <div class="overflow-hidden rounded flex flex-col">
+                    {% if program.background_image %}
+                        <div class="relative">
+                            <img class="w-full h-96 object-cover" src="{{ program.background_image.url }}" alt="{{ program.name }}">
+                            <div class="absolute inset-0 bg-linear-to-t from-black/50 to-transparent"></div>
+                        </div>
+                    {% endif %}
+                    <div class="relative -mt-10 mx-6 px-4 py-3 bg-[#38b6ff]">
+                        <h3 class="font-normal text-sm uppercase tracking-wide text-white truncate" title="{{ program.name }}">{{ program.name }}</h3>
+                    </div>
+                </div>
+            </div>
+        {% if forloop.counter|divisibleby:2 or forloop.last %}</div>{% endif %}
+    {% empty %}
+        <p class="text-center text-gray-500">Program areas aren't configured yet.</p>
+    {% endfor %}
+</div>

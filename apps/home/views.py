@@ -1,3 +1,5 @@
+import re
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout
@@ -33,6 +35,7 @@ from apps.user.mixins import StaffOrSuperuserRequiredMixin
 def uon_alumni_home(request):
     context = {
         "carousel_images": Images.objects.filter(show_in_carousel=True).exclude(image="").order_by("created_at"),
+        "program_areas": ProgramArea.objects.filter(is_active=True).order_by("order"),
     }
     return render(request, "home/alumni_home.html", context)
 
@@ -77,9 +80,54 @@ def uon_alumni_partners(request):
     })
 
 
+CORE_VALUE_ITEM_RE = re.compile(r'^\d+\.\s*(?P<name>[^:]+):\s*(?P<description>.+)$')
+
+
+def _parse_core_values(article):
+    """Splits the one cohesive Core Values Article.body (seed_core_content
+    stores intro + all six numbered items as one page_key row, newline-
+    joined) back into an intro string and a list of {name, description}
+    dicts -- so the template can render each value as its own card while
+    the DB keeps them as a single row (page_key is unique, so six separate
+    rows was never an option)."""
+    if not article:
+        return "", []
+    lines = article.body.split("\n")
+    intro, items = lines[0] if lines else "", []
+    for line in lines[1:]:
+        match = CORE_VALUE_ITEM_RE.match(line)
+        if match:
+            items.append({"name": match.group("name").strip(), "description": match.group("description").strip()})
+    return intro, items
+
+
 def uon_alumni_mission_vision(request):
+    # Foundations/Motto/Vision/Mission/Core Values are seeded (docs/data/core.txt,
+    # seed_core_content) as five Article rows keyed on page_key -- fetched by
+    # name, not queryset order, since Article has no order field and there are
+    # only ever these five fixed sections.
+    core_articles = {
+        article.page_key: article
+        for article in Article.objects.filter(page_key__in=[
+            Article.PageKey.FOUNDATIONS, Article.PageKey.MOTTO, Article.PageKey.VISION,
+            Article.PageKey.MISSION, Article.PageKey.CORE_VALUES,
+        ])
+    }
+    core_values_article = core_articles.get(Article.PageKey.CORE_VALUES)
+    core_values_intro, core_values_items = _parse_core_values(core_values_article)
+
     return render(request, 'home/uon_alumni_mission_vision.html', {
-        "core_values": CoreValue.objects.filter(is_active=True).order_by('order'),
+        "foundations": core_articles.get(Article.PageKey.FOUNDATIONS),
+        "motto_vision_mission": [
+            article for article in [
+                core_articles.get(Article.PageKey.MOTTO),
+                core_articles.get(Article.PageKey.VISION),
+                core_articles.get(Article.PageKey.MISSION),
+            ] if article
+        ],
+        "core_values_article": core_values_article,
+        "core_values_intro": core_values_intro,
+        "core_values_items": core_values_items,
     })
 
 

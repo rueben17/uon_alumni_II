@@ -243,6 +243,14 @@ class CoreValueAdmin(admin.ModelAdmin):
     )
 
 
+@admin.register(ProgramArea)
+class ProgramAreaAdmin(admin.ModelAdmin):
+    list_per_page = 25
+    list_display = ['name', 'order', 'is_active', 'created_at']
+    list_editable = ['order', 'is_active']
+    search_fields = ['name', 'description']
+
+
 
 @admin.register(Chapter)
 class ChapterAdmin(admin.ModelAdmin):
