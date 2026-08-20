@@ -290,7 +290,7 @@ class CustomAccountAdapter(DefaultAccountAdapter):
 
             elif subdomain == "students":
                 if not hasattr(user, "student"):
-                    return reverse("student:register", urlconf=STUDENT_URLCONF)
+                    return reverse("register", urlconf=STUDENT_URLCONF)
 
                 # Sent here by uon_alumni_scholarship() (apps/home/views.py)
                 # for an anonymous visitor -- stashed in the session, not a
@@ -341,7 +341,7 @@ class CustomAccountAdapter(DefaultAccountAdapter):
             elif subdomain == "students":
                 # A brand-new signup can't have a Student record yet --
                 # no existence check needed, unlike get_login_redirect_url.
-                return reverse("student:register", urlconf=STUDENT_URLCONF)
+                return reverse("register", urlconf=STUDENT_URLCONF)
 
         return super().get_signup_redirect_url(request)
 
@@ -490,6 +490,6 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
             return employee.get_absolute_url()
 
         if subdomain == "students" and not hasattr(user, "student"):
-            return reverse("student:register", urlconf=STUDENT_URLCONF)
+            return reverse("register", urlconf=STUDENT_URLCONF)
 
         return super().get_connect_redirect_url(request, socialaccount)

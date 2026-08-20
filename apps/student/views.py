@@ -90,7 +90,7 @@ class StudentRegisterView(LoginRequiredMixin, CreateView):
         next_url = self.request.session.pop("post_login_next", None)
         if next_url and get_adapter().is_safe_url(next_url):
             return next_url
-        return reverse("student:all_uon_students")
+        return reverse("all_uon_students")
 
 
 class EvaluateApplicationView(StaffOrSuperuserRequiredMixin, View):
@@ -160,7 +160,7 @@ class EvaluateApplicationView(StaffOrSuperuserRequiredMixin, View):
             # Nothing to score without an applicant -- the picker's own
             # navigation (GET) is how one gets chosen; POSTing here with
             # no pk isn't a reachable path through the rendered form.
-            return redirect("student:evaluate_application_list")
+            return redirect("evaluate_application_list")
 
         score_sheet = getattr(application, "score_sheet", None)
         form = InterviewScoreSheetForm(request.POST, instance=score_sheet)
@@ -179,7 +179,7 @@ class EvaluateApplicationView(StaffOrSuperuserRequiredMixin, View):
                     lambda: async_task("apps.student.tasks.send_evaluation_receipt", sheet_id)
                 )
                 messages.success(request, f"Evaluation saved -- total score {sheet.total_score}/{self._total_possible()}.")
-                return redirect("student:evaluate_application", pk=pk)
+                return redirect("evaluate_application", pk=pk)
 
         return render(request, self.template_name, self._context(application, form))
 
