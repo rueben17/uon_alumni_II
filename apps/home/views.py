@@ -10,6 +10,7 @@ from django.db import transaction
 from django.db.models import Count, Prefetch, Sum
 from django.db.models.functions import TruncMonth
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.generic import CreateView, DetailView, ListView, TemplateView, UpdateView, View
 from django_q.tasks import async_task
@@ -878,7 +879,20 @@ def uon_alumni_scholarship(request):
     if student is None:
         messages.info(request, "Please complete student sign-up first to apply for the scholarship.")
         request.session["post_login_next"] = request.build_absolute_uri()
-        return redirect("student:register")
+        # Plain redirect("student:register") 500s here: reverse() with no
+        # urlconf= resolves against apps.home.urls (this view's own
+        # urlconf, main/www subdomain), which has no "student" namespace.
+        # apps.student.urls (SUBDOMAIN_URLCONFS's 'students' entry,
+        # main/settings.py) is used as a ROOT urlconf for that subdomain,
+        # not include()'d with a namespace anywhere -- its own
+        # app_name = 'student' never actually registers a 'student'
+        # namespace to reverse against (confirmed: "student:register"
+        # raises NoReverseMatch even with urlconf= pointed straight at
+        # it; the unprefixed name resolves fine). Same cross-host issue
+        # _students_subdomain_url already handles above for the
+        # anonymous-visitor branch.
+        student_register_path = reverse("register", urlconf="apps.student.urls")
+        return redirect(_students_subdomain_url(request, student_register_path))
 
     existing_application = ScholarshipApplication.objects.filter(student=student).first()
     if existing_application:
