@@ -25,6 +25,14 @@ export ALLOWED_HOSTS="www.uonalumni.or.ke,uonalumni.or.ke"
 
 # Django commands
 python manage.py migrate --noinput
+
+# Idempotent content seeds -- safe to rerun every deploy: each only
+# creates/updates rows whose source .txt line actually changed (see the
+# commands' own docstrings). Photos are NOT seeded here -- upload those
+# per ProgramArea row via the production admin.
+python manage.py seed_core_content
+python manage.py seed_program_areas
+
 python manage.py collectstatic --noinput
 
 # Restart the web service first -- this must succeed regardless of

@@ -231,5 +231,12 @@ cert.crt
 cert.key
 cookies.txt
 
-# Real member data (legacy membership register export) -- PII, never commit
-docs/data/
+# Real member data (legacy membership register export) -- PII, never commit.
+# docs/data/* (not docs/data/) + explicit !negations below, since a
+# directory-level ignore stops git from ever descending into it to check
+# per-file exceptions -- the two seed-command source .txt files below are
+# plain association copy, not PII, and must be committed so the VPS
+# deploy (git reset --hard) actually has them to read.
+docs/data/*
+!docs/data/core.txt
+!docs/data/front page data.txt
