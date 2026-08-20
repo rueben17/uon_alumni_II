@@ -325,6 +325,16 @@ This is the loop that must be demonstrable before payments exist.
       stamps `consent_given_at` + `privacy_notice_version` (from the new
       shared `apps.user.models.CURRENT_PRIVACY_NOTICE_VERSION` constant, so
       the recorded version can never drift from the actual policy text).
+- [ ] **[NEW 2026-08-20] "Update Your Details" / claim-your-imported-profile
+      flow — designed, not built.** For alumni already in the DB from the
+      legacy spreadsheet import whose Google-login email doesn't match
+      anything on file (`SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT`
+      only auto-matches when it does). Full plan already written — search by
+      email/phone → email OTP → verified session flag → `sociallogin.connect()`
+      in `apps/user/adapter.py`'s `pre_social_login()` links the Google
+      identity to the existing imported `User` instead of creating a
+      duplicate. Homepage hero's "Update Your Details" CTA is the intended
+      front door into this; href is `#` on the homepage until it exists.
 
 ### 1.2 Member dashboard (your own) — DONE, already built earlier this session
 - [x] Self-resolved from `request.user` (no pk in URL) — `AlumniProfileDetailView`
@@ -785,6 +795,12 @@ actually *see* — but it must not consume the time self-service needs.
       the file for both desktop and mobile.
 
 ### C.6 Engagement
+- [ ] **[NEW 2026-08-20]** "Get Involved" hub — the homepage hero's second-section
+      CTA ("See How to Get Involved") has nowhere to point yet. Needs to land
+      somewhere that fans out to Donating (page exists, `home:uon_alumni_donate`),
+      Volunteering (no page yet), and Mentorship (no page yet — see C.7's
+      "Mentorship matching," Phase 4+). CTA href is `#` on the homepage until
+      this exists.
 - [ ] Alumni spotlights (an `Article` type — consistently the most-read content
       on association sites).
 - [ ] Class notes / alumni updates — member-submitted, Secretariat-moderated.
@@ -988,9 +1004,18 @@ Unlike the original audit, every one of these now has a working URL,
 view, and template (built during this session's C.1 fixes + nav-wiring
 pass) — the remaining gap is purely the words on the page.
 
-12. **Donate** — body is still literally `<p>Donate page</p>`. No giving
-    instructions (M-Pesa paybill/bank details), fund designations, impact
-    stories, or receipt/tax info.
+12. **Donate** — **[rebuilt 2026-08-19]**, so this is narrower now: the
+    page has a real structure, `snippets/donate.html`, matching the same
+    popout-card pattern as Membership Categories — four preset giving
+    amounts (Supporter/Contributor/Champion/Patron), each with a short
+    "this supports" blurb and a "Give This Amount" button. **Still not
+    real content:** the amounts (KES 1,000/5,000/15,000/50,000) and
+    blurbs are placeholder copy, not Association-authored or approved.
+    No payment gateway exists yet (Phase 2 below), so each button
+    doesn't process anything — it links to Contact Us. Still genuinely
+    missing: M-Pesa paybill/bank details, real fund designations, impact
+    stories, receipt/tax info — same gaps as before, just now sitting
+    inside a real layout instead of a blank paragraph.
 13. **Scholarship** — **[application form built 2026-08-11, evaluation +
     analytics pipeline built 2026-08-14/18]**, so this is narrower again:
     the public page has a full `ScholarshipApplicationForm` (personal/
