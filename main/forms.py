@@ -39,7 +39,7 @@ class TailwindStyledFormMixin:
 
     base_input_class = (
         "mt-1 block w-full rounded-sm border border-slate-300 bg-white px-3 py-1.5 "
-        "text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none "
+        "text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none "
         "focus:ring-2 focus:ring-slate-200"
     )
     file_input_class = (
