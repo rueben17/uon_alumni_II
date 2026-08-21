@@ -202,6 +202,33 @@
                                     </div>
                                 </dl>
                             </div>
+                        {% elif current_membership.is_valid and current_membership.balance_due <= 0 %}
+                            {% comment %}
+                            Paid-in-full status box (2026-08-21) -- same
+                            full-card treatment as the installment box
+                            above, in green instead of gold, for the
+                            "nothing outstanding" case: a one-time payment,
+                            or an installment plan that's since been paid
+                            off (balance_due covers both -- it's just
+                            tier.fee - amount_paid regardless of frequency).
+                            Mutually exclusive with the installment box:
+                            that one only shows while balance_due > 0.
+                            {% endcomment %}
+                            <div class="mb-4 rounded-lg bg-green-50 p-4">
+                                <p class="text-sm font-semibold text-green-800">
+                                    {{ current_membership.tier.name }} &middot; Paid in Full
+                                </p>
+                                <dl class="mt-2 grid grid-cols-2 gap-2 text-sm text-green-700">
+                                    <div>
+                                        <dt class="text-xs font-medium uppercase tracking-wide text-green-600">Amount Paid</dt>
+                                        <dd class="font-semibold">KES {{ current_membership.amount_paid }}</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-xs font-medium uppercase tracking-wide text-green-600">Valid Until</dt>
+                                        <dd class="font-semibold">{{ current_membership.expires_on|date:"d M Y"|default:"Lifetime" }}</dd>
+                                    </div>
+                                </dl>
+                            </div>
                         {% endif %}
 
                         {% with payments=alumni.payments.all %}
