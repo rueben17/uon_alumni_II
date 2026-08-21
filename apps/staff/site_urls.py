@@ -11,9 +11,10 @@ urlpatterns = [
     # root -- templates/robots.txt branches on request.subdomain.
     path('robots.txt', TemplateView.as_view(template_name='robots.txt', content_type='text/plain'), name='robots_txt'),
     path('', include('apps.staff.urls')),
-    # Every badge encodes <QR_SCAN_ORIGIN>/qr/<uuid>/?t=<token> (see
-    # QRCode.generate_qr) -- QR_SCAN_ORIGIN is this subdomain, so the
-    # scan endpoint must be mounted here.
+    # A staff badge encodes settings.QR_SCAN_ORIGINS['staff'] (this
+    # subdomain) into its scan URL (see QRCode.scan_url) -- an alumni
+    # badge encodes ['alumni'] instead and is mounted the same way in
+    # main/urls.py. Both mounts point at the same view either way.
     path('qr/', include('apps.qr_manager.urls')),
     # Supervisors are staff members, so their dedicated admin lives on
     # this subdomain too (unlike the main /2005/ admin, which is

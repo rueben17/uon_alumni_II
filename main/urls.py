@@ -67,6 +67,12 @@ urlpatterns = [
     path("membership-admin/", membership_admin_site.urls),
     # qr-admin/ lives on the staff subdomain instead (apps/staff/site_urls.py)
     # -- supervisors are staff members, that's where they already work.
+    # qr/ itself IS mounted here too (2026-08-21, alongside its existing
+    # staff-subdomain mount) -- an alumnus's badge now encodes
+    # settings.QR_SCAN_ORIGINS['alumni'] (this www/bare domain), so this
+    # is where that URL actually needs to resolve. verify_scan() itself
+    # is holder-type-agnostic either way; only the encoded origin differs.
+    path('qr/', include('apps.qr_manager.urls')),
     path('accounts/', include('allauth.urls')),
     path("", include('apps.home.urls', namespace="home")),
     # 2026-08-18 SEO audit: these used to `include()` apps.staff.urls /

@@ -428,13 +428,26 @@ else:
     }
 
 
-# Origin encoded into printed QR badges. Explicit rather than derived
+# Origin encoded into printed QR badges, keyed by holder type -- an
+# alumni's badge must never read "staff." in the URL bar (that was the
+# bug: a single QR_SCAN_ORIGIN hardcoded to the staff subdomain was used
+# for every badge, staff and alumni alike). Explicit rather than derived
 # from DEBUG: a QR is a permanent artifact, so the URL it carries must
 # never depend on what mode the generating process happened to run in.
+# See QRCode.scan_url (apps/qr_manager/models.py) for which key each
+# holder type uses. Only staff/alumni exist as QR holder types today
+# (QRCode has no student FK) -- add a 'student' key here alongside a
+# matching holder-type branch in scan_url() if that's ever built.
 if DEBUG:
-    QR_SCAN_ORIGIN = os.getenv('QR_SCAN_ORIGIN', 'http://staff.lvh.me:8000')
+    QR_SCAN_ORIGINS = {
+        'staff': os.getenv('QR_SCAN_ORIGIN_STAFF', 'http://staff.lvh.me:8000'),
+        'alumni': os.getenv('QR_SCAN_ORIGIN_ALUMNI', 'http://www.lvh.me:8000'),
+    }
 else:
-    QR_SCAN_ORIGIN = os.getenv('QR_SCAN_ORIGIN', 'https://staff.uonalumni.or.ke')
+    QR_SCAN_ORIGINS = {
+        'staff': os.getenv('QR_SCAN_ORIGIN_STAFF', 'https://staff.uonalumni.or.ke'),
+        'alumni': os.getenv('QR_SCAN_ORIGIN_ALUMNI', 'https://www.uonalumni.or.ke'),
+    }
 
     
 # ─────────────────────────────────────────────

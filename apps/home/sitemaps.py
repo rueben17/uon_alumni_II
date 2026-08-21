@@ -22,7 +22,7 @@ class UonAlumniSitemap(Sitemap):
     takes effect.
 
     Same DEBUG-conditional domain construction as SUBDOMAIN_DOMAIN/
-    QR_SCAN_ORIGIN (main/settings.py) -- deliberately not a new pattern.
+    QR_SCAN_ORIGINS (main/settings.py) -- deliberately not a new pattern.
 
     'www.' + SUBDOMAIN_DOMAIN in production, not settings.SUBDOMAIN_DOMAIN
     bare (2026-08-19, SEO Search Console readiness audit,

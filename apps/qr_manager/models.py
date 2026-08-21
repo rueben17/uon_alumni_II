@@ -64,7 +64,11 @@ class QRCode(models.Model):
     """
     A scannable credential. The QR image encodes:
 
-        <QR_SCAN_ORIGIN>/qr/<id>/?t=<token>
+        <origin>/qr/<id>/?t=<token>
+
+    where <origin> is settings.QR_SCAN_ORIGINS['staff'] or ['alumni'],
+    picked by holder type (see scan_url) -- never one shared origin for
+    every badge.
 
     - ``id`` (UUID) identifies the badge itself — independent of what
       it points at (employee or alumni profile today; visitor/event
@@ -203,8 +207,17 @@ class QRCode(models.Model):
         camera scan would (e.g. a tap-to-open link in the printable
         PDF), so it goes through the same token check + ScanLog entry
         instead of bypassing straight to the profile.
+
+        Origin is picked by holder type (2026-08-21) -- settings.
+        QR_SCAN_ORIGINS['staff'] for an Employee, ['alumni'] for an
+        AlumniProfile, so an alumnus's badge never reads "staff." in
+        the URL bar. A bare/unassigned code (no holder) falls back to
+        the alumni origin -- it's not staff-specific, and the verify
+        view's own qr_code.holder is None branch handles it either way.
         """
-        return f"{settings.QR_SCAN_ORIGIN.rstrip('/')}/qr/{self.id}/?t={self.token}"
+        origin_key = "staff" if self.employee_id else "alumni"
+        origin = settings.QR_SCAN_ORIGINS[origin_key]
+        return f"{origin.rstrip('/')}/qr/{self.id}/?t={self.token}"
 
     # ---------------- image generation ----------------
 
@@ -219,10 +232,10 @@ class QRCode(models.Model):
 
         Fixes over the original version, everything else unchanged:
           - encodes the stable /qr/<uuid>/?t=<token> scan URL from
-            settings.QR_SCAN_ORIGIN — never get_absolute_url() (slug
-            changes would orphan printed badges), never a request or
-            127.0.0.1 fallback (signal-generated badges used to encode
-            localhost)
+            settings.QR_SCAN_ORIGINS (see scan_url) — never
+            get_absolute_url() (slug changes would orphan printed
+            badges), never a request or 127.0.0.1 fallback
+            (signal-generated badges used to encode localhost)
           - no generate_token() call needed: save() guarantees a token
           - filename is the holder's UUID (stable), not the slug
             (mutable)
