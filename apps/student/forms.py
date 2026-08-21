@@ -121,6 +121,10 @@ class StudentRegisterForm(TailwindStyledFormMixin, forms.ModelForm):
         self.fields["year_of_study"].required = False
         self.fields["county"].required = False
         self.fields["alt_phone"].required = False
+        self.fields["alt_phone"].widget.attrs["placeholder"] = "0712345678 (KE) or +447911123456 (UK)"
+        self.fields["alt_phone"].help_text = (
+            "Optional. 0712345678, or with your country code if abroad, e.g. +254, +44."
+        )
         self.apply_tailwind_styling()
 
 
