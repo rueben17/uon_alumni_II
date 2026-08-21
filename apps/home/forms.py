@@ -7,7 +7,7 @@ from apps.home.models import (
 )
 from apps.user.models import Gender, Honorific, User, UserProfile
 from apps.user.phone import InvalidPhoneNumber, normalize_phone
-from main.forms import TailwindStyledFormMixin, YearAsDateField
+from main.forms import TailwindStyledFormMixin
 
 
 class ContactForm(TailwindStyledFormMixin, forms.ModelForm):
@@ -38,7 +38,9 @@ class AlumniProfileForm(TailwindStyledFormMixin, forms.ModelForm):
     ModelForm.Meta.fields list.
     """
 
-    graduation_year = YearAsDateField(required=False, label="Year of Graduation")
+    graduation_date = forms.DateField(
+        required=False, label="Date of Graduation", widget=forms.DateInput(attrs={"type": "date"})
+    )
 
     honorific = forms.ChoiceField(choices=Honorific.choices, required=False)
     surname = forms.CharField(max_length=255, label="Surname")
@@ -66,7 +68,7 @@ class AlumniProfileForm(TailwindStyledFormMixin, forms.ModelForm):
             "graduation_institution",
             "faculty",
             "qualification",
-            "graduation_year",
+            "graduation_date",
             "name_at_graduation",
             "other_institution_name",
             "other_institution_qualification",
@@ -131,7 +133,7 @@ class AlumniProfileForm(TailwindStyledFormMixin, forms.ModelForm):
             "employment_position",
             "faculty",
             "qualification",
-            "graduation_year",
+            "graduation_date",
             "name_at_graduation",
             "other_institution_name",
             "other_institution_qualification",
@@ -192,7 +194,7 @@ class AlumniProfileForm(TailwindStyledFormMixin, forms.ModelForm):
             "current_employer": "Optional -- helps the Association understand its alumni network.",
             "employment_position": "Optional -- helps the Association understand its alumni network.",
             "graduation_institution": "Where you obtained your qualification.",
-            "graduation_year": "The year you completed your first degree -- this is what establishes your alumnus status, even if you've graduated again since.",
+            "graduation_date": "The date you completed your first degree -- this is what establishes your alumnus status, even if you've graduated again since.",
             "name_at_graduation": "Only if different from your current name.",
             "student_reg_no": "Your University of Nairobi student registration number, if you have one.",
             "membership_tier": "The category you're applying for. See Categories & Benefits for what each tier includes.",

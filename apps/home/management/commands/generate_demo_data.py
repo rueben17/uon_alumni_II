@@ -10,7 +10,7 @@ site actually serves from -- see docs/todo.md's still-open VPS/Neon
 hosting note. Never point this at a shared database.
 
 Timeline rules (Association decisions 2026-08-08):
-  - AlumniProfile.graduation_year spans the University's own history,
+  - AlumniProfile.graduation_date's year spans the University's own history,
     1970-2026, weighted toward more recent decades (enrollment grew over
     time -- a flat distribution across 56 years would be unrealistic).
   - Membership.started_on can only fall from 2005 onward -- UoNAA itself
@@ -282,7 +282,7 @@ class Command(BaseCommand):
             profile = UserProfileFactory.build(user=user, date_of_birth=dob)
             slug = slugify(f"{profile.honorific} {profile.given_name} {profile.family_name}")
             alumni = AlumniProfileFactory.build(
-                user=user, graduation_year=graduation_year, faculty=faculty,
+                user=user, graduation_date=date(graduation_year, 1, 1), faculty=faculty,
                 qualification=qualification, slug=slug,
             )
 

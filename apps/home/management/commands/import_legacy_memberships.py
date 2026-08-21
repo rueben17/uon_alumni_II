@@ -27,6 +27,7 @@ using --commit for real.
 """
 import json
 import re
+from datetime import date
 from pathlib import Path
 
 import openpyxl
@@ -244,7 +245,11 @@ class Command(BaseCommand):
             alumni.faculty = primary_faculty
         grad_year = self._safe_year(s("Graduation"))
         if grad_year:
-            alumni.graduation_year = grad_year
+            # Legacy import data only ever has a year, never a real day/
+            # month -- Jan 1 is the same placeholder the old
+            # IntegerField-backed form widget used to reconstruct, kept
+            # here for consistency with historical rows.
+            alumni.graduation_date = date(grad_year, 1, 1)
         course_text = s("Course")
         alumni.qualification = self._resolve_qualification(course_text, primary_faculty)
         alumni.qualification_name_raw = course_text or alumni.qualification_name_raw

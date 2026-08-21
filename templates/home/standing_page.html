@@ -61,10 +61,10 @@
                                     <p>{{ alumni.qualification.name }}</p>
                                 </div>
                             {% endif %}
-                            {% if alumni.graduation_year %}
+                            {% if alumni.graduation_date %}
                                 <div>
-                                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Graduation Year</p>
-                                    <p>{{ alumni.graduation_year }}</p>
+                                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Graduation Date</p>
+                                    <p>{{ alumni.graduation_date|date:"d M Y" }}</p>
                                 </div>
                             {% endif %}
                         </div>

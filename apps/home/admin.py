@@ -68,7 +68,7 @@ class AlumniProfileResource(resources.ModelResource):
         model = AlumniProfile
         fields = (
             'email', 'full_name', 'phone', 'faculty_name', 'qualification_name',
-            'graduation_year', 'current_employer', 'employment_position',
+            'graduation_date', 'current_employer', 'employment_position',
             'current_membership', 'is_active', 'registration_date',
         )
         export_order = fields
@@ -457,7 +457,7 @@ class AlumniProfileAdmin(ExportMixin, admin.ModelAdmin):
     # data (tier/status/expiry/issued items) lives on Membership,
     # registered separately below.
     list_display = ['id', 'display_name', 'user_email', 'current_membership_display', 'digital_id_active']
-    list_filter = ['graduation_institution', 'graduation_year', 'digital_id_active']
+    list_filter = ['graduation_institution', 'graduation_date', 'digital_id_active']
     search_fields = [
         'user__profile__given_name', 'user__profile__family_name', 'user__email',
         'user__profile__national_id', 'student_reg_no',
@@ -472,7 +472,7 @@ class AlumniProfileAdmin(ExportMixin, admin.ModelAdmin):
         }),
         ('Alumni Details', {
             'fields': (
-                'graduation_year', 'faculty', 'qualification', 'qualification_name_raw',
+                'graduation_date', 'faculty', 'qualification', 'qualification_name_raw',
                 'graduation_institution', 'other_institution_name',
                 'other_institution_qualification', 'name_at_graduation', 'student_reg_no',
             )

@@ -1143,7 +1143,14 @@ class AlumniProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='alumni_profile')
 
     # Alumni specific
-    graduation_year = models.IntegerField(null=True, blank=True)
+    # graduation_date (2026-08-21) -- was graduation_year (IntegerField):
+    # the registration/profile form used a full date-picker widget
+    # (YearAsDateField, main/forms.py) that only ever kept the year,
+    # discarding whatever day/month the member actually picked -- every
+    # re-edit then reconstructed a fake "<year>-01-01" to redisplay,
+    # which read exactly like data loss on every visit. Now a real
+    # DateField; the form saves whatever full date was entered.
+    graduation_date = models.DateField(null=True, blank=True)
     faculty = models.ForeignKey(Faculty, on_delete=models.SET_NULL, null=True, blank=True)
     # Reg-no source for alumni who register directly and never had a
     # Student row (everyone pre-dating the system). Students who came

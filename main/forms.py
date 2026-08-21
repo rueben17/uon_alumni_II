@@ -4,13 +4,16 @@ from django import forms
 class YearAsDateField(forms.IntegerField):
     """
     Renders as a native browser date picker (calendar popup) but stores
-    and reads back just the year, matching e.g. AlumniProfile
-    .graduation_year (a plain IntegerField) -- avoids IntegerField's
-    default NumberInput, whose displayed value gets thousand-separator
-    formatted (e.g. "2,015"). Lives here, not in one app's forms.py,
-    because it's genuinely shared: apps.home.forms.AlumniProfileForm
-    and apps.student.forms.ScholarshipApplicationForm both use it
-    (2026-08-13) -- same reasoning as TailwindStyledFormMixin below.
+    and reads back just the year -- avoids IntegerField's default
+    NumberInput, whose displayed value gets thousand-separator formatted
+    (e.g. "2,015"). Use only for a field that is genuinely year-only;
+    apps.home.forms.AlumniProfileForm used to use this for
+    AlumniProfile.graduation_year but that field became a real DateField
+    (graduation_date, 2026-08-21) once it turned out members expected
+    the picked day/month to actually be saved, not silently discarded --
+    this class is exactly the trap that fell into. Still used by
+    apps.student.forms.ScholarshipApplicationForm (2026-08-13), where
+    the underlying field really is year-only.
     """
     widget = forms.DateInput(attrs={"type": "date"})
 
