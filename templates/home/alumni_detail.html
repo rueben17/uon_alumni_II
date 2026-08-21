@@ -32,11 +32,11 @@
                                     <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase text-slate-700">Member No: {{ current_membership.membership_number }}</span>
                                 {% endif %}
                                 {% if current_membership %}
-                                    <span class="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold uppercase text-amber-700">{{ current_membership.tier.name }}</span>
+                                    <span class="inline-flex items-center rounded-full bg-[#fdbe13] px-3 py-1 text-xs font-semibold uppercase text-black">{{ current_membership.tier.name }}</span>
                                     {% if current_membership.is_valid %}
                                         <span class="inline-flex items-center rounded-full bg-green-50 px-3 py-1 text-xs font-semibold uppercase text-green-700">Active</span>
                                     {% else %}
-                                        <span class="inline-flex items-center rounded-full bg-yellow-50 px-3 py-1 text-xs font-semibold uppercase text-yellow-700">Payment Pending</span>
+                                        <span class="inline-flex items-center rounded-full bg-[#fdbe13] px-3 py-1 text-xs font-semibold uppercase text-black">Payment Pending</span>
                                     {% endif %}
                                 {% endif %}
                             </div>
@@ -92,41 +92,70 @@
 
                             {% if alumni.qualification %}
                                 <div class="flex flex-wrap gap-2 text-sm">
-                                    <span class="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 font-medium text-blue-700">Faculty: {{ alumni.faculty.faculty_name }}</span>
-                                    <span class="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 font-medium text-blue-700">Qualification: {{ alumni.qualification.name }}</span>
+                                    <span class="inline-flex items-center rounded-full bg-[#38b6ff] px-3 py-1 font-medium text-white">Faculty: {{ alumni.faculty.faculty_name }}</span>
+                                    <span class="inline-flex items-center rounded-full bg-[#38b6ff] px-3 py-1 font-medium text-white">Qualification: {{ alumni.qualification.name }}</span>
                                 </div>
                             {% elif alumni.other_institution_name %}
                                 <div class="flex flex-wrap gap-2 text-sm">
-                                    <span class="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 font-medium text-blue-700">Institution: {{ alumni.other_institution_name }}</span>
-                                    <span class="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 font-medium text-blue-700">Qualification: {{ alumni.other_institution_qualification }}</span>
+                                    <span class="inline-flex items-center rounded-full bg-[#38b6ff] px-3 py-1 font-medium text-white">Institution: {{ alumni.other_institution_name }}</span>
+                                    <span class="inline-flex items-center rounded-full bg-[#38b6ff] px-3 py-1 font-medium text-white">Qualification: {{ alumni.other_institution_qualification }}</span>
                                 </div>
                             {% endif %}
 
                             <div class="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap sm:gap-3">
                                 {% if request.user.is_authenticated and request.user == alumni.user %}
                                     <a href="{{ alumni.get_edit_url }}" class="inline-flex w-full items-center justify-center rounded-sm bg-[#38b6ff] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#2f9bd9] sm:w-auto">Edit Profile</a>
-                                    <a href="{{ alumni.get_membership_update_url }}" class="inline-flex w-full items-center justify-center rounded-sm bg-amber-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-amber-500 sm:w-auto">Manage Membership</a>
+                                    <a href="{{ alumni.get_membership_update_url }}" class="inline-flex w-full items-center justify-center rounded-sm bg-[#fdbe13] px-4 py-2 text-xs font-semibold text-black transition hover:bg-[#d7a110] sm:w-auto">Manage Membership</a>
                                     <a href="{{ alumni.get_delete_url }}" class="inline-flex w-full items-center justify-center rounded-sm border border-red-300 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 sm:w-auto">Deactivate Profile</a>
                                 {% endif %}
                             </div>
                         </div>
                     </div>
 
-                    <!-- Digital Alumni ID (QR) -- advertised membership
+                    <!-- Alumni Digital ID (QR) -- advertised membership
                          benefit (templates/home/membership_categories
                          .html's tier copy). Generated by an admin via
                          AlumniProfileAdmin's "Generate / refresh Digital
                          Alumni ID (QR)" action, same as staff badges --
                          nothing here triggers generation itself. -->
                     <div class="rounded-sm border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-                        <h2 class="text-lg font-semibold text-black mb-4">Digital Alumni ID</h2>
+                        <h2 class="text-lg font-semibold text-black mb-4">Alumni Digital ID</h2>
                         {% if alumni.qr_code_image %}
                             <div class="mx-auto w-full max-w-55 sm:max-w-65">
+                                {% if alumni.digital_id_photo_url %}
+                                    <img src="{{ alumni.digital_id_photo_url }}" alt="{{ alumni.user.profile.display_name }}" class="mx-auto mb-3 aspect-square w-24 rounded-full border border-slate-200 bg-white object-cover sm:w-28">
+                                {% endif %}
                                 <img src="{{ alumni.qr_code_image.url }}" alt="{{ alumni.user.profile.display_name }} QR" class="mx-auto aspect-square w-full rounded-sm border border-slate-200 bg-white p-1 object-contain">
+                                {% comment %}
+                                Same PDF/PNG download pattern as staff's
+                                own badge (templates/staff/staff_header
+                                .html) -- apps.home.views
+                                .download_alumni_qr_code() mirrors
+                                apps.staff.views.download_staff_qr_code()
+                                (2026-08-21), adding the member's tier
+                                name and validity period to the PDF in
+                                place of staff's org unit line.
+                                {% endcomment %}
+                                {% if request.user.is_authenticated and request.user == alumni.user %}
+                                    <div class="mt-3 flex flex-col gap-2 text-sm sm:flex-row sm:justify-center sm:gap-3">
+                                        <a href="{% url 'home:alumni_qr_download' slug=alumni.slug pk=alumni.pk %}?format=pdf" target="_blank" class="inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-100">Download PDF</a>
+                                        <a href="{% url 'home:alumni_qr_download' slug=alumni.slug pk=alumni.pk %}?format=png" class="inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-100">Download PNG</a>
+                                    </div>
+                                {% endif %}
                             </div>
                             <p class="mt-3 text-center text-xs text-slate-500">Scan to open this profile.</p>
                         {% else %}
                             <p class="text-sm text-slate-500">Not yet issued.</p>
+                        {% endif %}
+                        {% if request.user.is_authenticated and request.user == alumni.user %}
+                            <div class="mt-4 text-center">
+                                <a href="{% url 'home:alumni_digital_id_apply' slug=alumni.slug pk=alumni.pk %}" class="inline-flex items-center justify-center rounded-sm bg-[#38b6ff] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#2f9bd9]">
+                                    {% if alumni.digital_id_photo %}Update Alumni Digital ID{% else %}Apply for Alumni Digital ID{% endif %}
+                                </a>
+                                {% if alumni.digital_id_photo and not alumni.digital_id_active %}
+                                    <p class="mt-2 text-xs text-slate-500">Your photo is awaiting Secretariat approval.</p>
+                                {% endif %}
+                            </div>
                         {% endif %}
                     </div>
                     </div>
@@ -142,6 +171,39 @@
                     {% if request.user.is_authenticated and request.user == alumni.user %}
                     <div class="rounded-sm border border-slate-200 bg-white p-6 shadow-sm md:p-8">
                         <h2 class="text-lg font-semibold text-black mb-4">Payment History</h2>
+
+                        {% if current_membership.is_installment_plan and current_membership.balance_due > 0 %}
+                            {% comment %}
+                            Installment plan schedule (2026-08-21) --
+                            next_installment_due is set by
+                            PaymentAdmin.mark_completed() from the
+                            Secretariat's CONFIRMATION date, not when the
+                            member originally submitted the payment, so
+                            what's shown here always reflects the real
+                            payout clock rather than the request date.
+                            {% endcomment %}
+                            <div class="mb-4 rounded-lg {% if current_membership.is_overdue %}border border-red-200 bg-red-50{% else %}bg-[#fdbe13]{% endif %} p-4">
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <p class="text-sm font-semibold {% if current_membership.is_overdue %}text-red-800{% else %}text-black{% endif %}">
+                                        Installment Plan &middot; {{ current_membership.get_payment_frequency_display }}
+                                    </p>
+                                    {% if current_membership.is_overdue %}
+                                        <span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold uppercase text-red-700">Overdue</span>
+                                    {% endif %}
+                                </div>
+                                <dl class="mt-2 grid grid-cols-2 gap-2 text-sm {% if current_membership.is_overdue %}text-red-700{% else %}text-black{% endif %}">
+                                    <div>
+                                        <dt class="text-xs font-medium uppercase tracking-wide {% if current_membership.is_overdue %}text-red-600{% else %}text-black{% endif %}">Balance Due</dt>
+                                        <dd class="font-semibold">KES {{ current_membership.balance_due }}</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-xs font-medium uppercase tracking-wide {% if current_membership.is_overdue %}text-red-600{% else %}text-black{% endif %}">Next Installment Due</dt>
+                                        <dd class="font-semibold">{{ current_membership.next_installment_due|date:"d M Y"|default:"—" }}</dd>
+                                    </div>
+                                </dl>
+                            </div>
+                        {% endif %}
+
                         {% with payments=alumni.payments.all %}
                         {% if payments %}
                             <ul class="divide-y divide-slate-100">
@@ -154,9 +216,11 @@
                                         </p>
                                     </div>
                                     {% if payment.payment_status == 'completed' %}
-                                        {# Plain <a>, not hx-get -- a file download (Content-Disposition:
-                                           attachment) needs a real browser navigation; htmx would try to
-                                           swap the response into the page instead of triggering Save As. #}
+                                        {% comment %}
+                                        Plain <a>, not hx-get -- a file download (Content-Disposition:
+                                        attachment) needs a real browser navigation; htmx would try to
+                                        swap the response into the page instead of triggering Save As.
+                                        {% endcomment %}
                                         <a href="{% url 'home:payment_receipt_download' slug=alumni.slug pk=alumni.pk payment_id=payment.pk %}"
                                            class="shrink-0 inline-flex items-center rounded-sm border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">
                                             Download receipt
@@ -187,7 +251,7 @@
                          above it, per user request 2026-08-13. -->
                     <div>
                         {% if current_membership_tiers %}
-                            {% include "snippets/tiers.html" with tiers=current_membership_tiers heading="Membership Benefits" %}
+                            {% include "snippets/tiers.html" with tiers=current_membership_tiers heading="Membership Benefits" show_subscribe_button=False %}
                         {% else %}
                             <div class="rounded-sm border border-slate-200 bg-white p-6 shadow-sm md:p-8">
                                 <h2 class="text-lg font-semibold text-black mb-4">Membership Benefits</h2>

@@ -68,7 +68,7 @@
                   viewBox="0 0 24 24"
                   stroke-width="1.5"
                   stroke="currentColor"
-                  class="size-4 shrink-0 text-indigo-700"
+                  class="size-4 shrink-0 text-[#38b6ff]"
                 >
                   <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                 </svg>
@@ -109,14 +109,16 @@
           reconcile_constitutional_categories.py -- matching on name would
           break silently if that display string is ever edited.
         {% endcomment %}
-        <div class="p-6 sm:px-8">
-          <a
-            href="{{ url_subscribe }}?tier={{ tier.pk }}"
-            class="inline-flex w-full items-center justify-center rounded-sm px-4 py-2.5 text-sm font-semibold transition {% if tier.code == 'gold_life' %}bg-[#fdbe13] text-black hover:bg-[#d7a110]{% else %}bg-[#38b6ff] text-white hover:bg-[#2f9bd9]{% endif %}"
-          >
-            Subscribe
-          </a>
-        </div>
+        {% if show_subscribe_button is not False %}
+          <div class="p-6 sm:px-8">
+            <a
+              href="{{ url_subscribe }}?tier={{ tier.pk }}"
+              class="inline-flex w-full items-center justify-center rounded-sm px-4 py-2.5 text-sm font-semibold transition {% if tier.code == 'gold_life' %}bg-[#fdbe13] text-black hover:bg-[#d7a110]{% else %}bg-[#38b6ff] text-white hover:bg-[#2f9bd9]{% endif %}"
+            >
+              Subscribe
+            </a>
+          </div>
+        {% endif %}
       </div>
     {% endfor %}
   </div>

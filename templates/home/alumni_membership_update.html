@@ -4,7 +4,15 @@
 {% block robots %}noindex, nofollow{% endblock %}
 
 {% block content %}
-<div class="container mx-auto min-h-screen space-y-2" style="max-width: 1700px;">
+<div class="container mx-auto min-h-screen space-y-2 relative" style="max-width: 1700px;">
+    {% comment %}
+    Same fixed-backdrop treatment as templates/home/uon_alumni_register
+    .html -- position:fixed, not a background on this container: this
+    is a form that can run tall depending on content, and background-
+    size:cover on the container itself scales against ITS full height,
+    not the viewport, zooming the image in far more than intended.
+    {% endcomment %}
+    <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
     {% include "snippets/navbar.html" %}
     {% include "snippets/banner.html" %}
 
@@ -17,11 +25,11 @@
                 <div class="flex flex-wrap items-center gap-2">
                     <span class="font-semibold">Current Membership:</span>
                     {% if current_membership %}
-                        <span class="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold uppercase text-amber-700">{{ current_membership.tier.name }}</span>
+                        <span class="inline-flex items-center rounded-full bg-[#fdbe13] px-3 py-1 text-xs font-semibold uppercase text-black">{{ current_membership.tier.name }}</span>
                         {% if current_membership.is_valid %}
                             <span class="inline-flex items-center rounded-full bg-green-50 px-3 py-1 text-xs font-semibold uppercase text-green-700">Active</span>
                         {% else %}
-                            <span class="inline-flex items-center rounded-full bg-yellow-50 px-3 py-1 text-xs font-semibold uppercase text-yellow-700">Payment Pending</span>
+                            <span class="inline-flex items-center rounded-full bg-[#fdbe13] px-3 py-1 text-xs font-semibold uppercase text-black">Payment Pending</span>
                         {% endif %}
                     {% else %}
                         <span class="text-slate-500">None yet</span>
@@ -36,7 +44,7 @@
                     <p class="mt-1">Lifetime membership -- never expires.</p>
                 {% endif %}
                 {% if current_membership.is_installment_plan and current_membership.balance_due > 0 %}
-                    <p class="mt-1 font-semibold text-amber-700">
+                    <p class="mt-1 font-semibold text-black">
                         Balance outstanding: KES {{ current_membership.balance_due }}
                         {% if current_membership.next_installment_due %}(next installment due {{ current_membership.next_installment_due }}){% endif %}
                     </p>
@@ -44,7 +52,7 @@
             </div>
 
             {% if pending_payment %}
-                <div class="mt-4 rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
+                <div class="mt-4 rounded-lg bg-[#fdbe13] p-4 text-sm text-black">
                     <p class="font-semibold">Awaiting confirmation</p>
                     <p class="mt-1">
                         You requested <strong>{{ pending_payment.membership_tier.name }}</strong>
@@ -70,11 +78,11 @@
                 {% include "snippets/form_field.html" with field=form.payment_frequency %}
                 {% include "snippets/form_field.html" with field=form.installment_amount %}
 
-                <div class="flex flex-wrap items-center gap-3 pt-2">
-                    <button type="submit" class="inline-flex items-center justify-center rounded-sm bg-slate-900 px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300">
+                <div class="flex gap-3 pt-2">
+                    <button type="submit" class="flex-1 inline-flex items-center justify-center rounded-sm bg-[#38b6ff] px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2f9bd9] focus:outline-none focus:ring-2 focus:ring-slate-300">
                         Update Membership
                     </button>
-                    <a href="{{ alumni.get_absolute_url }}" class="inline-flex items-center justify-center rounded-sm border border-slate-300 px-6 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
+                    <a href="{{ alumni.get_absolute_url }}" class="flex-1 inline-flex items-center justify-center rounded-sm border px-3 xl:px-4 py-2 transition font-light bg-black text-white hover:text-white cursor-pointer whitespace-nowrap">
                         Cancel
                     </a>
                 </div>
@@ -82,8 +90,6 @@
             </form>
         </div>
     </section>
-
-    {% include "snippets/footer.html" %}
 </div>
 
 {{ non_mpesa_tier_ids|json_script:"non-mpesa-tier-ids" }}

@@ -2,6 +2,7 @@ from django.contrib import admin, messages
 from apps.home.models import*
 from django.db import transaction
 from django.db.models import Count
+from django.utils import timezone
 from django.utils.html import format_html
 from django_q.tasks import async_task
 from import_export import resources, fields
@@ -627,18 +628,29 @@ class PaymentAdmin(admin.ModelAdmin):
 
         Skips payments with no membership_tier set (shouldn't happen given
         how Payment rows are created, but nothing to apply if it is).
+
+        Installment plans anchor next_installment_due to TODAY -- the
+        moment this action runs, i.e. Secretariat confirmation -- not to
+        payment.payment_date (2026-08-21). payment_date defaults to when
+        the member submitted the payment request, which can sit pending
+        for days/weeks before the Secretariat gets to it; anchoring the
+        payout schedule to that submission timestamp instead of the
+        actual confirmation could make an installment read as already
+        overdue the moment it activates. Lump-sum activate_membership()
+        below is untouched -- only the installment path was asked for.
         """
         updated = 0
+        today = timezone.now().date()
         for payment in queryset.select_related('alumni__user', 'membership_tier', 'membership'):
             payment.mark_as_completed()
             tier = payment.membership_tier
             if not tier:
                 continue
-            payment_date = payment.payment_date.date() if payment.payment_date else None
 
             if payment.membership_id:
-                services.record_installment_payment(payment.membership, payment.amount, payment_date=payment_date)
+                services.record_installment_payment(payment.membership, payment.amount, payment_date=today)
             else:
+                payment_date = payment.payment_date.date() if payment.payment_date else None
                 user = payment.alumni.user
                 membership = Membership.objects.filter(
                     user=user, tier=tier, status=Membership.Status.PENDING
