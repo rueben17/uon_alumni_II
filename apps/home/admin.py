@@ -698,6 +698,27 @@ class EmailLogAdmin(admin.ModelAdmin):
         return False
 
 
+@admin.register(ProfileClaimVerification)
+class ProfileClaimVerificationAdmin(admin.ModelAdmin):
+    """Read-only, same shape as EmailLogAdmin -- these rows are audit
+    trail for the "find my profile" claim flow (apps.home.views'
+    ProfileClaim* views), never hand-edited."""
+    list_per_page = 25
+    list_display = ['id', 'user', 'channel', 'status', 'attempts', 'ip_address', 'created_at', 'expires_at']
+    list_filter = ['status', 'channel']
+    search_fields = ['user__email', 'ip_address']
+    readonly_fields = [
+        'id', 'user', 'channel', 'code_hash', 'status', 'attempts', 'ip_address',
+        'created_at', 'expires_at', 'verified_at',
+    ]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 # ─────────────────────────────────────────────
 # UoNAA Secretariat's Membership Admin (mounted at /membership-admin/,
 # see main/urls.py) -- payment confirmation, membership tier/number

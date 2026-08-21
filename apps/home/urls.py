@@ -44,6 +44,13 @@ urlpatterns = [
     uon_path("in-memoriam/", uon_alumni_in_memoriam, "uon_alumni_in_memoriam"),
     uon_path("contact-us/", uon_alumni_contact_us, "uon_alumni_contact_us"),
 
+    # "Find my profile" pre-login claim flow (2026-08-20) -- search ->
+    # email OTP -> connect on next Google login. See apps.home.views'
+    # ProfileClaim* views and apps.user.adapter's pre_social_login().
+    uon_path("claim-profile/", ProfileClaimSearchView.as_view(), "uon_alumni_claim_search"),
+    uon_path("claim-profile/verify/", ProfileClaimVerifyView.as_view(), "uon_alumni_claim_verify"),
+    uon_path("claim-profile/continue/", ProfileClaimContinueView.as_view(), "uon_alumni_claim_continue"),
+
     # C.1 (todo.md): these three names are exactly what Article/Event/
     # Chapter.get_absolute_url() already reverse() against -- adding
     # them is what turns those from a NoReverseMatch 500 into a real page.

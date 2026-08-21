@@ -450,3 +450,59 @@ class MembershipUpdateForm(TailwindStyledFormMixin, forms.Form):
                 f"M-Pesa isn't available for {tier.name} -- please choose Bank Transfer instead.",
             )
         return cleaned_data
+
+
+class ProfileClaimSearchForm(TailwindStyledFormMixin, forms.Form):
+    """"Find my profile" search -- both fields optional individually, but
+    clean() requires at least one filled in."""
+
+    email = forms.EmailField(required=False, label="Email address")
+    phone = forms.CharField(required=False, max_length=20, label="Phone number")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["email"].help_text = "Any email you may have used with us."
+        self.fields["phone"].help_text = (
+            "Any phone number you may have used with us. 0712345678, or with your "
+            "country code if abroad, e.g. +254, +44."
+        )
+        self.fields["email"].widget.attrs["placeholder"] = "e.g. jane.doe@gmail.com"
+        self.fields["phone"].widget.attrs["placeholder"] = "0712345678 (KE) or +447911123456 (UK)"
+        self.apply_tailwind_styling()
+
+    def clean_phone(self):
+        raw = self.cleaned_data.get("phone")
+        if not raw:
+            return ""
+        try:
+            return normalize_phone(raw)
+        except InvalidPhoneNumber as exc:
+            raise forms.ValidationError(exc.messages[0])
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if not cleaned_data.get("email") and not cleaned_data.get("phone"):
+            raise forms.ValidationError("Enter an email address, a phone number, or both.")
+        return cleaned_data
+
+
+class ProfileClaimCodeForm(TailwindStyledFormMixin, forms.Form):
+    code = forms.CharField(
+        max_length=6, min_length=6, label="Verification code",
+        widget=forms.TextInput(attrs={
+            "inputmode": "numeric", "autocomplete": "one-time-code", "placeholder": "6-digit code",
+        }),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["code"].help_text = "Enter the 6-digit code we sent you."
+        self.apply_tailwind_styling()
+
+    def clean_code(self):
+        raw = self.cleaned_data.get("code", "")
+        if not raw.isdigit():
+            raise forms.ValidationError("Enter the 6-digit numeric code.")
+        return raw
+
+

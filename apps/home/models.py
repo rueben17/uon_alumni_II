@@ -15,8 +15,9 @@ from django.utils import timezone
 from django.core.validators import MinValueValidator
 from decimal import Decimal
 import random
+import secrets
 import string
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from phonenumber_field.modelfields import PhoneNumberField
@@ -1741,4 +1742,76 @@ class EmailLog(models.Model):
         status = 'sent' if self.sent_at else ('failed' if self.error else 'pending')
         return f"{self.get_email_type_display()} #{self.related_object_id} ({status})"
 
+
+class ProfileClaimVerification(models.Model):
+    """One row per "find my profile" search submission (matched or not --
+    unmatched rows exist purely so IP-throttling has timestamps to count,
+    without a second model). Powers the pre-login flow that connects a
+    Google sign-in to an imported alumni record when the visitor's Google
+    email matches none of the on-file emails (see docs/todo.md). Never
+    stores the raw submitted email/phone -- not needed for throttling, and
+    it's needless retention of a stranger's guess."""
+
+    class Channel(models.TextChoices):
+        EMAIL = "email", _("Email")
+        PHONE = "phone", _("Phone")  # not wired to a sender yet
+
+    class Status(models.TextChoices):
+        PENDING = "pending", _("Pending")
+        VERIFIED = "verified", _("Verified")
+        CONSUMED = "consumed", _("Consumed")  # connected to a Google identity
+
+    OTP_EXPIRY_MINUTES = 10
+    MAX_ATTEMPTS = 5
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, null=True, blank=True, related_name="claim_verifications"
+    )
+    channel = models.CharField(max_length=10, choices=Channel.choices, default=Channel.EMAIL)
+    code_hash = models.CharField(max_length=128, blank=True, default="")
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    verified_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "status", "expires_at"]),
+            models.Index(fields=["ip_address", "created_at"]),
+        ]
+        verbose_name = _("Profile Claim Verification")
+        verbose_name_plural = _("Profile Claim Verifications")
+
+    def __str__(self):
+        who = self.user_id or "no match"
+        return f"{self.get_status_display()} claim for {who} ({self.created_at:%Y-%m-%d %H:%M})"
+
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(minutes=self.OTP_EXPIRY_MINUTES)
+        super().save(*args, **kwargs)
+
+    @staticmethod
+    def generate_code():
+        return f"{secrets.randbelow(1_000_000):06d}"
+
+    def set_code(self, raw_code):
+        from django.contrib.auth.hashers import make_password
+        self.code_hash = make_password(raw_code)
+
+    def check_code(self, raw_code):
+        from django.contrib.auth.hashers import check_password
+        return bool(self.code_hash) and check_password(raw_code, self.code_hash)
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_locked_out(self):
+        return self.attempts >= self.MAX_ATTEMPTS
 

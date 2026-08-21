@@ -117,6 +117,38 @@ def send_newsletter_email(publication_id, user_id):
     log.save(update_fields=["recipient_email", "sent_at", "error"])
 
 
+def send_profile_claim_otp_email(claim_id, raw_code):
+    """Sends the "find my profile" verification code to the address ON
+    FILE for the matched user (claim.user.email) -- never to whatever the
+    visitor typed into the search form. Not wrapped in EmailLog's
+    per-object idempotency: unlike a registration confirmation, a resend
+    here is legitimate (the visitor may request a new code), so the
+    ProfileClaimVerification row's own status/attempts is this flow's
+    idempotency instead. On failure the exception is re-raised, never
+    swallowed, so Q2 retries.
+    """
+    from apps.home.models import ProfileClaimVerification
+
+    claim = ProfileClaimVerification.objects.select_related("user__profile").get(pk=claim_id)
+    if claim.user_id is None:
+        return  # bookkeeping-only row for a non-match -- nothing to send
+
+    recipient = claim.user.email
+    send_mail(
+        subject="Your UoN Alumni Association verification code",
+        message=(
+            f"Dear {claim.user.profile.given_name},\n\n"
+            f"Your verification code is: {raw_code}\n\n"
+            f"This code expires in {claim.OTP_EXPIRY_MINUTES} minutes. "
+            "If you didn't request this, you can safely ignore this email.\n\n"
+            "Regards,\nUoN Alumni Association"
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[recipient],
+        fail_silently=False,
+    )
+
+
 def dispatch_sms(phone_number, message):
     """Q2 wrapper around apps.home.sms.send_sms() -- primitives only, a
     phone number and message string. Not wired to any real trigger yet

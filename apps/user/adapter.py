@@ -40,6 +40,46 @@ STUDENT_URLCONF = "apps.student.urls"
 # Role record helpers
 # ─────────────────────────────────────────────
 
+def _connect_verified_claim(request, sociallogin):
+    """Reads the "find my profile" session keys set by
+    apps.home.views.ProfileClaimVerifyView, and if a still-valid VERIFIED
+    claim is present, connects this Google identity to the claimed User
+    instead of letting allauth create a brand-new one. Returns the
+    connected User, or None if there's nothing (or nothing valid) to
+    connect -- the caller falls through to normal signup in that case.
+    """
+    from datetime import datetime
+
+    from django.utils import timezone
+
+    from apps.home.models import ProfileClaimVerification
+
+    claim_id = request.session.get("claim_verification_id")
+    expires_raw = request.session.get("claim_verified_expires")
+    if not claim_id or not expires_raw:
+        return None
+
+    if timezone.now() >= datetime.fromisoformat(expires_raw):
+        request.session.pop("claim_verification_id", None)
+        request.session.pop("claim_verified_expires", None)
+        return None
+
+    claim = ProfileClaimVerification.objects.filter(
+        pk=claim_id, status=ProfileClaimVerification.Status.VERIFIED,
+    ).select_related("user").first()
+    if claim is None:
+        request.session.pop("claim_verification_id", None)
+        request.session.pop("claim_verified_expires", None)
+        return None
+
+    sociallogin.connect(request, claim.user)
+    claim.status = ProfileClaimVerification.Status.CONSUMED
+    claim.save(update_fields=["status"])
+    request.session.pop("claim_verification_id", None)
+    request.session.pop("claim_verified_expires", None)
+    return claim.user
+
+
 def _ensure_profile(user, extra_data=None):
     """
     Get or create the UserProfile for a user, optionally syncing Google
@@ -435,6 +475,18 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
 
             if subdomain == "staff":
                 _ensure_employee(user)
+        else:
+            # New-to-us Google identity -- if the visitor came through the
+            # "find my profile" OTP flow (apps.home.views.ProfileClaim*),
+            # connect it to the claimed User instead of letting save_user()
+            # create a duplicate account. connect() flips is_existing to
+            # True internally, so allauth's own outer flow (not reached
+            # from here -- this method only inspects it above) still
+            # correctly treats this as an existing-user login.
+            claimed_user = _connect_verified_claim(request, sociallogin)
+            if claimed_user is not None:
+                _ensure_profile(claimed_user, sociallogin.account.extra_data)
+                _sync_google_account_fields(claimed_user, sociallogin.account.extra_data)
 
         return super().pre_social_login(request, sociallogin)
 

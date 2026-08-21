@@ -325,16 +325,23 @@ This is the loop that must be demonstrable before payments exist.
       stamps `consent_given_at` + `privacy_notice_version` (from the new
       shared `apps.user.models.CURRENT_PRIVACY_NOTICE_VERSION` constant, so
       the recorded version can never drift from the actual policy text).
-- [ ] **[NEW 2026-08-20] "Update Your Details" / claim-your-imported-profile
-      flow — designed, not built.** For alumni already in the DB from the
+- [x] **[2026-08-20] "Update Your Details" / claim-your-imported-profile flow
+      — shipped (email channel).** For alumni already in the DB from the
       legacy spreadsheet import whose Google-login email doesn't match
       anything on file (`SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT`
-      only auto-matches when it does). Full plan already written — search by
-      email/phone → email OTP → verified session flag → `sociallogin.connect()`
-      in `apps/user/adapter.py`'s `pre_social_login()` links the Google
-      identity to the existing imported `User` instead of creating a
-      duplicate. Homepage hero's "Update Your Details" CTA is the intended
-      front door into this; href is `#` on the homepage until it exists.
+      only auto-matches when it does). `ProfileClaimVerification`
+      (`apps/home/models.py`) + `ProfileClaimSearchView`/`VerifyView`/
+      `ContinueView` (`apps/home/views.py`, routes under
+      `uon-alumni-claim-profile/`) → email OTP → verified session flag →
+      `_connect_verified_claim()` in `apps/user/adapter.py`'s
+      `pre_social_login()` links the Google identity to the existing
+      imported `User` instead of creating a duplicate. Discovery link on
+      both login templates ("Don't remember which email you used?").
+      Satisfies the OTP-send throttling requirement above (DB-backed:
+      8 searches / 15 min per IP, 5 wrong-code attempts per claim) for the
+      email channel; `channel=phone` exists on the model but isn't wired to
+      a sender yet. Homepage hero's "Update Your Details" CTA still needs
+      pointing at `home:uon_alumni_claim_search` (currently `#`).
 
 ### 1.2 Member dashboard (your own) — DONE, already built earlier this session
 - [x] Self-resolved from `request.user` (no pk in URL) — `AlumniProfileDetailView`

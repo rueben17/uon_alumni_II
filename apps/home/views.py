@@ -1,4 +1,6 @@
+import io
 import re
+from datetime import datetime, timedelta
 
 from django.conf import settings
 from django.contrib import messages
@@ -9,14 +11,22 @@ from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Count, Prefetch, Sum
 from django.db.models.functions import TruncMonth
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.text import slugify
 from django.views.generic import CreateView, DetailView, ListView, TemplateView, UpdateView, View
 from django_q.tasks import async_task
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.platypus import Image as RLImage, Paragraph, SimpleDocTemplate, Spacer
 
 from apps.home.forms import (
-    AlumniProfileForm, AlumniRegistrationForm, ContactForm, MembershipUpdateForm,
+    AlumniDigitalIDApplicationForm, AlumniProfileForm, AlumniRegistrationForm, ContactForm,
+    MembershipUpdateForm, ProfileClaimCodeForm, ProfileClaimSearchForm,
 )
 from apps.home.models import*
 from apps.home.payments import initiate_payment
@@ -971,5 +981,271 @@ def _notify_contact_message(contact_message):
         )
     except Exception:
         pass
+
+
+# ---------------------------------------------------------------------
+# "Find my profile" pre-login claim flow (2026-08-20, search-result UX
+# reworked 2026-08-21) -- search by email/phone, see a masked preview of
+# the match, explicitly request a code, verify it by email, then connect
+# the visitor's next Google login to the matched imported User
+# (apps.user.adapter.py's pre_social_login()). See docs/todo.md "0.4
+# Auth" and the Update Your Details homepage CTA.
+#
+# ProfileClaimSearchView deliberately reveals match/no-match and a
+# masked email/phone/first-name on the search result -- a considered
+# relaxation of the original identical-response-either-way design, not
+# an oversight. The OTP itself (the actually abusable/costly step) still
+# requires a separate explicit action and is still IP-throttled below.
+# ---------------------------------------------------------------------
+
+def _client_ip(request):
+    """First hop of X-Forwarded-For behind nginx, REMOTE_ADDR in dev --
+    same shape as apps/qr_manager/views.py's own _client_ip()."""
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR")
+
+
+def _resolve_claim_match(email, phone):
+    """Returns the single User matching the given email and/or phone, or
+    None for zero OR ambiguous matches -- both handled identically by the
+    caller, never disclosed which. Checks both User's own columns and the
+    secondary EmailAddress/AlumniPhoneNumber rows the legacy import
+    created (docs/rebuild-schema.md)."""
+    from allauth.account.models import EmailAddress
+
+    email_ids, phone_ids = set(), set()
+    if email:
+        email_ids |= set(User.objects.filter(email__iexact=email).values_list("pk", flat=True))
+        email_ids |= set(EmailAddress.objects.filter(email__iexact=email).values_list("user_id", flat=True))
+    if phone:
+        phone_ids |= set(User.objects.filter(phone=phone).values_list("pk", flat=True))
+        phone_ids |= set(AlumniPhoneNumber.objects.filter(phone=phone).values_list("user_id", flat=True))
+
+    if email and phone:
+        candidates = email_ids & phone_ids
+    else:
+        candidates = email_ids or phone_ids
+
+    if len(candidates) != 1:
+        return None
+    return User.objects.filter(pk=candidates.pop()).first()
+
+
+def _mask_email(email):
+    """"jsmith@gmail.com" -> "j***@gmail.com" -- shown on the continue
+    page so the visitor can recognize their own address without it being
+    fully readable to anyone who lands on that page another way."""
+    local, _, domain = email.partition("@")
+    if not domain:
+        return email
+    masked_local = f"{local[0]}***" if local else "***"
+    return f"{masked_local}@{domain}"
+
+
+def _mask_phone(phone):
+    """"+254712345678" -> "*******5678" -- same masking intent as
+    _mask_email, for the search-result preview card."""
+    digits = str(phone)
+    if len(digits) <= 4:
+        return "*" * len(digits)
+    return "*" * (len(digits) - 4) + digits[-4:]
+
+
+class ProfileClaimSearchView(View):
+    """Step 1, in two parts, modeled on a SaaS password-reset flow
+    (2026-08-21) -- search shows a masked preview of the matched record
+    inline so the visitor can confirm it's really them before a code gets
+    sent, rather than the original design's single identical response
+    for every search regardless of match. This is a deliberate relaxation
+    of that enumeration-blind stance: match/no-match is now visible, and
+    a masked email/phone/first-name is shown on a match. Still bounded --
+    never the FULL email/phone, and the actual OTP send (the expensive,
+    abusable step) only happens on the separate "send_code" action below,
+    which reads who to send to from the SERVER-SIDE session, never from
+    a client-supplied id, so a tampered hidden field can't redirect a
+    code to the wrong inbox.
+    """
+    template_name = "home/uon_alumni_claim_search.html"
+    IP_THROTTLE_WINDOW_MINUTES = 15
+    IP_THROTTLE_MAX_REQUESTS = 8
+    PREVIEW_SESSION_MINUTES = 10
+
+    def get(self, request, *args, **kwargs):
+        expires_raw = request.session.get("claim_preview_expires")
+        if not expires_raw or timezone.now() >= datetime.fromisoformat(expires_raw):
+            request.session.pop("claim_preview_user_id", None)
+            request.session.pop("claim_preview_expires", None)
+            return render(request, self.template_name, {"form": ProfileClaimSearchForm()})
+
+        match_preview = None
+        user_id = request.session.get("claim_preview_user_id")
+        if user_id:
+            matched_user = User.objects.filter(pk=user_id).first()
+            if matched_user is not None:
+                match_preview = self._build_preview(matched_user)
+
+        return render(request, self.template_name, {
+            "form": ProfileClaimSearchForm(), "searched": True, "match_preview": match_preview,
+        })
+
+    def post(self, request, *args, **kwargs):
+        if request.POST.get("action") == "send_code":
+            return self._send_code(request)
+        return self._search(request)
+
+    @staticmethod
+    def _build_preview(matched_user):
+        profile = getattr(matched_user, "profile", None)
+        return {
+            "given_name": profile.given_name if profile else "",
+            "masked_email": _mask_email(matched_user.email),
+            "masked_phone": _mask_phone(matched_user.phone) if matched_user.phone else "",
+        }
+
+    def _search(self, request):
+        form = ProfileClaimSearchForm(request.POST)
+        if not form.is_valid():
+            return render(request, self.template_name, {"form": form})
+
+        ip_address = _client_ip(request)
+        recent_count = ProfileClaimVerification.objects.filter(
+            ip_address=ip_address,
+            created_at__gte=timezone.now() - timedelta(minutes=self.IP_THROTTLE_WINDOW_MINUTES),
+        ).count()
+        if ip_address and recent_count >= self.IP_THROTTLE_MAX_REQUESTS:
+            messages.error(request, "Too many attempts from your network. Please try again shortly.")
+            return render(request, self.template_name, {"form": form})
+
+        email = form.cleaned_data.get("email")
+        phone = form.cleaned_data.get("phone")
+        matched_user = _resolve_claim_match(email, phone)
+
+        # Redirect (PRG), not a direct render, for BOTH outcomes -- so a
+        # page refresh after searching just re-GETs this same state from
+        # the session below, never a "confirm resubmission" browser
+        # prompt that could re-run the search or, worse, re-POST
+        # send_code (2026-08-21).
+        request.session["claim_preview_user_id"] = str(matched_user.pk) if matched_user else ""
+        request.session["claim_preview_expires"] = (
+            timezone.now() + timedelta(minutes=self.PREVIEW_SESSION_MINUTES)
+        ).isoformat()
+        return redirect("home:uon_alumni_claim_search")
+
+    def _send_code(self, request):
+        user_id = request.session.get("claim_preview_user_id")
+        expires_raw = request.session.get("claim_preview_expires")
+        if not user_id or not expires_raw or timezone.now() >= datetime.fromisoformat(expires_raw):
+            request.session.pop("claim_preview_user_id", None)
+            request.session.pop("claim_preview_expires", None)
+            messages.error(request, "Your search has expired. Please search again.")
+            return redirect("home:uon_alumni_claim_search")
+
+        matched_user = User.objects.filter(pk=user_id).first()
+        if matched_user is None:
+            return redirect("home:uon_alumni_claim_search")
+
+        ip_address = _client_ip(request)
+        existing = ProfileClaimVerification.objects.filter(
+            user=matched_user,
+            status=ProfileClaimVerification.Status.PENDING,
+            expires_at__gt=timezone.now(),
+        ).first()
+        if existing is not None:
+            claim = existing
+        else:
+            claim = ProfileClaimVerification.objects.create(user=matched_user, ip_address=ip_address)
+            raw_code = ProfileClaimVerification.generate_code()
+            claim.set_code(raw_code)
+            claim.save(update_fields=["code_hash"])
+            transaction.on_commit(
+                lambda: async_task(
+                    "apps.home.tasks.send_profile_claim_otp_email", str(claim.pk), raw_code,
+                )
+            )
+
+        request.session.pop("claim_preview_user_id", None)
+        request.session.pop("claim_preview_expires", None)
+        request.session["claim_pending_id"] = str(claim.pk)
+        return redirect("home:uon_alumni_claim_verify")
+
+
+class ProfileClaimVerifyView(View):
+    """Step 2: enter the 6-digit code. A real wrong code and a phantom
+    (unmatched) row produce the exact same error -- check_code() on an
+    empty code_hash cleanly returns False, so no special-casing needed."""
+    template_name = "home/uon_alumni_claim_verify.html"
+
+    def get(self, request, *args, **kwargs):
+        if not request.session.get("claim_pending_id"):
+            return redirect("home:uon_alumni_claim_search")
+        return render(request, self.template_name, {"form": ProfileClaimCodeForm()})
+
+    def post(self, request, *args, **kwargs):
+        claim_id = request.session.get("claim_pending_id")
+        if not claim_id:
+            return redirect("home:uon_alumni_claim_search")
+
+        form = ProfileClaimCodeForm(request.POST)
+        if not form.is_valid():
+            return render(request, self.template_name, {"form": form})
+
+        claim = ProfileClaimVerification.objects.filter(pk=claim_id).first()
+        generic_error = "That code is incorrect or has expired. Please try again or request a new one."
+
+        if claim is None or claim.is_expired:
+            request.session.pop("claim_pending_id", None)
+            messages.error(request, generic_error)
+            return redirect("home:uon_alumni_claim_search")
+
+        if claim.is_locked_out:
+            messages.error(request, generic_error)
+            return render(request, self.template_name, {"form": form})
+
+        claim.attempts += 1
+        claim.save(update_fields=["attempts"])
+
+        if not (claim.user_id and claim.check_code(form.cleaned_data["code"])):
+            form.add_error("code", generic_error)
+            return render(request, self.template_name, {"form": form})
+
+        claim.status = ProfileClaimVerification.Status.VERIFIED
+        claim.verified_at = timezone.now()
+        claim.save(update_fields=["status", "verified_at"])
+
+        request.session.pop("claim_pending_id", None)
+        request.session["claim_verification_id"] = str(claim.pk)
+        request.session["claim_verified_expires"] = (timezone.now() + timedelta(minutes=20)).isoformat()
+        return redirect("home:uon_alumni_claim_continue")
+
+
+class ProfileClaimContinueView(View):
+    """Step 3: shows the masked destination address and a Google login
+    link. apps.user.adapter.py's pre_social_login() reads the same two
+    session keys checked here to connect the next Google login to
+    claim.user instead of creating a new account."""
+    template_name = "home/uon_alumni_claim_continue.html"
+
+    def get(self, request, *args, **kwargs):
+        claim_id = request.session.get("claim_verification_id")
+        expires_raw = request.session.get("claim_verified_expires")
+        if not claim_id or not expires_raw:
+            return redirect("home:uon_alumni_claim_search")
+
+        expires_at = datetime.fromisoformat(expires_raw)
+        if timezone.now() >= expires_at:
+            request.session.pop("claim_verification_id", None)
+            request.session.pop("claim_verified_expires", None)
+            messages.error(request, "Your verification has expired. Please search again.")
+            return redirect("home:uon_alumni_claim_search")
+
+        claim = ProfileClaimVerification.objects.filter(
+            pk=claim_id, status=ProfileClaimVerification.Status.VERIFIED,
+        ).select_related("user").first()
+        if claim is None:
+            return redirect("home:uon_alumni_claim_search")
+
+        return render(request, self.template_name, {"masked_email": _mask_email(claim.user.email)})
 
 
