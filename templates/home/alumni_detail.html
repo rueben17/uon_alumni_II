@@ -212,7 +212,12 @@
                                     <div class="min-w-0">
                                         <p class="text-sm font-medium text-black">{{ payment.membership_tier.name|default:"—" }}</p>
                                         <p class="text-xs text-slate-500">
-                                            {{ payment.payment_date|date:"d M Y" }} &middot; KES {{ payment.amount }} &middot; {{ payment.get_payment_status_display }}
+                                            {{ payment.payment_date|date:"d M Y" }} &middot; KES {{ payment.amount }} &middot;
+                                            {% if payment.payment_status == 'completed' %}
+                                                <span class="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-semibold uppercase text-green-700">{{ payment.get_payment_status_display }}</span>
+                                            {% else %}
+                                                <span class="inline-flex items-center rounded-full bg-[#fdbe13] px-2 py-0.5 text-xs font-semibold uppercase text-black">{{ payment.get_payment_status_display }}</span>
+                                            {% endif %}
                                         </p>
                                     </div>
                                     {% if payment.payment_status == 'completed' %}
