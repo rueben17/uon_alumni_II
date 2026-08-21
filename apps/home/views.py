@@ -37,16 +37,64 @@ from apps.user.mixins import StaffOrSuperuserRequiredMixin
 
 # Create your views here.
 
+MOBILE_USER_AGENT_RE = re.compile(r"Mobi|Android|iPhone|iPad|iPod", re.IGNORECASE)
+
+
+def _is_mobile_request(request):
+    """Same shape as apps/staff/views.py's own helper -- not shared/
+    imported cross-app since it's a two-line regex check, not worth a
+    new module just to avoid the duplication."""
+    return bool(MOBILE_USER_AGENT_RE.search(request.META.get("HTTP_USER_AGENT", "")))
+
+
+class LinkedImage(RLImage):
+    """Same as apps/staff/views.py's own LinkedImage -- a reportlab Image
+    flowable with a clickable link annotation overlaid on the drawn image
+    area, so tapping the QR code in a PDF viewer opens `url` directly."""
+
+    def __init__(self, filename, width, height, url):
+        super().__init__(filename, width=width, height=height)
+        self.url = url
+
+    def draw(self):
+        super().draw()
+        self.canv.linkURL(
+            self.url,
+            (0, 0, self.drawWidth, self.drawHeight),
+            relative=1,
+            thickness=0,
+        )
 
 
 
 
+
+
+
+# Maps each ProgramArea.name to its dedicated Banner image field (see
+# Banner model's own comment, apps/home/models.py) -- a renamed/added/
+# removed program needs a matching entry here and a matching field there.
+PROGRAM_AREA_IMAGE_FIELDS = {
+    "Affinity programs": "affinity_programs_image",
+    "Career and professional programs": "career_professional_programs_image",
+    "Off-campus programs": "off_campus_programs_image",
+    "On-campus programs": "on_campus_programs_image",
+    "Engagement of alumni of online and part-time degree programs": "online_part_time_alumni_image",
+    "Programs for undergraduate students and undergraduate young alumni": "undergraduate_alumni_programs_image",
+}
 
 
 def uon_alumni_home(request):
+    program_areas = list(ProgramArea.objects.filter(is_active=True).order_by("order"))
+    banner = Banner.objects.first()
+    for program in program_areas:
+        field_name = PROGRAM_AREA_IMAGE_FIELDS.get(program.name)
+        image_field = getattr(banner, field_name, None) if banner and field_name else None
+        program.image_url = image_field.url if image_field else ""
+
     context = {
         "carousel_images": Images.objects.filter(show_in_carousel=True).exclude(image="").order_by("created_at"),
-        "program_areas": ProgramArea.objects.filter(is_active=True).order_by("order"),
+        "program_areas": program_areas,
     }
     return render(request, "home/alumni_home.html", context)
 

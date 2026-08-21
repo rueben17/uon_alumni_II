@@ -267,6 +267,45 @@ class Banner(models.Model):
     image = ResizedImageField(size=[2200, 2200], quality=85,
                         upload_to='banner/image/%Y/%m/%d/',
                         help_text=_("Upload banner images "), blank=True, null=True)
+
+    # Homepage hero's two small cards (templates/home/alumni_home.html,
+    # 2026-08-20) -- dedicated fields, not a reuse of the generic
+    # middle_banner/image above, so each is unambiguous about which card
+    # it feeds regardless of what those two end up used for later.
+    profile_update_card_image = ResizedImageField(size=[2200, 2200], quality=85,
+                        upload_to='banner/profile_update_card_image/%Y/%m/%d/',
+                        help_text=_("Homepage 'Keep Your UoN Alumni Profile Up to Date' card image."), blank=True, null=True)
+    volunteer_card_image = ResizedImageField(size=[2200, 2200], quality=85,
+                        upload_to='banner/volunteer_card_image/%Y/%m/%d/',
+                        help_text=_("Homepage 'Volunteer and Share Your Experience' card image."), blank=True, null=True)
+
+    # Homepage "Why We Engage" program-area cards (2026-08-21, reversed
+    # from a brief ProgramArea.background_image field then an even
+    # briefer Images.program_area FK) -- one dedicated named field per
+    # program, matched to its ProgramArea row by name in
+    # apps/home/views.py's uon_alumni_home(). Named after the 6 programs
+    # seeded from docs/data/front page data.txt as of this date; a
+    # renamed/added/removed program needs its matching field added here
+    # and in that view's PROGRAM_AREA_IMAGE_FIELDS mapping.
+    affinity_programs_image = ResizedImageField(size=[2200, 2200], quality=85,
+                        upload_to='banner/program_areas/affinity_programs/%Y/%m/%d/',
+                        help_text=_("Homepage 'Affinity programs' card image."), blank=True, null=True)
+    career_professional_programs_image = ResizedImageField(size=[2200, 2200], quality=85,
+                        upload_to='banner/program_areas/career_professional_programs/%Y/%m/%d/',
+                        help_text=_("Homepage 'Career and professional programs' card image."), blank=True, null=True)
+    off_campus_programs_image = ResizedImageField(size=[2200, 2200], quality=85,
+                        upload_to='banner/program_areas/off_campus_programs/%Y/%m/%d/',
+                        help_text=_("Homepage 'Off-campus programs' card image."), blank=True, null=True)
+    on_campus_programs_image = ResizedImageField(size=[2200, 2200], quality=85,
+                        upload_to='banner/program_areas/on_campus_programs/%Y/%m/%d/',
+                        help_text=_("Homepage 'On-campus programs' card image."), blank=True, null=True)
+    online_part_time_alumni_image = ResizedImageField(size=[2200, 2200], quality=85,
+                        upload_to='banner/program_areas/online_part_time_alumni/%Y/%m/%d/',
+                        help_text=_("Homepage 'Engagement of alumni of online and part-time degree programs' card image."), blank=True, null=True)
+    undergraduate_alumni_programs_image = ResizedImageField(size=[2200, 2200], quality=85,
+                        upload_to='banner/program_areas/undergraduate_alumni_programs/%Y/%m/%d/',
+                        help_text=_("Homepage 'Programs for undergraduate students and undergraduate young alumni' card image."), blank=True, null=True)
+
     logo = ResizedImageField(size=[500, 500], quality=90,
                         upload_to='banner/logo/%Y/%m/%d/',
                         help_text=_("Site logo -- navbar, top-left (templates/snippets/navbar.html)."), blank=True, null=True)
@@ -419,22 +458,16 @@ class ProgramArea(models.Model):
     """
     One card on the homepage's "Why We Engage" grid -- seeded from
     docs/data/front page data.txt (seed_program_areas), admin-editable
-    after that. background_image renders directly on the card
-    (snippets/program_area.html); upload one per row via admin to
-    replace the empty-card fallback.
+    after that. Its photo is NOT a field on this model (2026-08-21) --
+    each program has a dedicated named image field on Banner instead
+    (e.g. Banner.affinity_programs_image), matched to this row by name in
+    apps/home/views.py's uon_alumni_home(), which sets program.image_url
+    for snippets/program_area.html to read.
     """
     name = models.CharField(max_length=150, unique=True)
     description = models.TextField(blank=True)
     order = models.PositiveIntegerField(default=0, help_text="Display order")
     is_active = models.BooleanField(default=True)
-
-    background_image = ResizedImageField(
-        size=[2200, 2200], quality=85,
-        upload_to='program_areas/bg/',
-        blank=True,
-        null=True,
-        help_text="Photo shown on this program's homepage card.",
-    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

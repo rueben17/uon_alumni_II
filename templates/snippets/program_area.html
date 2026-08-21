@@ -3,13 +3,21 @@
         {% if forloop.counter0|divisibleby:2 %}<div class="mb-6 grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-3">{% endif %}
             <div class="rounded bg-white p-1 shadow-xs cursor-pointer {% cycle 'sm:col-span-2' 'sm:col-span-1' 'sm:col-span-1' 'sm:col-span-2' %}">
                 <div class="overflow-hidden rounded flex flex-col">
-                    {% if program.background_image %}
+                    {% if program.image_url %}
                         <div class="relative">
-                            <img class="w-full h-64 sm:h-96 object-cover" src="{{ program.background_image.url }}" alt="{{ program.name }}">
+                            <img class="w-full h-64 sm:h-96 object-cover" src="{{ program.image_url }}" alt="{{ program.name }}">
                             <div class="absolute inset-0 bg-linear-to-t from-black/50 to-transparent"></div>
                         </div>
                     {% endif %}
-                    <div class="relative -mt-10 mx-4 px-4 py-3 bg-[#38b6ff]">
+                    {% comment %}
+                    -mt-10 only applies when there's an image above to
+                    overlap -- without this guard, a program with no
+                    photo yet (Banner field still empty) left the bar as
+                    the only child in this flex-col, and the same -mt-10
+                    pulled it up against nothing, landing it at the TOP
+                    of the card instead of the bottom (2026-08-21).
+                    {% endcomment %}
+                    <div class="relative mx-4 px-4 py-3 bg-[#38b6ff]{% if program.image_url %} -mt-10{% endif %}">
                         <h3 class="font-normal text-sm uppercase tracking-wide text-white" title="{{ program.name }}">{{ program.name }}</h3>
                     </div>
                 </div>

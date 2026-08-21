@@ -72,6 +72,11 @@ def images(request):
     site_logo_url = _first_image_url(banner_images, "logo", DEFAULT_SITE_LOGO_URL)
     footer_background_url = _first_image_url(banner_images, "bottom_banner", DEFAULT_FOOTER_BACKGROUND_URL)
     footer_logo_url = _first_image_url(banner_images, "footer_logo", DEFAULT_FOOTER_LOGO_URL)
+    # Homepage hero's two small cards (templates/home/alumni_home.html) --
+    # each needs its own photo, so they default to two DIFFERENT existing
+    # constants rather than both falling back to page_background_url.
+    profile_update_card_image_url = _first_image_url(banner_images, "profile_update_card_image", DEFAULT_TOP_BANNER_URL)
+    volunteer_card_image_url = _first_image_url(banner_images, "volunteer_card_image", DEFAULT_FOOTER_BACKGROUND_URL)
 
     return {
         "banner_images": banner_images,
@@ -80,6 +85,8 @@ def images(request):
         "site_logo_url": site_logo_url,
         "footer_background_url": footer_background_url,
         "footer_logo_url": footer_logo_url,
+        "profile_update_card_image_url": profile_update_card_image_url,
+        "volunteer_card_image_url": volunteer_card_image_url,
     }
 
 # def ads(request):
