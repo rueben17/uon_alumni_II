@@ -34,6 +34,10 @@ urlpatterns = [
     uon_path("profile/<slug:slug>/<uuid:pk>/membership/", AlumniMembershipUpdateView.as_view(), "alumni_membership_update"),
     uon_path("profile/<slug:slug>/<uuid:pk>/delete/", AlumniProfileDeleteView.as_view(), "alumni_profile_delete"),
     uon_path(
+        "profile/<slug:slug>/<uuid:pk>/download-qr/",
+        download_alumni_qr_code, "alumni_qr_download",
+    ),
+    uon_path(
         "profile/<slug:slug>/<uuid:pk>/payments/<int:payment_id>/receipt/",
         download_payment_receipt, "payment_receipt_download",
     ),
@@ -76,4 +80,15 @@ urlpatterns = [
     # One route for every remaining standing page -- see standing_page()'s
     # own docstring for why this is generic rather than nine near-duplicates.
     uon_path("page/<slug:page_key>/", standing_page, "standing_page"),
+    # The Alumni Digital ID application form lives ON this SAME standing
+    # page (2026-08-21, explicit correction -- not a separate page under
+    # /profile/.../), just with the alumni's slug+pk appended so
+    # standing_page() knows whose profile to attach the uploaded photo
+    # to. page_key is injected as a fixed kwarg (not parsed from the
+    # URL) since this route is digital-id-specific -- bypasses
+    # uon_path() directly since that helper has no room for extra kwargs.
+    path(
+        "uon-alumni-page/digital-id/<slug:slug>/<uuid:pk>/",
+        standing_page, {"page_key": "digital-id"}, name="alumni_digital_id_apply",
+    ),
 ]

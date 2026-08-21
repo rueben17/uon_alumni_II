@@ -294,6 +294,11 @@ def contacts(request):
         alumni_profile = getattr(request.user, 'alumni_profile', None)
         if alumni_profile:
             url_my_profile = f"{base}{alumni_profile.get_absolute_url()}"
+            # Straight to the slug/pk URL, form already on screen -- not
+            # the bare standing page + a CTA button to click through
+            # (2026-08-21 correction: that was an extra hop the register
+            # page and every other form page here doesn't have).
+            url_alumni_card = f"{base}{home_url('alumni_digital_id_apply', slug=alumni_profile.slug, pk=alumni_profile.pk)}"
             has_paid_membership = Membership.objects.filter(user=request.user).exclude(
                 status=Membership.Status.PENDING
             ).exists()
@@ -313,12 +318,14 @@ def contacts(request):
             url_subscribe = f"{base}{alumni_profile.get_membership_update_url()}"
         else:
             url_my_profile = f"{base}{home_url('uon_alumni_register')}"
+            url_alumni_card = f"{base}{home_url('standing_page', page_key='digital-id')}"
             url_membership_update = ""
             url_subscribe = f"{base}{home_url('uon_alumni_register')}"
     else:
         # Relative, like the Sign Out link below -- /accounts/ paths are
         # shared across every subdomain regardless of which urlconf is active.
         url_my_profile = "/accounts/google/login/"
+        url_alumni_card = f"{base}{home_url('standing_page', page_key='alumni-card')}"
         url_membership_update = ""
         url_subscribe = f"{base}{home_url('uon_alumni_register')}"
 
@@ -363,8 +370,10 @@ def contacts(request):
         # like the rest below, which are still Article-content placeholders.
         "url_categories_benefits": f"{base}{home_url('membership_categories')}",
         # Standing pages -- one route (home:standing_page) behind all of
-        # these, see apps/home/views.py's standing_page().
-        "url_alumni_card":         f"{base}{home_url('standing_page', page_key='alumni-card')}",
+        # these, see apps/home/views.py's standing_page(). url_alumni_card
+        # itself is set above (user-dependent -- straight to the signed-in
+        # alumnus's own slug/pk form URL, same pattern as url_my_profile).
+        "url_alumni_card":         url_alumni_card,
         "url_corporates":          f"{base}{home_url('standing_page', page_key='corporates')}",
         "url_notable_alumni":      f"{base}{home_url('standing_page', page_key='notable-alumni')}",
         "url_agm":                 f"{base}{home_url('standing_page', page_key='agm')}",

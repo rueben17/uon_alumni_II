@@ -456,15 +456,16 @@ class AlumniProfileAdmin(ExportMixin, admin.ModelAdmin):
     # now, edited via the User admin's inline -- not here. Membership
     # data (tier/status/expiry/issued items) lives on Membership,
     # registered separately below.
-    list_display = ['id', 'display_name', 'user_email', 'current_membership_display']
-    list_filter = ['graduation_institution', 'graduation_year']
+    list_display = ['id', 'display_name', 'user_email', 'current_membership_display', 'digital_id_active']
+    list_filter = ['graduation_institution', 'graduation_year', 'digital_id_active']
     search_fields = [
         'user__profile__given_name', 'user__profile__family_name', 'user__email',
         'user__profile__national_id', 'student_reg_no',
     ]
     readonly_fields = ['registration_date', 'last_updated', 'qr_code_tag']
     list_per_page = 25
-    actions = ['generate_qr_badge']
+    list_editable = ['digital_id_active']
+    actions = ['generate_qr_badge', 'approve_digital_id_photo']
     fieldsets = (
         ('User Account', {
             'fields': ('user',)
@@ -484,8 +485,15 @@ class AlumniProfileAdmin(ExportMixin, admin.ModelAdmin):
         # generate/regenerate via the action below (or by attaching this
         # alumnus to a QRCode directly in the QR admin), qr_code_image
         # stays editable here in case it ever needs manual replacement.
-        ('QR Code', {
-            'fields': ('qr_code_tag', 'qr_code_image'),
+        # digital_id_photo (2026-08-21) is self-service now -- alumni
+        # apply via standing_page()'s digital-id branch (apps/home/urls.py's
+        # "alumni_digital_id_apply" route) -- but only actually
+        # displays once digital_id_active is checked here (or via the
+        # "Approve selected Alumni Digital ID photos" action below);
+        # list_filter above is how a Secretariat member finds the pending
+        # queue.
+        ('Alumni Digital ID', {
+            'fields': ('digital_id_photo', 'digital_id_active', 'qr_code_tag', 'qr_code_image'),
         }),
         ('Meta', {
             'fields': ('is_active', 'registration_date', 'last_updated')
@@ -520,7 +528,7 @@ class AlumniProfileAdmin(ExportMixin, admin.ModelAdmin):
             )
         return "—"
 
-    @admin.action(description="Generate / refresh Digital Alumni ID (QR)")
+    @admin.action(description="Generate / refresh Alumni Digital ID (QR)")
     def generate_qr_badge(self, request, queryset):
         done = 0
         for alumni in queryset:
@@ -529,6 +537,14 @@ class AlumniProfileAdmin(ExportMixin, admin.ModelAdmin):
             done += 1
         if done:
             self.message_user(request, f"Generated {done} QR badge(s).", messages.SUCCESS)
+
+    @admin.action(description="Approve selected Alumni Digital ID photos")
+    def approve_digital_id_photo(self, request, queryset):
+        # Only rows with an actual photo uploaded -- approving an empty
+        # field is meaningless (digital_id_photo_url falls back to the
+        # general profile photo regardless of this flag when unset).
+        updated = queryset.exclude(digital_id_photo='').update(digital_id_active=True)
+        self.message_user(request, f"Approved {updated} Alumni Digital ID photo(s).", messages.SUCCESS)
 
 
 @admin.register(Membership)

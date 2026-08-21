@@ -190,24 +190,60 @@ def uon_alumni_mission_vision(request):
     })
 
 
-def standing_page(request, page_key):
+def standing_page(request, page_key, slug=None, pk=None):
     """Generic renderer for the nav's remaining standing pages (Categories
-    & Benefits, Alumni Card, Corporates, Notable Alumni, AGM, Consultancy
+    & Benefits, Alumni Digital ID, Corporates, Notable Alumni, AGM, Consultancy
     & Training, Terms, Privacy, Shop) -- one route + template instead of
     nine near-identical ones. Makes every one of those links a real,
     working page today: it shows the matching Article(type=page) once an
     editor writes one, and an honest "being prepared" placeholder until
     then, rather than a 404 or a dead href="". Association content
     decisions (e.g. whether Shop ships at all) stay open; the URL not
-    existing was never the actual blocker."""
+    existing was never the actual blocker.
+
+    slug/pk (2026-08-21): ONLY ever populated by the digital-id-specific
+    URL (apps/home/urls.py's "alumni_digital_id_apply" route) -- every
+    other standing page, and the bare /page/digital-id/ URL itself,
+    reaches this view with both None and skips the block below entirely.
+    This is deliberately the SAME page/view/template as the plain
+    informational one, not a separate page under /profile/.../ -- the
+    Alumni Digital ID application form lives here because that's where
+    it was asked to live. The navbar's "Alumni Digital ID" link
+    (context_processors.py's url_alumni_card) already points straight at
+    this slug/pk URL for a signed-in alumnus, so the form is front-facing
+    on arrival -- no CTA button/click-through to a second URL first.
+    """
     article = Article.objects.filter(
         type=Article.ArticleType.PAGE, page_key=page_key, is_published=True
     ).first()
     label = dict(Article.PageKey.choices).get(page_key, page_key.replace("-", " ").title())
-    return render(request, 'home/standing_page.html', {
+    context = {
         "article": article,
         "page_label": label,
-    })
+        "page_key": page_key,
+    }
+
+    if page_key == "digital-id" and slug and pk:
+        if not request.user.is_authenticated:
+            from django.contrib.auth.views import redirect_to_login
+            return redirect_to_login(request.get_full_path())
+
+        alumni = get_object_or_404(AlumniProfile, slug=slug, pk=pk, user=request.user)
+
+        if request.method == "POST":
+            form = AlumniDigitalIDApplicationForm(request.POST, request.FILES, instance=alumni)
+            if form.is_valid():
+                form.instance.digital_id_active = False
+                form.save()
+                messages.success(request, "Photo submitted -- your Alumni Digital ID will update once the Secretariat approves it.")
+                return redirect(alumni.get_absolute_url())
+        else:
+            form = AlumniDigitalIDApplicationForm(instance=alumni)
+
+        context["alumni"] = alumni
+        context["form"] = form
+
+    return render(request, 'home/standing_page.html', context)
 
 
 class PublicationListView(ListView):
@@ -596,6 +632,116 @@ class MembershipCategoriesView(TemplateView):
         context["all_tiers"] = individual_tiers + corporate_tiers
 
         return context
+
+
+@login_required
+def download_alumni_qr_code(request, slug, pk):
+    """Serve this alumni's Alumni Digital ID QR as a downloadable PDF or
+    PNG -- mirrors apps.staff.views.download_staff_qr_code almost
+    verbatim (same LinkedImage/_is_mobile_request pattern, same
+    pdf-vs-png query param, same inline-on-desktop/attachment-on-mobile
+    Content-Disposition), duplicated rather than imported cross-app for
+    the same reason LinkedImage/_is_mobile_request above are duplicated.
+
+    Two differences from the staff version, both explicit requests
+    (2026-08-21): shows the member's own MembershipTier name and
+    validity period instead of staff's org unit (there's no equivalent
+    "unit" on AlumniProfile), and the tier NAME is used here (not the
+    coarser tier_type category apps.qr_manager.views'
+    _alumni_verification_context() shows on the public scan-result page)
+    -- that page is deliberately vaguer because a stranger's badge scan
+    can land on it; this download is only ever reachable by the alumni
+    viewing their OWN profile (same ownership check as Edit/Manage/
+    Deactivate below), so there's no equivalent reason to hide it here.
+    """
+    alumni = get_object_or_404(AlumniProfile, slug=slug, pk=pk, user=request.user)
+
+    if not alumni.qr_code_image:
+        return HttpResponse("QR code not found", status=404)
+
+    safe_name = slugify(alumni.user.profile.display_name) or "alumni"
+    file_format = request.GET.get("format", "pdf").lower()
+
+    if file_format == "png":
+        alumni.qr_code_image.open("rb")
+        image_bytes = alumni.qr_code_image.read()
+        alumni.qr_code_image.close()
+        response = HttpResponse(image_bytes, content_type="image/png")
+        response["Content-Disposition"] = f'attachment; filename="{safe_name}_qr.png"'
+        return response
+
+    current_membership = Membership.objects.current_for(alumni.user)
+    if current_membership is None:
+        tier_name = "No active membership"
+        validity_period = "—"
+    else:
+        tier_name = current_membership.tier.name
+        if current_membership.is_lifetime:
+            validity_period = "Lifetime Membership"
+        elif current_membership.expires_on:
+            validity_period = f"Valid until {current_membership.expires_on:%d %b %Y}"
+        else:
+            validity_period = "—"
+
+    pdf_buffer = io.BytesIO()
+    display_name = alumni.user.profile.display_name
+    doc = SimpleDocTemplate(
+        pdf_buffer,
+        pagesize=letter,
+        title=f"{display_name} QR Code",
+        author="UoN Alumni",
+    )
+    elements = []
+
+    styles = getSampleStyleSheet()
+    styles["Title"].alignment = TA_CENTER
+
+    # Only the dedicated FileField, never the UserProfile.display_photo_url
+    # fallback (which can be an external Google CDN URL) -- embedding that
+    # would mean a synchronous outbound HTTP fetch inside this request,
+    # which the HTML card below doesn't need (a plain <img src> handles an
+    # external URL for free) but a PDF embed does. No photo in the PDF
+    # simply means no dedicated one has been uploaded yet.
+    if alumni.digital_id_photo and alumni.digital_id_active:
+        alumni.digital_id_photo.open("rb")
+        photo_bytes = io.BytesIO(alumni.digital_id_photo.read())
+        alumni.digital_id_photo.close()
+        photo_img = RLImage(photo_bytes, width=1.5 * inch, height=1.5 * inch)
+        photo_img.hAlign = "CENTER"
+        elements.append(photo_img)
+        elements.append(Spacer(1, 0.15 * inch))
+
+    elements.append(Paragraph(display_name, style=styles["Title"]))
+    elements.append(Spacer(1, 0.12 * inch))
+
+    elements.append(Paragraph(tier_name, style=styles["Title"]))
+    elements.append(Spacer(1, 0.06 * inch))
+
+    styles["Normal"].alignment = TA_CENTER
+    elements.append(Paragraph(validity_period, style=styles["Normal"]))
+    elements.append(Spacer(1, 0.25 * inch))
+
+    alumni.qr_code_image.open("rb")
+    qr_bytes = io.BytesIO(alumni.qr_code_image.read())
+    alumni.qr_code_image.close()
+    qr_code = getattr(alumni, "alumni_qrcode", None)
+    if qr_code is not None:
+        img = LinkedImage(qr_bytes, width=5 * inch, height=5 * inch, url=qr_code.scan_url)
+    else:
+        img = RLImage(qr_bytes, width=5 * inch, height=5 * inch)
+    img.hAlign = "CENTER"
+    elements.append(img)
+
+    if qr_code is not None:
+        elements.append(Spacer(1, 0.1 * inch))
+        elements.append(Paragraph("Tap the QR code above to open this profile.", style=styles["Normal"]))
+
+    doc.build(elements)
+
+    disposition = "attachment" if _is_mobile_request(request) else "inline"
+    response = HttpResponse(pdf_buffer.getvalue(), content_type="application/pdf")
+    response["Content-Disposition"] = f'{disposition}; filename="{safe_name}_qr.pdf"'
+    return response
 
 
 @login_required

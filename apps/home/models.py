@@ -147,7 +147,7 @@ class Article(ThumbnailMixin, models.Model):
         SCHOLARSHIP = "scholarship", _("Scholarship")
         CONTACT = "contact", _("Contact Us")
         CATEGORIES_BENEFITS = "categories-benefits", _("Categories & Benefits")
-        ALUMNI_CARD = "alumni-card", _("Alumni Card")
+        ALUMNI_CARD = "digital-id", _("Alumni Digital ID")
         CORPORATES = "corporates", _("Corporates")
         NOTABLE_ALUMNI = "notable-alumni", _("Our Notable Alumni")
         AGM = "agm", _("Annual General Meeting")
@@ -1185,6 +1185,40 @@ class AlumniProfile(models.Model):
         null=True,
     )
 
+    # Alumni Digital ID card photo (2026-08-21) -- deliberately separate
+    # from UserProfile.photo (the general profile picture used sitewide,
+    # e.g. templates/snippets/navbar.html's avatar): the Association
+    # wants a distinct, formal photo for the Alumni Digital ID
+    # specifically (badge display + download_alumni_qr_code()'s PDF),
+    # not necessarily whatever casual picture someone has set as their
+    # profile photo elsewhere. Self-service via standing_page()'s
+    # digital-id branch (apps/home/views.py) -- the alumnus uploads it, but it
+    # only actually DISPLAYS once a Secretariat member approves it
+    # (digital_id_active below); until then (and whenever unset),
+    # digital_id_photo_url falls back to UserProfile.display_photo_url
+    # (uploaded profile pic, then Google photo) so the ID still shows
+    # *something* rather than nothing.
+    digital_id_photo = ResizedImageField(
+        size=[800, 800], quality=90,
+        upload_to='alumni/digital_id_photos/%Y/%m/%d/',
+        blank=True,
+        null=True,
+        verbose_name=_("Alumni Digital ID Photo"),
+        help_text=_("Formal photo for the Alumni Digital ID (badge + PDF). Falls back to the general profile photo if not set or not yet approved."),
+    )
+    # Every new/changed submission resets this to False (see
+    # standing_page()'s digital-id branch) -- a Secretariat member flips it
+    # to True (AlumniProfileAdmin's list_editable / "Approve" action) to
+    # let the uploaded photo actually go live on the ID. Gates display
+    # only, not the QR code/badge itself -- an alumnus with no approved
+    # photo still has a fully working Alumni Digital ID, just showing
+    # their fallback photo instead.
+    digital_id_active = models.BooleanField(
+        default=False,
+        verbose_name=_("Alumni Digital ID Photo Approved"),
+        help_text=_("Must be checked by a Secretariat member for the uploaded Alumni Digital ID photo to actually display."),
+    )
+
     # "Digital alumni ID (QR)" -- advertised as a membership benefit
     # (templates/home/membership_categories.html's tier copy), generated
     # via apps.qr_manager.models.QRCode.generate_qr() the same way as
@@ -1202,6 +1236,12 @@ class AlumniProfile(models.Model):
 
     def __str__(self):
         return self.user.profile.full_name
+
+    @property
+    def digital_id_photo_url(self):
+        if self.digital_id_photo and self.digital_id_active:
+            return self.digital_id_photo.url
+        return self.user.profile.display_photo_url
 
     def get_absolute_url(self):
         # Explicit urlconf: this is called from the shared navbar context

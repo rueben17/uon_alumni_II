@@ -84,7 +84,7 @@ class StandingPageSitemap(UonAlumniSitemap):
     standing_page) -- covers every Article.PageKey NOT already served by
     its own dedicated view above (history/donate/scholarship/contact-us
     have their own routes; this is the rest: categories-benefits,
-    alumni-card, corporates, notable-alumni, agm, consultancy-training,
+    digital-id, corporates, notable-alumni, agm, consultancy-training,
     terms, privacy, cookies, shop)."""
     changefreq = 'monthly'
     priority = 0.6

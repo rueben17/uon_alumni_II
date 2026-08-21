@@ -4,25 +4,111 @@
 
 {% block content %}
 
-        <div class="container mx-auto min-h-screen space-y-1" style="max-width: 1700px;">
+        <div class="container mx-auto min-h-screen space-y-1 relative" style="max-width: 1700px;">
+            {% comment %}
+            Same fixed-backdrop treatment as the rest of the site
+            (2026-08-21) -- this generic template previously had no
+            background image at all, unlike every other page.
+            {% endcomment %}
+            <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
             {% include "snippets/navbar.html" %}
 
-            <section class="max-w-full min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
-                <div class="px-4 py-8 mx-auto md:px-12 max-w-3xl">
-                    <h1 class="text-4xl font-semibold tracking-wide text-black lg:text-5xl text-balance">{{ page_label }}</h1>
+            {% comment %}
+            Alumni Digital ID application (2026-08-21) -- lives on THIS
+            page, not a separate one. `alumni` is only in context when
+            this request came in through the slug/pk-carrying URL
+            (apps.home.views.standing_page's digital-id branch) -- the
+            navbar's "Alumni Digital ID" link (context_processors.py's
+            url_alumni_card) points a signed-in alumnus straight at their
+            own slug/pk URL, so this branch is what they land on --
+            styled to match uon_alumni_register.html /
+            alumni_membership_update.html's card treatment (white card,
+            no footer -- neither of those pages includes one either),
+            not the generic informational layout below, since this IS a
+            form page, same as those. Everyone else (every other
+            standing page, and the bare /uon-alumni-page/digital-id/ URL
+            for anonymous visitors or a signed-in user with no alumni
+            profile) gets the plain informational content instead.
+            {% endcomment %}
+            {% if alumni %}
+                <section class="max-w-full min-h-screen mx-auto px-4 py-8">
+                    <div class="max-w-3xl mx-auto rounded-sm border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+                        <h1 class="text-2xl font-bold text-black">Apply for Your Alumni Digital ID</h1>
+                        <p class="mt-2 text-slate-600">
+                            Upload a photo for your Alumni Digital ID. The Secretariat reviews every photo before it
+                            appears on your ID -- your existing ID keeps working with your current photo until then.
+                        </p>
 
-                    {% if article %}
-                        {% if article.article_banner_image %}
-                            <img src="{{ article.get_article_banner_image }}" alt="{{ page_label }}" class="w-full rounded-sm my-6 object-cover">
+                        {% comment %}
+                        Read-only context, not form fields -- "minimal,
+                        non editable" per the original request
+                        (2026-08-21).
+                        {% endcomment %}
+                        <div class="mt-5 grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-black sm:grid-cols-2">
+                            <div>
+                                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Name</p>
+                                <p>{{ alumni.user.profile.display_name }}</p>
+                            </div>
+                            {% if alumni.faculty %}
+                                <div>
+                                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Faculty</p>
+                                    <p>{{ alumni.faculty.faculty_name }}</p>
+                                </div>
+                            {% endif %}
+                            {% if alumni.qualification %}
+                                <div>
+                                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Qualification</p>
+                                    <p>{{ alumni.qualification.name }}</p>
+                                </div>
+                            {% endif %}
+                            {% if alumni.graduation_year %}
+                                <div>
+                                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Graduation Year</p>
+                                    <p>{{ alumni.graduation_year }}</p>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        {% if form.non_field_errors %}
+                            <div class="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+                                {% for error in form.non_field_errors %}
+                                    <p>{{ error }}</p>
+                                {% endfor %}
+                            </div>
                         {% endif %}
-                        <div class="mt-6 prose max-w-none text-black whitespace-pre-line">{{ article.body }}</div>
-                    {% else %}
-                        <p class="mt-8 text-gray-500">This page's content is being prepared — check back soon.</p>
-                    {% endif %}
-                </div>
-            </section>
 
-            {% include "snippets/footer.html" %}
+                        <form method="post" enctype="multipart/form-data" novalidate class="mt-5 space-y-4">
+                            {% csrf_token %}
+                            {% include "snippets/form_field.html" with field=form.digital_id_photo %}
+
+                            <div class="flex gap-3 pt-2">
+                                <button type="submit" class="flex-1 inline-flex items-center justify-center rounded-sm bg-[#38b6ff] px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2f9bd9] focus:outline-none focus:ring-2 focus:ring-slate-300">
+                                    Submit for Review
+                                </button>
+                                <a href="{{ alumni.get_absolute_url }}" class="flex-1 inline-flex items-center justify-center rounded-sm border bg-black px-3 py-2 text-sm font-light text-white transition cursor-pointer whitespace-nowrap">
+                                    Cancel
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+            {% else %}
+                <section class="max-w-full min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
+                    <div class="px-4 py-8 mx-auto md:px-12 max-w-3xl">
+                        <h1 class="text-4xl font-semibold tracking-wide text-black lg:text-5xl text-balance">{{ page_label }}</h1>
+
+                        {% if article %}
+                            {% if article.article_banner_image %}
+                                <img src="{{ article.get_article_banner_image }}" alt="{{ page_label }}" class="w-full rounded-sm my-6 object-cover">
+                            {% endif %}
+                            <div class="mt-6 prose max-w-none text-black whitespace-pre-line">{{ article.body }}</div>
+                        {% else %}
+                            <p class="mt-8 text-gray-500">This page's content is being prepared — check back soon.</p>
+                        {% endif %}
+                    </div>
+                </section>
+                {% include "snippets/footer.html" %}
+            {% endif %}
         </div>
 
 {% endblock content %}

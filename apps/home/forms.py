@@ -506,3 +506,22 @@ class ProfileClaimCodeForm(TailwindStyledFormMixin, forms.Form):
         return raw
 
 
+class AlumniDigitalIDApplicationForm(TailwindStyledFormMixin, forms.ModelForm):
+    """Apply for (or resubmit) the Alumni Digital ID photo (2026-08-21) --
+    the ONLY editable field on this form; everything else shown alongside
+    it on the page (name, faculty, qualification, graduation year) is
+    plain read-only display pulled straight from the AlumniProfile
+    instance in the template, not form fields here."""
+
+    class Meta:
+        model = AlumniProfile
+        fields = ["digital_id_photo"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["digital_id_photo"].required = True
+        self.fields["digital_id_photo"].label = "Photo"
+        self.fields["digital_id_photo"].help_text = (
+            "A clear, front-facing photo. Reviewed by the Secretariat before it appears on your Alumni Digital ID."
+        )
+        self.apply_tailwind_styling()
