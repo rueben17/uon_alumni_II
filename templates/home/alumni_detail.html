@@ -172,7 +172,36 @@
                     <div class="rounded-sm border border-slate-200 bg-white p-6 shadow-sm md:p-8">
                         <h2 class="text-lg font-semibold text-black mb-4">Payment History</h2>
 
-                        {% if current_membership.is_installment_plan and current_membership.balance_due > 0 %}
+                        {% if current_membership.status == 'pending' %}
+                            {% comment %}
+                            Awaiting-confirmation box (2026-08-21) -- a
+                            membership request that hasn't been confirmed
+                            by the Secretariat yet has no schedule to show
+                            (next_installment_due is only ever set on
+                            confirmation), so it gets its own box rather
+                            than falling through the installment/paid-in-
+                            full checks below and showing nothing at all.
+                            Takes priority over both: status=pending means
+                            neither "in progress" nor "paid in full" is
+                            actually true yet, regardless of balance_due
+                            or the chosen payment_frequency.
+                            {% endcomment %}
+                            <div class="mb-4 rounded-lg bg-[#fdbe13] p-4">
+                                <p class="text-sm font-semibold text-black">
+                                    {{ current_membership.tier.name }} &middot; Awaiting Confirmation
+                                </p>
+                                <dl class="mt-2 grid grid-cols-2 gap-2 text-sm text-black">
+                                    <div>
+                                        <dt class="text-xs font-medium uppercase tracking-wide text-black">Amount Due</dt>
+                                        <dd class="font-semibold">KES {{ current_membership.balance_due }}</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-xs font-medium uppercase tracking-wide text-black">Submitted</dt>
+                                        <dd class="font-semibold">{{ current_membership.created_at|date:"d M Y" }}</dd>
+                                    </div>
+                                </dl>
+                            </div>
+                        {% elif current_membership.is_installment_plan and current_membership.balance_due > 0 %}
                             {% comment %}
                             Installment plan schedule (2026-08-21) --
                             next_installment_due is set by
