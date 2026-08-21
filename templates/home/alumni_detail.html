@@ -242,6 +242,8 @@
                                             {{ payment.payment_date|date:"d M Y" }} &middot; KES {{ payment.amount }} &middot;
                                             {% if payment.payment_status == 'completed' %}
                                                 <span class="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-semibold uppercase text-green-700">{{ payment.get_payment_status_display }}</span>
+                                            {% elif payment.payment_status == 'failed' or payment.payment_status == 'refunded' %}
+                                                <span class="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold uppercase text-red-700">{{ payment.get_payment_status_display }}</span>
                                             {% else %}
                                                 <span class="inline-flex items-center rounded-full bg-[#fdbe13] px-2 py-0.5 text-xs font-semibold uppercase text-black">{{ payment.get_payment_status_display }}</span>
                                             {% endif %}
