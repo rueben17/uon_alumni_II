@@ -442,6 +442,18 @@ class AlumniQualificationInline(admin.TabularInline):
     extra = 0
     fields = ['order', 'legacy_college', 'faculty', 'qualification', 'course_name_raw', 'graduation_year']
 
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        # Same N+1 fix as AlumniProfileForm.__init__ (apps/home/forms.py)
+        # -- Qualification.__str__ reads self.faculty.faculty_name, so the
+        # default queryset (no select_related) fires one query per row
+        # while rendering every <option>, which times out the admin
+        # change page over a real network DB connection (2026-08-21,
+        # confirmed via production traceback: gunicorn worker aborted
+        # mid-query rendering this exact dropdown).
+        if db_field.name == "qualification":
+            kwargs["queryset"] = Qualification.objects.select_related("faculty")
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
 
 class AlumniEmploymentRecordInline(admin.TabularInline):
     model = AlumniEmploymentRecord
@@ -527,6 +539,13 @@ class AlumniProfileAdmin(ExportMixin, admin.ModelAdmin):
         }),
     )
     inlines = [PaymentInline, AlumniQualificationInline, AlumniEmploymentRecordInline]
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        # Same fix as AlumniQualificationInline above, for this model's
+        # own top-level qualification field.
+        if db_field.name == "qualification":
+            kwargs["queryset"] = Qualification.objects.select_related("faculty")
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     @admin.display(description='Name')
     def display_name(self, obj):
