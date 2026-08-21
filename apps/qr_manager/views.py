@@ -25,6 +25,20 @@ def _log(request, qr_code, result):
     )
 
 
+def _render_noindex(request, template_name, context=None, status=None):
+    """render() wrapper that sets X-Robots-Tag itself (2026-08-21) --
+    both qr_manager templates already carry a <meta name="robots"
+    content="noindex"> tag, but that's presentation-layer only and
+    depends on the template rendering exactly as intended (a multi-line
+    {# #} comment silently breaking that same tag, found and fixed the
+    same day, is live proof it can't be trusted alone for a page that
+    exposes a real member's name and standing). The HTTP header is set
+    here in code, so it holds even if the template ever changes again."""
+    response = render(request, template_name, context, status=status)
+    response["X-Robots-Tag"] = "noindex"
+    return response
+
+
 def _alumni_verification_context(alumni_profile):
     """Everything the public alumni verification page shows -- all read
     live from the database at request time (2026-08-14), nothing
@@ -36,8 +50,20 @@ def _alumni_verification_context(alumni_profile):
     public Categories & Benefits page), which the exact tier name would
     expose to anyone holding the badge; the category confirms standing
     without that (decided with the user, 2026-08-14).
+
+    membership (2026-08-21): looked up directly by status=ACTIVE rather
+    than via Membership.objects.current_for() -- that manager method
+    deliberately returns the most-recently-CREATED row regardless of
+    status (see its own docstring; apps/home/views.py:865 documents the
+    same ambiguity), which is right for showing "you have a renewal
+    pending" elsewhere but wrong here: a member with a still-valid
+    ACTIVE membership who has since started a renewal (a new PENDING
+    row) would otherwise show as "Not currently valid" on this public
+    page even though their badge is still genuinely good.
     """
-    membership = Membership.objects.current_for(alumni_profile.user)
+    membership = Membership.objects.filter(
+        user=alumni_profile.user, status=Membership.Status.ACTIVE
+    ).order_by("-created_at").first()
 
     tier_category = membership.tier.get_tier_type_display() if membership else None
 
@@ -96,16 +122,18 @@ def verify_scan(request, qr_id):
 
     if qr_code is None or qr_code.holder is None:
         _log(request, qr_code, ScanLog.Result.UNKNOWN)
-        return render(request, "qr_manager/scan_invalid.html", status=404)
+        return _render_noindex(request, "qr_manager/scan_invalid.html", status=404)
 
     supplied = request.GET.get("t", "")
     if not supplied or not secrets.compare_digest(supplied, qr_code.token):
         _log(request, qr_code, ScanLog.Result.BAD_TOKEN)
-        return render(request, "qr_manager/scan_invalid.html", status=403)
+        return _render_noindex(request, "qr_manager/scan_invalid.html", status=403)
 
     _log(request, qr_code, qr_code.status)
 
     if qr_code.alumni_profile_id:
-        return render(request, "qr_manager/alumni_verify.html", _alumni_verification_context(qr_code.alumni_profile))
+        return _render_noindex(
+            request, "qr_manager/alumni_verify.html", _alumni_verification_context(qr_code.alumni_profile)
+        )
 
     return redirect(qr_code.holder.get_absolute_url())

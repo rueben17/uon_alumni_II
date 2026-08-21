@@ -218,8 +218,20 @@ class UserProfile(models.Model):
 
     @property
     def full_name(self) -> str:
-        parts = [self.given_name, self.middle_name, self.family_name]
-        return " ".join(filter(None, parts)).strip()
+        # Google OAuth sometimes populates middle_name and family_name
+        # with an overlapping word at the boundary (e.g. middle_name
+        # "Musalia" + family_name "Musalia Nasiali", confirmed on a real
+        # production account, 2026-08-21) -- drop only an exact,
+        # case-insensitive repeat directly at a part boundary, never
+        # elsewhere in the name, so a genuinely repeated name part further
+        # apart is left alone.
+        words = []
+        for part in [self.given_name, self.middle_name, self.family_name]:
+            part_words = part.split()
+            if words and part_words and words[-1].lower() == part_words[0].lower():
+                part_words = part_words[1:]
+            words.extend(part_words)
+        return " ".join(words).strip()
 
     @property
     def display_name(self) -> str:
