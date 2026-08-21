@@ -1,7 +1,7 @@
 from django.contrib import admin, messages
 from apps.home.models import*
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.html import format_html
 from django_q.tasks import async_task
@@ -449,6 +449,33 @@ class AlumniEmploymentRecordInline(admin.TabularInline):
     fields = ['order', 'organization', 'position']
 
 
+class DigitalIDStatusFilter(admin.SimpleListFilter):
+    """digital_id_active alone (the old list_filter entry) can't tell
+    "never applied" from "applied, awaiting Secretariat review" -- both
+    show as False. This distinguishes them so the pending queue is
+    actually findable from the list view (2026-08-21), instead of
+    needing to open every row individually to check."""
+    title = "Digital ID Status"
+    parameter_name = "digital_id_status"
+
+    def lookups(self, request, model_admin):
+        return [
+            ("no_photo", "No photo submitted"),
+            ("pending", "Pending review"),
+            ("approved", "Approved"),
+        ]
+
+    def queryset(self, request, queryset):
+        no_photo = Q(digital_id_photo="") | Q(digital_id_photo__isnull=True)
+        if self.value() == "no_photo":
+            return queryset.filter(no_photo)
+        if self.value() == "pending":
+            return queryset.exclude(no_photo).filter(digital_id_active=False)
+        if self.value() == "approved":
+            return queryset.filter(digital_id_active=True)
+        return queryset
+
+
 @admin.register(AlumniProfile)
 class AlumniProfileAdmin(ExportMixin, admin.ModelAdmin):
     resource_class = AlumniProfileResource
@@ -456,8 +483,8 @@ class AlumniProfileAdmin(ExportMixin, admin.ModelAdmin):
     # now, edited via the User admin's inline -- not here. Membership
     # data (tier/status/expiry/issued items) lives on Membership,
     # registered separately below.
-    list_display = ['id', 'display_name', 'user_email', 'current_membership_display', 'digital_id_active']
-    list_filter = ['graduation_institution', 'graduation_date', 'digital_id_active']
+    list_display = ['id', 'display_name', 'user_email', 'current_membership_display', 'digital_id_status', 'digital_id_active']
+    list_filter = ['graduation_institution', 'graduation_date', DigitalIDStatusFilter]
     search_fields = [
         'user__profile__given_name', 'user__profile__family_name', 'user__email',
         'user__profile__national_id', 'student_reg_no',
@@ -515,6 +542,14 @@ class AlumniProfileAdmin(ExportMixin, admin.ModelAdmin):
         if membership is None:
             return '—'
         return f"{membership.tier.name} ({membership.get_status_display()})"
+
+    @admin.display(description="Digital ID Status")
+    def digital_id_status(self, obj):
+        if not obj.digital_id_photo:
+            return format_html('<span style="color:#6b7280;">No photo</span>')
+        if obj.digital_id_active:
+            return format_html('<span style="color:#15803d;font-weight:600;">Approved</span>')
+        return format_html('<span style="color:#92730a;font-weight:600;">Pending review</span>')
 
     @admin.display(description="QR Code")
     def qr_code_tag(self, obj):
