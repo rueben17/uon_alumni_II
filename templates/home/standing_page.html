@@ -102,6 +102,37 @@
                                 <img src="{{ article.get_article_banner_image }}" alt="{{ page_label }}" class="w-full rounded-sm my-6 object-cover">
                             {% endif %}
                             <div class="mt-6 prose max-w-none text-black whitespace-pre-line">{{ article.body }}</div>
+                        {% elif page_key == "digital-id" %}
+                            {% comment %}
+                            This page's real purpose is the application
+                            form above (visible once `alumni` is in
+                            context) -- someone landing here WITHOUT that
+                            is either signed out or signed in with no
+                            alumni profile, so the generic "being
+                            prepared" copy (written for standing pages
+                            that are genuinely just missing content) was
+                            actively misleading here: there is no content
+                            being prepared, this is a form only alumni can
+                            reach (2026-08-21).
+                            {% endcomment %}
+                            <p class="mt-8 text-slate-600">
+                                This page is for verified UoN alumni to apply for their Alumni Digital ID.
+                                {% if request.user.is_authenticated %}
+                                    Register as an alumnus to continue.
+                                {% else %}
+                                    Sign in with your alumni account to continue, or register if you haven't yet.
+                                {% endif %}
+                            </p>
+                            <div class="mt-4 flex flex-col gap-3 sm:flex-row">
+                                {% if not request.user.is_authenticated %}
+                                    <a href="/accounts/google/login/?next={{ request.path|urlencode }}" class="flex-1 inline-flex items-center justify-center rounded-sm bg-[#38b6ff] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#2f9bd9]">
+                                        Sign In
+                                    </a>
+                                {% endif %}
+                                <a href="{% url 'home:uon_alumni_register' %}" class="flex-1 inline-flex items-center justify-center rounded-sm border bg-black px-6 py-2.5 text-sm font-semibold text-white transition">
+                                    Register as an Alumnus
+                                </a>
+                            </div>
                         {% else %}
                             <p class="mt-8 text-gray-500">This page's content is being prepared — check back soon.</p>
                         {% endif %}
