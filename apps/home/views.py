@@ -213,6 +213,16 @@ def standing_page(request, page_key, slug=None, pk=None):
     this slug/pk URL for a signed-in alumnus, so the form is front-facing
     on arrival -- no CTA button/click-through to a second URL first.
     """
+    # alumni-card was this page_key's value before the 2026-08-21 rename
+    # to digital-id -- redirect permanently rather than let the old URL
+    # keep quietly resolving to the generic "being prepared" placeholder
+    # forever (bookmarks, browser history/autocomplete, and anything
+    # else still pointing at it otherwise never gets corrected).
+    if page_key == "alumni-card":
+        if slug and pk:
+            return redirect("home:alumni_digital_id_apply", slug=slug, pk=pk, permanent=True)
+        return redirect("home:standing_page", page_key="digital-id", permanent=True)
+
     article = Article.objects.filter(
         type=Article.ArticleType.PAGE, page_key=page_key, is_published=True
     ).first()

@@ -91,4 +91,15 @@ urlpatterns = [
         "uon-alumni-page/digital-id/<slug:slug>/<uuid:pk>/",
         standing_page, {"page_key": "digital-id"}, name="alumni_digital_id_apply",
     ),
+    # Old pre-rename slugged path (2026-08-21) -- the bare
+    # /uon-alumni-page/alumni-card/ URL is already caught by the generic
+    # page/<page_key>/ route's own redirect (standing_page()'s
+    # page_key == "alumni-card" branch), but that generic route has no
+    # <slug>/<pk> segments, so the slugged variant needs its own path to
+    # even reach the view at all instead of 404ing before the redirect
+    # logic ever runs.
+    path(
+        "uon-alumni-page/alumni-card/<slug:slug>/<uuid:pk>/",
+        standing_page, {"page_key": "alumni-card"}, name="alumni_digital_id_apply_legacy",
+    ),
 ]
