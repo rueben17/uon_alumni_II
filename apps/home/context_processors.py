@@ -325,7 +325,7 @@ def contacts(request):
         # Relative, like the Sign Out link below -- /accounts/ paths are
         # shared across every subdomain regardless of which urlconf is active.
         url_my_profile = "/accounts/google/login/"
-        url_alumni_card = f"{base}{home_url('standing_page', page_key='alumni-card')}"
+        url_alumni_card = f"{base}{home_url('standing_page', page_key='digital-id')}"
         url_membership_update = ""
         url_subscribe = f"{base}{home_url('uon_alumni_register')}"
 
