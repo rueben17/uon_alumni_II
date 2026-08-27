@@ -1113,8 +1113,8 @@ class Qualification(models.Model):
     class Meta:
         unique_together = ('faculty', 'name')
         ordering = ['faculty__faculty_name', 'level', 'name']
-        verbose_name = _("Qualification")
-        verbose_name_plural = _("Qualifications")
+        verbose_name = _("Programme/Course")
+        verbose_name_plural = _("Programmes/Courses")
 
     def __str__(self):
         return f"{self.name} ({self.faculty.faculty_name})"
