@@ -465,45 +465,57 @@ class AlumniRegisterView(MpesaEligibilityMixin, QualificationMapMixin, LoginRequ
         return initial
 
     def form_valid(self, form):
-        form.instance.user = self.request.user
-        response = super().form_valid(form)
+        # Wrapped in one transaction (2026-08-27) -- a real registration
+        # hit a mid-request crash between AlumniProfile.save() and the
+        # Payment.objects.create() below (the pre-fix Neon pooler/server-
+        # side-cursor bug), and because none of this was atomic, the
+        # profile stayed committed while the Membership/Payment never
+        # existed: an alumnus permanently stuck at "payment pending" with
+        # nothing to confirm, since AlumniRegisterView.dispatch() sends
+        # anyone who already has an alumni_profile away from this view
+        # and they can never retry it. All-or-nothing now -- if anything
+        # in here fails, nothing commits, and the user just resubmits
+        # the same form.
+        with transaction.atomic():
+            form.instance.user = self.request.user
+            response = super().form_valid(form)
 
-        # DPA 2019 consent: form.privacy_consent already gated submission
-        # (required=True), so reaching here means it was checked. Stamp
-        # when and against which version -- never inferred, never
-        # backdated, and never overwritten on a later profile edit (this
-        # view only runs once, at registration).
-        from apps.user.models import CURRENT_PRIVACY_NOTICE_VERSION
-        profile = self.request.user.profile
-        profile.consent_given_at = timezone.now()
-        profile.privacy_notice_version = CURRENT_PRIVACY_NOTICE_VERSION
-        profile.save(update_fields=["consent_given_at", "privacy_notice_version"])
+            # DPA 2019 consent: form.privacy_consent already gated submission
+            # (required=True), so reaching here means it was checked. Stamp
+            # when and against which version -- never inferred, never
+            # backdated, and never overwritten on a later profile edit (this
+            # view only runs once, at registration).
+            from apps.user.models import CURRENT_PRIVACY_NOTICE_VERSION
+            profile = self.request.user.profile
+            profile.consent_given_at = timezone.now()
+            profile.privacy_notice_version = CURRENT_PRIVACY_NOTICE_VERSION
+            profile.save(update_fields=["consent_given_at", "privacy_notice_version"])
 
-        # Only records the request -- membership number/tier assignment,
-        # renewal, upgrading, and everything under #Issued Items happen
-        # in the Membership Admin site once a Secretariat member confirms
-        # the payment (see PaymentAdmin.mark_completed in apps/home/admin.py).
-        # Membership created first so Payment.membership can link directly
-        # to it -- installment payments need that (apps/home/models.py's
-        # record_installment_payment); a lump-sum "Once" payment still
-        # covers the full tier.fee in one shot, same as before.
-        tier = form.cleaned_data["membership_tier"]
-        frequency = form.cleaned_data["payment_frequency"]
-        amount = form.cleaned_data.get("installment_amount") or tier.fee
-        membership = services.assign_membership_tier(self.request.user, tier, payment_frequency=frequency)
-        payment = Payment.objects.create(
-            alumni=self.object,
-            membership=membership,
-            membership_tier=tier,
-            amount=amount,
-            payment_method=form.cleaned_data["payment_method"],
-        )
-        initiate_payment(payment)
+            # Only records the request -- membership number/tier assignment,
+            # renewal, upgrading, and everything under #Issued Items happen
+            # in the Membership Admin site once a Secretariat member confirms
+            # the payment (see PaymentAdmin.mark_completed in apps/home/admin.py).
+            # Membership created first so Payment.membership can link directly
+            # to it -- installment payments need that (apps/home/models.py's
+            # record_installment_payment); a lump-sum "Once" payment still
+            # covers the full tier.fee in one shot, same as before.
+            tier = form.cleaned_data["membership_tier"]
+            frequency = form.cleaned_data["payment_frequency"]
+            amount = form.cleaned_data.get("installment_amount") or tier.fee
+            membership = services.assign_membership_tier(self.request.user, tier, payment_frequency=frequency)
+            payment = Payment.objects.create(
+                alumni=self.object,
+                membership=membership,
+                membership_tier=tier,
+                amount=amount,
+                payment_method=form.cleaned_data["payment_method"],
+            )
+            initiate_payment(payment)
 
-        alumni_profile_id = self.object.pk
-        transaction.on_commit(
-            lambda: async_task("apps.home.tasks.send_alumni_registration_confirmation", alumni_profile_id)
-        )
+            alumni_profile_id = self.object.pk
+            transaction.on_commit(
+                lambda: async_task("apps.home.tasks.send_alumni_registration_confirmation", alumni_profile_id)
+            )
 
         messages.success(self.request, "Welcome! Your alumni profile is complete.")
         return response
@@ -888,15 +900,23 @@ class AlumniMembershipUpdateView(LoginRequiredMixin, View):
         tier = form.cleaned_data["membership_tier"]
         frequency = form.cleaned_data["payment_frequency"]
         amount = form.cleaned_data.get("installment_amount") or tier.fee
-        membership = services.assign_membership_tier(request.user, tier, payment_frequency=frequency)
-        payment = Payment.objects.create(
-            alumni=alumni,
-            membership=membership,
-            membership_tier=tier,
-            amount=amount,
-            payment_method=form.cleaned_data["payment_method"],
-        )
-        initiate_payment(payment)
+        # Atomic for the same reason as AlumniRegisterView.form_valid()
+        # (2026-08-27) -- assign_membership_tier() and Payment.objects.create()
+        # used to be two separate un-atomic writes; a crash between them
+        # left a PENDING Membership with no Payment behind it, which the
+        # dispatch() guard above (line ~875) can't catch since it only
+        # checks for an existing PENDING row -- it would just block the
+        # member from ever retrying, the same dead-end this fixes.
+        with transaction.atomic():
+            membership = services.assign_membership_tier(request.user, tier, payment_frequency=frequency)
+            payment = Payment.objects.create(
+                alumni=alumni,
+                membership=membership,
+                membership_tier=tier,
+                amount=amount,
+                payment_method=form.cleaned_data["payment_method"],
+            )
+            initiate_payment(payment)
 
         messages.success(request, "Request recorded. Your membership updates once the Secretariat confirms the payment.")
         return redirect(alumni.get_absolute_url())
