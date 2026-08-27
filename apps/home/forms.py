@@ -55,8 +55,8 @@ class AlumniProfileForm(TailwindStyledFormMixin, forms.ModelForm):
     postal_code = forms.CharField(max_length=20, required=False)
     city = forms.CharField(max_length=100, required=False)
     phone_mobile = forms.CharField(max_length=20, label="Mobile Phone")
-    phone_alt = forms.CharField(max_length=20, required=False, label="Alternate Phone")
-    email = forms.EmailField(required=False, label="Alternate Email")
+    phone_alt = forms.CharField(max_length=20, label="Alternate Phone")
+    email = forms.EmailField(label="Alternate Email")
     receive_newsletter = forms.BooleanField(required=False, initial=False, label="Receive newsletter")
     receive_sms_alerts = forms.BooleanField(required=False, initial=False, label="Receive SMS alerts")
 
@@ -127,8 +127,6 @@ class AlumniProfileForm(TailwindStyledFormMixin, forms.ModelForm):
             "postal_address",
             "postal_code",
             "city",
-            "phone_alt",
-            "email",
             "current_employer",
             "employment_position",
             "faculty",
@@ -155,8 +153,8 @@ class AlumniProfileForm(TailwindStyledFormMixin, forms.ModelForm):
             "postal_code": "Postal code (optional)",
             "city": "City (optional)",
             "phone_mobile": "0712345678 (KE) or +447911123456 (UK)",
-            "phone_alt": "0712345678 (KE) or +447911123456 (UK) -- optional",
-            "email": "Alternate email (optional)",
+            "phone_alt": "0712345678 (KE) or +447911123456 (UK)",
+            "email": "Alternate email",
             "current_employer": "Current place of employment (optional)",
             "employment_position": "Your position (optional)",
             "name_at_graduation": "Only if different from your current name",
@@ -187,8 +185,8 @@ class AlumniProfileForm(TailwindStyledFormMixin, forms.ModelForm):
             "city": "Optional -- used for correspondence.",
             "phone_mobile": "Your primary contact number and login ID -- must be unique to your account. "
                              "0712345678, or with your country code if abroad, e.g. +254, +44.",
-            "phone_alt": "An alternate number we can reach you on, if different. Same format as above.",
-            "email": "An alternate address, separate from your Google login email.",
+            "phone_alt": "An alternate number we can reach you on. Same format as above.",
+            "email": "An alternate address we can reach you on, separate from your Google login email.",
             "receive_newsletter": "Get the Association's newsletter by email. You can change this anytime.",
             "receive_sms_alerts": "Get event reminders and announcements by SMS. You can change this anytime.",
             "current_employer": "Optional -- helps the Association understand its alumni network.",
