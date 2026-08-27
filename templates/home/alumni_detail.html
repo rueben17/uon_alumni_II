@@ -26,17 +26,36 @@
                     <div class="rounded-sm border border-slate-200 bg-white p-6 shadow-sm md:p-8">
                         <div class="flex flex-col gap-3">
 
-                            <div class="flex w-full flex-wrap items-center gap-2 text-sm">
-                                <h1 class="text-xl font-semibold tracking-tight text-black sm:text-2xl">{{ alumni.user.profile.display_name }}</h1>
+                            {% comment %}
+                            2 columns x 2 rows (2026-08-27, per explicit
+                            request): name + Member No on top, tier + status
+                            on the bottom. A real CSS grid with explicit
+                            col-start/row-start on every item, not two
+                            independent flex rows -- flex-1 on each row
+                            separately does NOT guarantee the two rows'
+                            columns line up at the same width (each flex
+                            row sizes its own 0%-basis items independently),
+                            which is exactly what produced a visibly wider
+                            Member No than the status badge below it. Grid
+                            columns are shared tracks across the whole
+                            container, so both rows are forced to the same
+                            width regardless of content or which optional
+                            item is present. Explicit placement (not
+                            auto-flow) because membership_number is
+                            conditional -- auto-flow would misplace the
+                            tier/status pair into row 1 whenever it's absent.
+                            {% endcomment %}
+                            <div class="grid w-full grid-cols-2 gap-2 text-sm">
+                                <h1 class="col-start-1 row-start-1 text-xl font-semibold tracking-tight text-black sm:text-2xl">{{ alumni.user.profile.display_name }}</h1>
                                 {% if current_membership.membership_number %}
-                                    <span class="inline-flex items-center rounded-sm bg-slate-100 flex-1 px-4 py-2 text-xs font-semibold uppercase text-slate-700">Member No: {{ current_membership.membership_number }}</span>
+                                    <span class="col-start-2 row-start-1 inline-flex items-center rounded-sm bg-slate-100 px-4 py-2 text-xs font-semibold uppercase text-slate-700">Member No: {{ current_membership.membership_number }}</span>
                                 {% endif %}
                                 {% if current_membership %}
-                                    <span class="inline-flex items-center rounded-sm bg-[#fdbe13] flex-1 px-4 py-2 text-xs font-semibold uppercase text-black">{{ current_membership.tier.name }}</span>
+                                    <span class="col-start-1 row-start-2 inline-flex items-center rounded-sm bg-[#fdbe13] px-4 py-2 text-xs font-semibold uppercase text-black">{{ current_membership.tier.name }}</span>
                                     {% if current_membership.is_valid %}
-                                        <span class="inline-flex items-center rounded-sm bg-green-50 flex-1 px-4 py-2 text-xs font-semibold uppercase text-green-700">Active</span>
+                                        <span class="col-start-2 row-start-2 inline-flex items-center rounded-sm bg-green-50 px-4 py-2 text-xs font-semibold uppercase text-green-700">Active</span>
                                     {% else %}
-                                        <span class="inline-flex items-center rounded-sm bg-[#fdbe13] flex-1 px-4 py-2 text-xs font-semibold uppercase text-black">Payment Pending</span>
+                                        <span class="col-start-2 row-start-2 inline-flex items-center rounded-sm bg-[#fdbe13] px-4 py-2 text-xs font-semibold uppercase text-black">Payment Pending</span>
                                     {% endif %}
                                 {% endif %}
                             </div>
