@@ -1584,11 +1584,25 @@ class Membership(models.Model):
         (Association decision 2026-08-07: active while paying, not only
         once paid off) -- subsequent calls just accumulate amount_paid
         and push next_installment_due forward.
+
+        `not self.started_on` alongside the status check (2026-08-27) --
+        a real row ended up ACTIVE with started_on/expires_on/
+        membership_number all still NULL (status flipped directly in the
+        admin rather than through activate()), and because this method
+        only called activate() when status wasn't already ACTIVE, every
+        later payment against that row hit the plain self.save() branch
+        and re-saved those NULLs forever -- is_valid stayed False no
+        matter how many payments came in. activate() only fills fields
+        that are actually unset (started_on's own `self.started_on or
+        payment_date`, membership_number's `if not self.membership_number`),
+        so calling it here is a safe backfill, not a reset -- a normal,
+        already-fully-activated installment still takes this branch
+        exactly as before.
         """
         payment_date = payment_date or timezone.now().date()
         self.amount_paid = (self.amount_paid or Decimal("0")) + amount
 
-        if self.status != self.Status.ACTIVE:
+        if self.status != self.Status.ACTIVE or not self.started_on:
             self.activate(payment_date=payment_date)
         else:
             self.save()
