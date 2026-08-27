@@ -677,12 +677,36 @@ class PaymentAdmin(admin.ModelAdmin):
         }),
     )
 
-    def mark_completed(self, request, queryset):
+    def save_model(self, request, obj, form, change):
+        """No payment gateway is plugged in yet (apps/home/payments.py) --
+        the Secretariat confirms a payment by hand, which in practice
+        means opening it here and switching payment_status to Completed
+        on this change form, not necessarily using the mark_completed
+        bulk action below. Both must activate the membership; before this
+        override, only the action did, so a payment confirmed via the
+        change form's Save button showed as completed while the alumni's
+        membership silently stayed pending forever (2026-08-27).
+
+        old_status is read from the DB, not from `form.initial` -- it
+        must reflect what was actually persisted before this save, not
+        what the form happened to preload.
         """
-        Confirm payment, then update the Membership row the payment was
+        old_status = None
+        if change:
+            old_status = Payment.objects.filter(pk=obj.pk).values_list(
+                "payment_status", flat=True
+            ).first()
+        super().save_model(request, obj, form, change)
+        if obj.payment_status == "completed" and old_status != "completed":
+            self._activate_membership_for(obj)
+
+    def _activate_membership_for(self, payment, today=None):
+        """Confirm payment, then update the Membership row the payment was
         for via the 1.3 service layer (apps/home/services.py) -- the one
         door, rather than mutating fields or calling the model methods
-        directly. Two paths:
+        directly. Shared by save_model() above and mark_completed() below
+        -- same activation regardless of which UI path confirmed the
+        payment. Two paths:
 
         - payment.membership is set (installment payments -- apps/home/views.py
           links this explicitly now): services.record_installment_payment(),
@@ -699,8 +723,13 @@ class PaymentAdmin(admin.ModelAdmin):
         Skips payments with no membership_tier set (shouldn't happen given
         how Payment rows are created, but nothing to apply if it is).
 
+        Only ever called once per pending->completed transition (both
+        callers guard for that) -- record_installment_payment() adds
+        `amount` to amount_paid unconditionally on every call, so calling
+        this twice for the same confirmation would double-count it.
+
         Installment plans anchor next_installment_due to TODAY -- the
-        moment this action runs, i.e. Secretariat confirmation -- not to
+        moment this runs, i.e. Secretariat confirmation -- not to
         payment.payment_date (2026-08-21). payment_date defaults to when
         the member submitted the payment request, which can sit pending
         for days/weeks before the Secretariat gets to it; anchoring the
@@ -709,26 +738,41 @@ class PaymentAdmin(admin.ModelAdmin):
         overdue the moment it activates. Lump-sum activate_membership()
         below is untouched -- only the installment path was asked for.
         """
+        if not payment.completion_date:
+            payment.completion_date = timezone.now()
+            payment.save(update_fields=["completion_date"])
+
+        tier = payment.membership_tier
+        if not tier:
+            return
+
+        today = today or timezone.now().date()
+        if payment.membership_id:
+            services.record_installment_payment(payment.membership, payment.amount, payment_date=today)
+        else:
+            payment_date = payment.payment_date.date() if payment.payment_date else None
+            user = payment.alumni.user
+            membership = Membership.objects.filter(
+                user=user, tier=tier, status=Membership.Status.PENDING
+            ).order_by('-created_at').first()
+            if membership is None:
+                membership = Membership.objects.create(user=user, tier=tier)
+            services.activate_membership(membership, payment_date=payment_date)
+
+    def mark_completed(self, request, queryset):
+        """Bulk-action twin of save_model() above -- same
+        _activate_membership_for(), guarded the same way against
+        double-firing on a payment that's already completed (selecting
+        an already-completed row and running this again must not
+        re-add its amount)."""
         updated = 0
         today = timezone.now().date()
         for payment in queryset.select_related('alumni__user', 'membership_tier', 'membership'):
+            was_completed = payment.payment_status == 'completed'
             payment.mark_as_completed()
-            tier = payment.membership_tier
-            if not tier:
-                continue
-
-            if payment.membership_id:
-                services.record_installment_payment(payment.membership, payment.amount, payment_date=today)
-            else:
-                payment_date = payment.payment_date.date() if payment.payment_date else None
-                user = payment.alumni.user
-                membership = Membership.objects.filter(
-                    user=user, tier=tier, status=Membership.Status.PENDING
-                ).order_by('-created_at').first()
-                if membership is None:
-                    membership = Membership.objects.create(user=user, tier=tier)
-                services.activate_membership(membership, payment_date=payment_date)
-            updated += 1
+            if not was_completed:
+                self._activate_membership_for(payment, today=today)
+                updated += 1
         self.message_user(request, f"{updated} payment(s) marked completed and membership updated.")
     mark_completed.short_description = "Mark selected payments as completed (and update membership)"
 
