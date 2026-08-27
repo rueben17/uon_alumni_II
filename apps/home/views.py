@@ -550,6 +550,16 @@ class AlumniProfileDetailView(DetailView):
         current_membership = Membership.objects.current_for(self.object.user)
         context["current_membership"] = current_membership
         context["alt_email"] = EmailAddress.objects.filter(user=self.object.user, primary=False).first()
+        # Computed here, not as a template {% if %} with parentheses --
+        # Django's {% if %} tag doesn't support grouping parens at all
+        # (confirmed: `{% if a and (b or c) %}` raises TemplateSyntaxError,
+        # not a silent misparse), which is exactly what broke this page
+        # with a 500 on every load for a few minutes on 2026-08-27 after
+        # a first attempt used that syntax directly in the template.
+        user = self.request.user
+        context["can_view_payment_history"] = user.is_authenticated and (
+            user == self.object.user or user.is_staff or user.is_superuser
+        )
         # Only what this member actually has -- not the full tier matrix
         # (that's the separate Categories & Benefits page). Excluded/
         # not-applicable rows would just be a list of things they don't
