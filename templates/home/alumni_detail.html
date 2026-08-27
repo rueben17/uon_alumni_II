@@ -121,11 +121,29 @@
                     <div class="rounded-sm border border-slate-200 bg-white p-6 shadow-sm md:p-8">
                         <h2 class="text-lg font-semibold text-black mb-4">Alumni Digital ID</h2>
                         {% if alumni.qr_code_image %}
-                            <div class="mx-auto w-full max-w-55 sm:max-w-65">
-                                {% if alumni.digital_id_photo_url %}
-                                    <img src="{{ alumni.digital_id_photo_url }}" alt="{{ alumni.user.profile.display_name }}" class="mx-auto mb-3 aspect-square w-24 rounded-full border border-slate-200 bg-white object-cover sm:w-28">
-                                {% endif %}
-                                <img src="{{ alumni.qr_code_image.url }}" alt="{{ alumni.user.profile.display_name }} QR" class="mx-auto aspect-square w-full rounded-sm border border-slate-200 bg-white p-1 object-contain">
+                            <div class="mx-auto w-full max-w-85 sm:max-w-100">
+                                {% comment %}
+                                Photo + QR side by side, not stacked (2026-08-27)
+                                -- photo at a real passport-photo aspect ratio
+                                (35:45mm, the standard portrait ratio) instead
+                                of the old square avatar crop, at a fixed
+                                "passport" width alongside the QR, rather than
+                                an even grid split -- an even split shrank the
+                                QR to roughly half its old width, which matters
+                                for a code a phone camera has to actually
+                                scan. flex-1 + the SAME max-w the QR always
+                                had (max-w-55/65) keeps it exactly as scannable
+                                as before; the photo just rides alongside it
+                                now instead of sitting above it. With no photo
+                                the QR alone still takes the full row, same as
+                                before.
+                                {% endcomment %}
+                                <div class="flex items-start gap-4">
+                                    {% if alumni.digital_id_photo_url %}
+                                        <img src="{{ alumni.digital_id_photo_url }}" alt="{{ alumni.user.profile.display_name }}" class="aspect-[35/45] w-24 shrink-0 rounded-sm border border-slate-200 bg-white object-cover sm:w-28">
+                                    {% endif %}
+                                    <img src="{{ alumni.qr_code_image.url }}" alt="{{ alumni.user.profile.display_name }} QR" class="mx-auto aspect-square w-full max-w-55 flex-1 rounded-sm border border-slate-200 bg-white p-1 object-contain sm:max-w-65">
+                                </div>
                                 {% comment %}
                                 Same PDF/PNG download pattern as staff's
                                 own badge (templates/staff/staff_header
