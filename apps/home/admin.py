@@ -698,7 +698,14 @@ class PaymentAdmin(admin.ModelAdmin):
             ).first()
         super().save_model(request, obj, form, change)
         if obj.payment_status == "completed" and old_status != "completed":
-            self._activate_membership_for(obj)
+            if self._activate_membership_for(obj):
+                messages.success(request, "Payment confirmed -- membership activated.")
+            else:
+                messages.error(
+                    request,
+                    "Payment marked Completed, but no Membership Category is set on it, "
+                    "so no membership was activated. Set Membership Category and save again."
+                )
 
     def _activate_membership_for(self, payment, today=None):
         """Confirm payment, then update the Membership row the payment was
@@ -720,8 +727,14 @@ class PaymentAdmin(admin.ModelAdmin):
         that user and carries its membership_number forward, handled
         inside the service layer rather than here.
 
-        Skips payments with no membership_tier set (shouldn't happen given
-        how Payment rows are created, but nothing to apply if it is).
+        Returns True if a membership was actually created/activated,
+        False if there was nothing to apply (no membership_tier set --
+        membership_tier is null=True/blank=True on the model, so the
+        admin form doesn't force it; a Payment saved as Completed with
+        that field left empty used to activate nothing and say nothing,
+        which is exactly what happened to a real Secretariat-entered
+        Payment on 2026-08-27 -- both callers now surface this instead
+        of failing silently).
 
         Only ever called once per pending->completed transition (both
         callers guard for that) -- record_installment_payment() adds
@@ -744,7 +757,7 @@ class PaymentAdmin(admin.ModelAdmin):
 
         tier = payment.membership_tier
         if not tier:
-            return
+            return False
 
         today = today or timezone.now().date()
         if payment.membership_id:
@@ -758,6 +771,7 @@ class PaymentAdmin(admin.ModelAdmin):
             if membership is None:
                 membership = Membership.objects.create(user=user, tier=tier)
             services.activate_membership(membership, payment_date=payment_date)
+        return True
 
     def mark_completed(self, request, queryset):
         """Bulk-action twin of save_model() above -- same
@@ -766,14 +780,24 @@ class PaymentAdmin(admin.ModelAdmin):
         an already-completed row and running this again must not
         re-add its amount)."""
         updated = 0
+        skipped_no_tier = 0
         today = timezone.now().date()
         for payment in queryset.select_related('alumni__user', 'membership_tier', 'membership'):
             was_completed = payment.payment_status == 'completed'
             payment.mark_as_completed()
             if not was_completed:
-                self._activate_membership_for(payment, today=today)
-                updated += 1
+                if self._activate_membership_for(payment, today=today):
+                    updated += 1
+                else:
+                    skipped_no_tier += 1
         self.message_user(request, f"{updated} payment(s) marked completed and membership updated.")
+        if skipped_no_tier:
+            self.message_user(
+                request,
+                f"{skipped_no_tier} payment(s) marked completed but NOT activated -- "
+                "no Membership Category set. Open each and set it, then save again.",
+                level=messages.ERROR,
+            )
     mark_completed.short_description = "Mark selected payments as completed (and update membership)"
 
     def mark_failed(self, request, queryset):
