@@ -26,17 +26,17 @@
                     <div class="rounded-sm border border-slate-200 bg-white p-6 shadow-sm md:p-8">
                         <div class="flex flex-col gap-3">
 
-                            <div class="flex flex-wrap items-center gap-2">
+                            <div class="flex w-full flex-wrap items-center gap-2 text-sm">
                                 <h1 class="text-xl font-semibold tracking-tight text-black sm:text-2xl">{{ alumni.user.profile.display_name }}</h1>
                                 {% if current_membership.membership_number %}
-                                    <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase text-slate-700">Member No: {{ current_membership.membership_number }}</span>
+                                    <span class="inline-flex items-center rounded-sm bg-slate-100 flex-1 px-4 py-2 text-xs font-semibold uppercase text-slate-700">Member No: {{ current_membership.membership_number }}</span>
                                 {% endif %}
                                 {% if current_membership %}
-                                    <span class="inline-flex items-center rounded-full bg-[#fdbe13] px-3 py-1 text-xs font-semibold uppercase text-black">{{ current_membership.tier.name }}</span>
+                                    <span class="inline-flex items-center rounded-sm bg-[#fdbe13] flex-1 px-4 py-2 text-xs font-semibold uppercase text-black">{{ current_membership.tier.name }}</span>
                                     {% if current_membership.is_valid %}
-                                        <span class="inline-flex items-center rounded-full bg-green-50 px-3 py-1 text-xs font-semibold uppercase text-green-700">Active</span>
+                                        <span class="inline-flex items-center rounded-sm bg-green-50 flex-1 px-4 py-2 text-xs font-semibold uppercase text-green-700">Active</span>
                                     {% else %}
-                                        <span class="inline-flex items-center rounded-full bg-[#fdbe13] px-3 py-1 text-xs font-semibold uppercase text-black">Payment Pending</span>
+                                        <span class="inline-flex items-center rounded-sm bg-[#fdbe13] flex-1 px-4 py-2 text-xs font-semibold uppercase text-black">Payment Pending</span>
                                     {% endif %}
                                 {% endif %}
                             </div>
@@ -92,21 +92,21 @@
 
                             {% if alumni.qualification %}
                                 <div class="flex flex-wrap gap-2 text-sm">
-                                    <span class="inline-flex items-center rounded-full bg-[#38b6ff] px-3 py-1 font-medium text-white">Faculty: {{ alumni.faculty.faculty_name }}</span>
-                                    <span class="inline-flex items-center rounded-full bg-[#38b6ff] px-3 py-1 font-medium text-white">Qualification: {{ alumni.qualification.name }}</span>
+                                    <span class="inline-flex items-center justify-center rounded-sm border border-[#38b6ff] flex-1 px-4 py-2 font-medium text-black text-center">Faculty: {{ alumni.faculty.faculty_name }}</span>
+                                    <span class="inline-flex items-center justify-center rounded-sm border border-[#38b6ff] flex-1 px-4 py-2 font-medium text-black text-center">Qualification: {{ alumni.qualification.name }}</span>
                                 </div>
                             {% elif alumni.other_institution_name %}
                                 <div class="flex flex-wrap gap-2 text-sm">
-                                    <span class="inline-flex items-center rounded-full bg-[#38b6ff] px-3 py-1 font-medium text-white">Institution: {{ alumni.other_institution_name }}</span>
-                                    <span class="inline-flex items-center rounded-full bg-[#38b6ff] px-3 py-1 font-medium text-white">Qualification: {{ alumni.other_institution_qualification }}</span>
+                                    <span class="inline-flex items-center justify-center rounded-sm border border-[#38b6ff] flex-1 px-4 py-2 font-medium text-black text-center">Institution: {{ alumni.other_institution_name }}</span>
+                                    <span class="inline-flex items-center justify-center rounded-sm border border-[#38b6ff] flex-1 px-4 py-2 font-medium text-black text-center">Qualification: {{ alumni.other_institution_qualification }}</span>
                                 </div>
                             {% endif %}
 
                             <div class="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap sm:gap-3">
                                 {% if request.user.is_authenticated and request.user == alumni.user %}
-                                    <a href="{{ alumni.get_edit_url }}" class="inline-flex w-full items-center justify-center rounded-sm bg-[#38b6ff] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#2f9bd9] sm:w-auto">Edit Profile</a>
-                                    <a href="{{ alumni.get_membership_update_url }}" class="inline-flex w-full items-center justify-center rounded-sm bg-[#fdbe13] px-4 py-2 text-xs font-semibold text-black transition hover:bg-[#d7a110] sm:w-auto">Manage Membership</a>
-                                    <a href="{{ alumni.get_delete_url }}" class="inline-flex w-full items-center justify-center rounded-sm border border-red-300 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 sm:w-auto">Deactivate Profile</a>
+                                    <a href="{{ alumni.get_edit_url }}" class="inline-flex w-full flex-1 items-center justify-center rounded-sm bg-[#38b6ff] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#2f9bd9]">Edit Profile</a>
+                                    <a href="{{ alumni.get_membership_update_url }}" class="inline-flex w-full flex-1 items-center justify-center rounded-sm bg-[#fdbe13] px-4 py-2 text-xs font-semibold text-black transition hover:bg-[#d7a110]">Manage Membership</a>
+                                    <a href="{{ alumni.get_delete_url }}" class="inline-flex w-full flex-1 items-center justify-center rounded-sm bg-black px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800">Deactivate Profile</a>
                                 {% endif %}
                             </div>
                         </div>
@@ -118,48 +118,48 @@
                          AlumniProfileAdmin's "Generate / refresh Digital
                          Alumni ID (QR)" action, same as staff badges --
                          nothing here triggers generation itself. -->
-                    <div class="rounded-sm border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+                    <div class="rounded-sm border border-slate-200 bg-white p-5 shadow-sm">
                         <h2 class="text-lg font-semibold text-black mb-4">Alumni Digital ID</h2>
                         {% if alumni.qr_code_image %}
-                            <div class="mx-auto w-full max-w-85 sm:max-w-100">
-                                {% comment %}
-                                Photo + QR side by side, not stacked (2026-08-27)
-                                -- photo at a real passport-photo aspect ratio
-                                (35:45mm, the standard portrait ratio) instead
-                                of the old square avatar crop, at a fixed
-                                "passport" width alongside the QR, rather than
-                                an even grid split -- an even split shrank the
-                                QR to roughly half its old width, which matters
-                                for a code a phone camera has to actually
-                                scan. flex-1 + the SAME max-w the QR always
-                                had (max-w-55/65) keeps it exactly as scannable
-                                as before; the photo just rides alongside it
-                                now instead of sitting above it. With no photo
-                                the QR alone still takes the full row, same as
-                                before.
-                                {% endcomment %}
-                                <div class="flex items-start gap-4">
-                                    {% if alumni.digital_id_photo_url %}
-                                        <img src="{{ alumni.digital_id_photo_url }}" alt="{{ alumni.user.profile.display_name }}" class="aspect-[35/45] w-24 shrink-0 rounded-sm border border-slate-200 bg-white object-cover sm:w-28">
-                                    {% endif %}
-                                    <img src="{{ alumni.qr_code_image.url }}" alt="{{ alumni.user.profile.display_name }} QR" class="mx-auto aspect-square w-full max-w-55 flex-1 rounded-sm border border-slate-200 bg-white p-1 object-contain sm:max-w-65">
-                                </div>
-                                {% comment %}
-                                Same PDF/PNG download pattern as staff's
-                                own badge (templates/staff/staff_header
-                                .html) -- apps.home.views
-                                .download_alumni_qr_code() mirrors
-                                apps.staff.views.download_staff_qr_code()
-                                (2026-08-21), adding the member's tier
-                                name and validity period to the PDF in
-                                place of staff's org unit line.
-                                {% endcomment %}
-                                {% if request.user.is_authenticated and request.user == alumni.user %}
-                                    <div class="mt-3 flex flex-col gap-2 text-sm sm:flex-row sm:justify-center sm:gap-3">
-                                        <a href="{% url 'home:alumni_qr_download' slug=alumni.slug pk=alumni.pk %}?format=pdf" target="_blank" class="inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-100">Download PDF</a>
-                                        <a href="{% url 'home:alumni_qr_download' slug=alumni.slug pk=alumni.pk %}?format=png" class="inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-100">Download PNG</a>
-                                    </div>
+                            {% comment %}
+                            Two equal columns, photo left / QR right
+                            (2026-08-27, per explicit request) -- w-full on
+                            the grid AND each image, not a fixed width, so
+                            both columns stretch to fill the card's actual
+                            width instead of the whole block sitting small
+                            and centered with dead space around it. With no
+                            photo the QR alone still takes the row, same as
+                            before -- grid with a single item just renders
+                            as one column.
+                            {% endcomment %}
+                            <div class="grid w-full grid-cols-2 gap-4">
+                                {% if alumni.digital_id_photo_url %}
+                                    <img src="{{ alumni.digital_id_photo_url }}" alt="{{ alumni.user.profile.display_name }}" class="aspect-square w-full rounded-sm border border-slate-200 bg-white object-cover">
                                 {% endif %}
+                                <div class="flex flex-col items-center gap-3">
+                                    <img src="{{ alumni.qr_code_image.url }}" alt="{{ alumni.user.profile.display_name }} QR" class="aspect-square w-full rounded-sm border-2 border-[#38b6ff] bg-white p-1 object-contain">
+                                    {% comment %}
+                                    Same PDF/PNG download pattern as staff's
+                                    own badge (templates/staff/staff_header
+                                    .html) -- apps.home.views
+                                    .download_alumni_qr_code() mirrors
+                                    apps.staff.views.download_staff_qr_code()
+                                    (2026-08-21), adding the member's tier
+                                    name and validity period to the PDF in
+                                    place of staff's org unit line. Nested
+                                    inside the QR's own flex column now
+                                    (2026-08-27, per explicit request) so
+                                    they sit under the QR specifically, not
+                                    as a third grid item spanning under both
+                                    columns.
+                                    {% endcomment %}
+                                    {% if request.user.is_authenticated and request.user == alumni.user %}
+                                        <div class="flex w-full gap-2 text-sm">
+                                            <a href="{% url 'home:alumni_qr_download' slug=alumni.slug pk=alumni.pk %}?format=pdf" target="_blank" class="inline-flex flex-1 items-center justify-center rounded-md border border-slate-300 px-2 py-1.5 font-medium text-slate-700 transition hover:bg-slate-100">Download PDF</a>
+                                            <a href="{% url 'home:alumni_qr_download' slug=alumni.slug pk=alumni.pk %}?format=png" target="_blank" class="inline-flex flex-1 items-center justify-center rounded-md border border-slate-300 px-2 py-1.5 font-medium text-slate-700 transition hover:bg-slate-100">Download PNG</a>
+                                        </div>
+                                    {% endif %}
+                                </div>
                             </div>
                             <p class="mt-3 text-center text-xs text-slate-500">Scan to open this profile.</p>
                         {% else %}
