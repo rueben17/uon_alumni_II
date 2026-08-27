@@ -258,6 +258,19 @@ else:
             _db_url, conn_max_age=600, conn_health_checks=True
         )
     }
+    # DATABASE_URL's host is Neon's pooled endpoint (confirmed:
+    # ...-pooler.<region>.aws.neon.tech), which hands out connections
+    # PgBouncer-transaction-pooling-style -- a named/server-side cursor
+    # opened on one physical connection can silently stop existing if
+    # the pooler reassigns a different one mid-request, surfacing as
+    # psycopg2.errors.InvalidCursorName ("cursor ... does not exist"),
+    # confirmed live in production (2026-08-27, admin change-page
+    # dropdown rendering). This is Django's own documented mitigation
+    # for exactly this class of pooler: server-side cursors are never
+    # safe against a transaction-pooled connection, regardless of how
+    # small/optimized the query is, so this closes the failure mode
+    # everywhere at once rather than per-queryset.
+    DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
 
 
 # ─────────────────────────────────────────────
