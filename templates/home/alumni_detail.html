@@ -134,7 +134,7 @@
                             {% endcomment %}
                             <div class="grid w-full grid-cols-2 gap-4">
                                 {% if alumni.digital_id_photo_url %}
-                                    <img src="{{ alumni.digital_id_photo_url }}" alt="{{ alumni.user.profile.display_name }}" class="aspect-square w-full rounded-sm border border-slate-200 bg-white object-cover">
+                                    <img src="{{ alumni.digital_id_photo_url }}" alt="{{ alumni.user.profile.display_name }}" class="aspect-square w-full rounded-sm border border-slate-200 bg-white p-1 object-cover object-top">
                                 {% endif %}
                                 <div class="flex flex-col items-center gap-3">
                                     <img src="{{ alumni.qr_code_image.url }}" alt="{{ alumni.user.profile.display_name }} QR" class="aspect-square w-full rounded-sm border-2 border-[#38b6ff] bg-white p-1 object-contain">
