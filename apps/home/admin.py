@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib import admin, messages
 from apps.home.models import*
 from django.db import transaction
@@ -57,19 +59,40 @@ class MembershipResource(resources.ModelResource):
 
 
 class AlumniProfileResource(resources.ModelResource):
+    """One row per alumni -- profile, their current membership, AND their
+    full payment history merged into one export (2026-08-27, replacing
+    the old single-line 'Current Membership' summary column), rather than
+    a separate export per model. Payment history is a delimited summary
+    column instead of one-row-per-payment: import-export's Resource is
+    tied to a single source model's queryset, so a genuine one-row-per-
+    payment export would need to iterate Payment instead of AlumniProfile
+    -- this keeps the member directory shape (one row per person) while
+    still surfacing every payment, not just the latest.
+    """
     email = fields.Field(column_name='Email')
     full_name = fields.Field(column_name='Full Name')
     phone = fields.Field(column_name='Phone')
     faculty_name = fields.Field(column_name='Faculty')
     qualification_name = fields.Field(column_name='Qualification')
-    current_membership = fields.Field(column_name='Current Membership')
+    membership_number = fields.Field(column_name='Member No')
+    membership_tier = fields.Field(column_name='Membership Tier')
+    membership_status = fields.Field(column_name='Membership Status')
+    membership_started_on = fields.Field(column_name='Membership Started')
+    membership_expires_on = fields.Field(column_name='Membership Expires')
+    membership_amount_paid = fields.Field(column_name='Amount Paid')
+    membership_balance_due = fields.Field(column_name='Balance Due')
+    payment_history = fields.Field(column_name='Payment History')
 
     class Meta:
         model = AlumniProfile
         fields = (
             'email', 'full_name', 'phone', 'faculty_name', 'qualification_name',
             'graduation_date', 'current_employer', 'employment_position',
-            'current_membership', 'is_active', 'registration_date',
+            'is_active', 'registration_date',
+            'membership_number', 'membership_tier', 'membership_status',
+            'membership_started_on', 'membership_expires_on',
+            'membership_amount_paid', 'membership_balance_due',
+            'payment_history',
         )
         export_order = fields
 
@@ -88,9 +111,63 @@ class AlumniProfileResource(resources.ModelResource):
     def dehydrate_qualification_name(self, obj):
         return obj.qualification.name if obj.qualification_id else ''
 
-    def dehydrate_current_membership(self, obj):
-        membership = Membership.objects.current_for(obj.user)
-        return f"{membership.tier.name} ({membership.get_status_display()})" if membership else ''
+    def _current_membership(self, obj):
+        """Prefers an ACTIVE row over Membership.objects.current_for()'s
+        own most-recently-created-regardless-of-status pick (see that
+        method's own docstring) -- same reasoning as apps/qr_manager/
+        views.py's _alumni_verification_context(): a member with a
+        genuinely valid ACTIVE membership who has since started a
+        renewal (a new PENDING row) should export as their real, valid
+        standing, not the newer unconfirmed request.
+
+        Cached on the instance -- six separate dehydrate_membership_*
+        methods below all need this, and django-import-export calls
+        them all against the same obj for one row.
+        """
+        if not hasattr(obj, '_export_membership_cache'):
+            obj._export_membership_cache = (
+                Membership.objects.filter(user=obj.user, status=Membership.Status.ACTIVE)
+                .select_related('tier').order_by('-created_at').first()
+                or Membership.objects.current_for(obj.user)
+            )
+        return obj._export_membership_cache
+
+    def dehydrate_membership_number(self, obj):
+        membership = self._current_membership(obj)
+        return (membership.membership_number or '') if membership else ''
+
+    def dehydrate_membership_tier(self, obj):
+        membership = self._current_membership(obj)
+        return membership.tier.name if membership and membership.tier_id else ''
+
+    def dehydrate_membership_status(self, obj):
+        membership = self._current_membership(obj)
+        return membership.get_status_display() if membership else ''
+
+    def dehydrate_membership_started_on(self, obj):
+        membership = self._current_membership(obj)
+        return membership.started_on if membership else None
+
+    def dehydrate_membership_expires_on(self, obj):
+        membership = self._current_membership(obj)
+        if not membership:
+            return None
+        return 'Lifetime' if membership.is_lifetime else membership.expires_on
+
+    def dehydrate_membership_amount_paid(self, obj):
+        membership = self._current_membership(obj)
+        return membership.amount_paid if membership else None
+
+    def dehydrate_membership_balance_due(self, obj):
+        membership = self._current_membership(obj)
+        return membership.balance_due if membership else None
+
+    def dehydrate_payment_history(self, obj):
+        payments = obj.payments.order_by('-payment_date')
+        return ' | '.join(
+            f"{payment.payment_date:%Y-%m-%d} KES {payment.amount} ({payment.get_payment_status_display()})"
+            for payment in payments
+        )
 
 # ─────────────────────────────────────────────
 # Faculty / Department -- moved from apps.staff.admin (2026-08-06), same
@@ -770,6 +847,14 @@ class PaymentAdmin(admin.ModelAdmin):
             ).order_by('-created_at').first()
             if membership is None:
                 membership = Membership.objects.create(user=user, tier=tier)
+            # Same gap as record_installment_payment() had (see its
+            # 2026-08-28 comment) -- activate_membership()/.activate()
+            # never touch amount_paid or subscription_amount, so a
+            # lump-sum payment confirmed through this branch left both
+            # NULL/0 forever: no "Paid in Full" box (balance_due never
+            # reaches 0), and nothing counted in the revenue analytics.
+            membership.amount_paid = (membership.amount_paid or Decimal("0")) + payment.amount
+            membership.subscription_amount = membership.amount_paid
             services.activate_membership(membership, payment_date=payment_date)
         return True
 

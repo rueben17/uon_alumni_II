@@ -1601,6 +1601,16 @@ class Membership(models.Model):
         """
         payment_date = payment_date or timezone.now().date()
         self.amount_paid = (self.amount_paid or Decimal("0")) + amount
+        # subscription_amount backs the membership analytics dashboard's
+        # revenue totals (Sum("subscription_amount") in
+        # MembershipAnalyticsView) but was never actually written by
+        # either activation path -- every real payment updated
+        # amount_paid correctly while subscription_amount stayed NULL
+        # forever, so Total Revenue only ever reflected legacy-imported
+        # rows (2026-08-28). Kept in sync with amount_paid here since
+        # that's the field every live confirmation path already
+        # maintains correctly.
+        self.subscription_amount = self.amount_paid
 
         if self.status != self.Status.ACTIVE or not self.started_on:
             self.activate(payment_date=payment_date)
