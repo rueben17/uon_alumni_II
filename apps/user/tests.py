@@ -108,3 +108,91 @@ class TryNormalizePhoneTests(SimpleTestCase):
             try_normalize_phone("00254712345678"),
             normalize_phone("00254712345678"),
         )
+
+
+# ─────────────────────────────────────────────────────────────────────
+# QA 500 sweep (2026-09-01) -- the UserProfile invariant.
+# Guards qa_500_report.md findings 4 and 5: apps/user/signals.py creates
+# a UserProfile for every new User, on every creation path.
+# ─────────────────────────────────────────────────────────────────────
+
+from django.contrib.auth import get_user_model
+from django.test import TestCase
+
+from apps.user.models import UserProfile
+from apps.user.signals import ensure_user_profile
+
+User = get_user_model()
+
+
+class EnsureUserProfileSignalTests(TestCase):
+    """Every creation path yields a profile.
+
+    These four paths are the reason this is a post_save receiver rather
+    than a UserManager override: only the first goes through the
+    manager, and the others are exactly how today's profile-less
+    accounts were made.
+    """
+
+    def test_create_user_yields_a_profile(self):
+        user = User.objects.create_user(email="via.manager@example.com")
+        self.assertTrue(UserProfile.objects.filter(pk=user.pk).exists())
+
+    def test_create_superuser_yields_a_profile(self):
+        user = User.objects.create_superuser(
+            email="via.superuser@example.com", password="x"
+        )
+        self.assertTrue(UserProfile.objects.filter(pk=user.pk).exists())
+
+    def test_objects_create_yields_a_profile(self):
+        """A UserManager override would miss this."""
+        user = User.objects.create(email="via.objects.create@example.com")
+        self.assertTrue(UserProfile.objects.filter(pk=user.pk).exists())
+
+    def test_direct_save_yields_a_profile(self):
+        """As would this -- the shape the admin's add form uses."""
+        user = User(email="via.save@example.com")
+        user.set_unusable_password()
+        user.save()
+        self.assertTrue(UserProfile.objects.filter(pk=user.pk).exists())
+
+    def test_exactly_one_profile_per_user(self):
+        user = User.objects.create_user(email="single@example.com")
+        self.assertEqual(UserProfile.objects.filter(pk=user.pk).count(), 1)
+
+    def test_resaving_a_user_does_not_create_a_second(self):
+        """created=False on every later save, so the receiver returns
+        early -- and UserProfile's pk IS the user's pk, so a second row
+        could not exist anyway."""
+        user = User.objects.create_user(email="resaved@example.com")
+        user.is_active = False
+        user.save()
+        self.assertEqual(UserProfile.objects.filter(pk=user.pk).count(), 1)
+
+    def test_receiver_is_idempotent_alongside_the_adapter(self):
+        """apps/user/adapter.py:111 get_or_creates the profile in the
+        same request; running the receiver again must not raise."""
+        user = User.objects.create_user(email="adapter.race@example.com")
+        ensure_user_profile(sender=User, instance=user, created=True)
+        self.assertEqual(UserProfile.objects.filter(pk=user.pk).count(), 1)
+
+    def test_raw_save_creates_nothing(self):
+        """loaddata fires post_save before related tables are populated,
+        so the receiver must stand down for raw saves."""
+        user = User.objects.create_user(email="fixture.load@example.com")
+        UserProfile.objects.filter(pk=user.pk).delete()
+        ensure_user_profile(sender=User, instance=user, created=True, raw=True)
+        self.assertFalse(UserProfile.objects.filter(pk=user.pk).exists())
+
+    def test_no_identity_data_is_invented(self):
+        """Names stay blank rather than being derived from the e-mail,
+        and neither DPA-2019 consent flag is pre-granted."""
+        user = User.objects.create_user(email="jane.doe@example.com")
+        profile = user.profile
+        self.assertEqual(profile.given_name, "")
+        self.assertEqual(profile.family_name, "")
+        self.assertNotIn("jane", profile.display_name.lower())
+        self.assertFalse(profile.sms_opt_in)
+        self.assertFalse(profile.email_opt_in)
+        self.assertIsNone(profile.consent_given_at)
+        self.assertEqual(profile.nationality, "Kenyan")

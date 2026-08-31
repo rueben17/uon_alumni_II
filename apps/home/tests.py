@@ -39,10 +39,19 @@ def _make_user(email, **extra):
     Nothing in UserManager does, so this has to be explicit here.
     """
     user = User.objects.create_user(email=email, **extra)
-    UserProfile.objects.create(
-        user=user, given_name="Test", family_name="Alumna"
-    )
+    # The post_save receiver in apps/user/signals.py already created the
+    # profile, so fill in the names rather than creating a second row --
+    # UserProfile's pk IS the user's pk, so a second create() collides.
+    _name_profile(user, "Test", "Alumna")
     return user
+
+
+def _name_profile(user, given, family):
+    profile = user.profile
+    profile.given_name = given
+    profile.family_name = family
+    profile.save(update_fields=["given_name", "family_name"])
+    return profile
 
 
 class CurrentForStatusTests(TestCase):
@@ -163,60 +172,91 @@ class RenewMembershipTierTests(TestCase):
         self.assertEqual(renewed.tier, self.gold)
 
 
-class MissingUserProfileTests(TestCase):
-    """Finding 6 — nothing guarantees a User has a UserProfile.
+class UserProfileInvariantTests(TestCase):
+    """Guards qa_500_report #5 -- every User has a UserProfile.
 
-    UserProfile is created in exactly two places: apps/user/adapter.py:111
-    (social login) and the import_legacy_memberships command
-    (apps/home/management/commands/import_legacy_memberships.py:214).
-    UserManager.create_user/create_superuser (apps/user/models.py:25-47)
-    do NOT, so every account made by `manage.py createsuperuser` or in
-    the Django admin lacks one.
+    Nothing used to guarantee it: UserProfile was created only by
+    apps/user/adapter.py:111 (Google login) and the legacy-import
+    command, while UserManager.create_user/create_superuser
+    (apps/user/models.py:25-47) did not. Any account from
+    createsuperuser, the shell or the admin's add form had none, and
+    roughly twenty unguarded `user.profile.*` reads raised
+    RelatedObjectDoesNotExist.
 
-    Several admin call sites already defend against this — e.g.
-    apps/home/admin.py:80:
-
-        return obj.user.profile.display_name if hasattr(obj.user, 'profile') else ''
-
-    but the slug helpers and the view/PDF paths do not.
+    apps/user/signals.py now creates one on every save of a new User.
     """
 
     @classmethod
     def setUpTestData(cls):
         # Exactly what `manage.py createsuperuser` produces.
-        cls.profileless = User.objects.create_superuser(
-            email="admin@example.com", password="x"
+        cls.superuser = User.objects.create_superuser(
+            email="invariant.admin@example.com", password="x"
         )
 
-    def test_created_superuser_has_no_profile(self):
-        """Not a bug in itself — the precondition for the two below.
-        Passes today; documents why they fail."""
-        self.assertFalse(hasattr(self.profileless, "profile"))
+    def test_created_superuser_has_a_profile(self):
+        """Inverted -- this used to assert the profile was ABSENT."""
+        self.assertTrue(hasattr(self.superuser, "profile"))
 
-    def test_alumni_profile_can_be_created_for_a_profileless_user(self):
-        """apps/home/models.py:1089-1092:
+    def test_auto_created_profile_invents_no_data(self):
+        """Names blank rather than derived from the e-mail, and neither
+        DPA-2019 consent flag pre-granted."""
+        profile = self.superuser.profile
+        self.assertEqual(profile.given_name, "")
+        self.assertEqual(profile.family_name, "")
+        self.assertEqual(profile.display_name, "")
+        self.assertFalse(profile.sms_opt_in)
+        self.assertFalse(profile.email_opt_in)
 
-            def get_alumni_profile_slug(instance):
-                profile = instance.user.profile
-                return slugify(...)
+    def test_alumni_profile_saves_for_a_blank_named_user(self):
+        """Finding 5's reproduction, flipped.
 
-        AlumniProfile.slug is an AutoSlugField populated from that, so
-        the read happens on save() with nothing guarding it. Creating an
-        AlumniProfile for a hand-made User raises instead of saving —
-        a 500 on the Django admin's add-AlumniProfile form.
+        apps/home/models.py:1091 reads instance.user.profile inside an
+        AutoSlugField populate_from, so this used to raise
+        RelatedObjectDoesNotExist during save().
         """
-        profile = AlumniProfile.objects.create(user=self.profileless)
-        self.assertIsNotNone(profile.pk)
+        alumni = AlumniProfile.objects.create(user=self.superuser)
+        self.assertIsNotNone(alumni.pk)
 
-    def test_profile_access_raises_object_does_not_exist(self):
-        """Captures the exact exception type the call sites propagate.
+    def test_blank_named_profile_still_produces_a_usable_url(self):
+        """The consequence the invariant alone does not fix.
 
-        Passes today. Pins what the unguarded `user.profile` reads at
-        apps/home/views.py:672 and :697, apps/staff/views.py:424 and
-        :436, and apps/qr_manager/views.py:90 and :133 will raise.
+        A blank name slugifies to "", and AlumniProfile.slug is
+        blank=True/null=True, so django-autoslug would leave it None
+        (autoslug/fields.py:267-273) -- and home:alumni_detail matches
+        <slug:slug>, never None. get_alumni_profile_slug now falls back
+        to the model name, mirroring what autoslug already does for
+        Employee.slug.
         """
+        alumni = AlumniProfile.objects.create(user=self.superuser)
+        self.assertEqual(alumni.slug, "alumniprofile")
+        self.assertIn(str(alumni.pk), alumni.get_absolute_url())
+
+    def test_slug_upgrades_once_a_name_is_entered(self):
+        """always_update=True on the field, so the placeholder is
+        temporary rather than sticky."""
+        alumni = AlumniProfile.objects.create(user=self.superuser)
+        _name_profile(self.superuser, "Wanjiku", "Kamau")
+        alumni.refresh_from_db()
+        alumni.save()
+        self.assertEqual(alumni.slug, "wanjiku-kamau")
+
+    def test_two_blank_named_profiles_do_not_collide(self):
+        """AlumniProfile.slug is unique=False, so the shared placeholder
+        is legal; the UUID in the URL keeps them distinct."""
+        other = User.objects.create_user(email="second.blank@example.com")
+        first = AlumniProfile.objects.create(user=self.superuser)
+        second = AlumniProfile.objects.create(user=other)
+        self.assertEqual(first.slug, second.slug)
+        self.assertNotEqual(first.get_absolute_url(), second.get_absolute_url())
+
+    def test_a_deleted_profile_still_raises(self):
+        """Pins the exception type for the window before the backfill
+        migration runs -- a profile removed after the fact is still a
+        reachable state."""
+        UserProfile.objects.filter(pk=self.superuser.pk).delete()
+        fresh = User.objects.get(pk=self.superuser.pk)
         with self.assertRaises(ObjectDoesNotExist):
-            self.profileless.profile
+            fresh.profile
 
 
 class AlumniProfileDetailAccessTests(TestCase):
@@ -246,9 +286,7 @@ class AlumniProfileDetailAccessTests(TestCase):
         cls.admin = User.objects.create_superuser(
             email="profile.admin@example.com", password="x"
         )
-        UserProfile.objects.create(
-            user=cls.admin, given_name="Profile", family_name="Admin"
-        )
+        _name_profile(cls.admin, "Profile", "Admin")
 
     def _url(self):
         return reverse(
@@ -384,9 +422,7 @@ class AuthHostMatrixSweepTests(TestCase):
         cls.superuser = User.objects.create_superuser(
             email="matrix.super@example.com", password="x"
         )
-        UserProfile.objects.create(
-            user=cls.superuser, given_name="Matrix", family_name="Super"
-        )
+        _name_profile(cls.superuser, "Matrix", "Super")
 
     def _sweep(self, host, paths):
         states = [
