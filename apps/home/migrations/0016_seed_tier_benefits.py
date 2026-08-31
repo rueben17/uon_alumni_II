@@ -97,6 +97,48 @@ def seed(apps, schema_editor):
     Benefit = apps.get_model("home", "Benefit")
     TierBenefit = apps.get_model("home", "TierBenefit")
 
+    # The eight tiers below were created out-of-band on dev and production
+    # and by no migration at all -- 0001_initial only does CreateModel for
+    # MembershipTier. A fresh database therefore reached the validation at
+    # the foot of this function with every one of them missing, and 0017
+    # (:114, :181) and 0021 (:37, :51) went on to fail their own
+    # MembershipTier.objects.get(name=...) lookups. Seeded here so the
+    # chain builds from empty (2026-08-31).
+    #
+    # Keyed on `name`: `code`, the stable key used from 0031 onwards, does
+    # not exist yet at this point in the chain, and this migration already
+    # keys Associate/Registered below the same way. get_or_create makes the
+    # whole block inert wherever the rows already exist -- which is every
+    # environment this migration has already run on.
+    #
+    # Full Annual and Student are inserted at their POST-shift order (9 and
+    # 10), not the 8 and 9 they historically held, so this block is correct
+    # wherever it sits relative to the two .update(order=...) calls below.
+    # Those calls are deliberately left alone: they still perform the real
+    # shift on any database that reaches this migration with those rows
+    # already present at 8/9, and are simply a no-op on a fresh one.
+    #
+    # order=7 is left empty on purpose -- that is dev's Honorary Member,
+    # which sits outside TIER_ORDER and is not this migration's concern.
+    for _name, _tier_type, _fee, _months, _order, _ladder in [
+        ("Corporate Membership", "corporate", 1000000, 12, 1, 5),
+        ("Platinum Life Membership", "life", 500000, 0, 2, None),
+        ("Diamond Life Membership", "life", 250000, 0, 3, None),
+        ("Gold Life Member", "life", 100000, 0, 4, 4),
+        ("Silver Life Member", "life", 50000, 0, 5, 3),
+        ("Bronze Life Member", "life", 25000, 0, 6, 2),
+        ("Full Annual Member", "annual", 2000, 12, 9, 1),
+        ("Student Annual Membership", "student", 500, 12, 10, None),
+    ]:
+        MembershipTier.objects.get_or_create(
+            name=_name,
+            defaults={
+                "tier_type": _tier_type, "fee": _fee,
+                "duration_months": _months, "order": _order,
+                "ladder_rank": _ladder, "is_active": True,
+            },
+        )
+
     # Make room in the display order for the two new tiers, then create
     # them. Every other existing row's `order` is untouched.
     MembershipTier.objects.filter(name="Full Annual Member").update(order=9)
@@ -139,6 +181,10 @@ def unseed(apps, schema_editor):
     Benefit = apps.get_model("home", "Benefit")
 
     Benefit.objects.filter(name__in=[row[0] for row in BENEFIT_ROWS]).delete()
+    # Only the two tiers this migration originally introduced are removed.
+    # The eight seeded at the top of seed() predate this migration on every
+    # existing environment, so deleting them on reverse would destroy rows
+    # this migration never owned.
     MembershipTier.objects.filter(name__in=["Associate", "Registered"]).delete()
     MembershipTier.objects.filter(name="Full Annual Member").update(order=8)
     MembershipTier.objects.filter(name="Student Annual Membership").update(order=9)
