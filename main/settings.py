@@ -416,7 +416,7 @@ if DEBUG:
         None:       'main.urls',
         'www':      'main.urls',
         'staff':    'apps.staff.site_urls',
-        'students': 'apps.student.urls',
+        'students': 'apps.student.site_urls',
     }
 else:
     SUBDOMAIN_DOMAIN = 'uonalumni.or.ke'
@@ -424,7 +424,7 @@ else:
         None:       'main.urls',
         'www':      'main.urls',
         'staff':    'apps.staff.site_urls',
-        'students': 'apps.student.urls',
+        'students': 'apps.student.site_urls',
     }
 
 

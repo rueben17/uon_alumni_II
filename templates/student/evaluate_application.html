@@ -45,7 +45,7 @@
                     <option value=""{% if not application %} selected{% endif %}>Search by name or registration number&hellip;</option>
                     {% for applicant in applicants %}
                         <option
-                            value="{% url 'evaluate_application' pk=applicant.pk %}"
+                            value="{% url 'student:evaluate_application' pk=applicant.pk %}"
                             {% if application and application.pk == applicant.pk %}selected{% endif %}
                         >
                             {{ applicant.surname }}, {{ applicant.first_name }} &mdash; {{ applicant.registration_number }}

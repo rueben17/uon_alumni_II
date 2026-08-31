@@ -92,7 +92,7 @@ class StudentRegisterView(LoginRequiredMixin, CreateView):
         next_url = self.request.session.pop("post_login_next", None)
         if next_url and get_adapter().is_safe_url(next_url):
             return next_url
-        return reverse("all_uon_students")
+        return reverse("student:all_uon_students")
 
 
 class EvaluateApplicationView(StaffOrSuperuserRequiredMixin, View):
