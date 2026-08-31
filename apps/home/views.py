@@ -512,9 +512,19 @@ class AlumniRegisterView(MpesaEligibilityMixin, QualificationMapMixin, LoginRequ
         return self.object.get_absolute_url()
 
 
-class AlumniProfileDetailView(DetailView):
+class AlumniProfileDetailView(LoginRequiredMixin, DetailView):
     """
-    Public alumni profile page — mirrors staff's EmployeeDetailView.
+    Members-only alumni profile page (2026-09-01, qa_500_report #6)
+    -- mirrors staff's EmployeeDetailView, which carries a gate of
+    its own. This was a bare DetailView, so an anonymous visitor
+    holding a profile URL could read a member's contact details and
+    membership standing.
+
+    LoginRequiredMixin is the gate, so any authenticated account
+    reaches it -- including staff and student accounts, whose
+    sessions span every subdomain via SESSION_COOKIE_DOMAIN. That is
+    precisely why the sensitive fields below are scoped to
+    owner-or-admin rather than to "anyone logged in".
     Personal fields live on UserProfile/User now, not AlumniProfile
     (docs/rebuild-schema.md), and membership is its own model — the
     template reads through alumni.user.profile.* and the
@@ -549,7 +559,19 @@ class AlumniProfileDetailView(DetailView):
             .order_by("-created_at")
             .first()
         )
-        context["alt_email"] = EmailAddress.objects.filter(user=self.object.user, primary=False).first()
+        # Owner or admin only (qa_500_report #6): an alternate e-mail
+        # address is contact PII, not directory information, so it is
+        # kept out of the context entirely for anyone else rather than
+        # merely hidden in the template.
+        viewer = self.request.user
+        is_owner_or_admin = viewer.is_authenticated and (
+            viewer == self.object.user or viewer.is_staff or viewer.is_superuser
+        )
+        context["is_owner_or_admin"] = is_owner_or_admin
+        context["alt_email"] = (
+            EmailAddress.objects.filter(user=self.object.user, primary=False).first()
+            if is_owner_or_admin else None
+        )
         # Only what this member actually has -- not the full tier matrix
         # (that's the separate Categories & Benefits page). Excluded/
         # not-applicable rows would just be a list of things they don't
