@@ -1,6 +1,6 @@
 import secrets
 
-from django.shortcuts import redirect, render
+from django.shortcuts import render
 from django.utils import timezone
 
 from apps.home.models import Membership
@@ -95,12 +95,59 @@ def _alumni_verification_context(alumni_profile):
     }
 
 
+def _staff_verification_context(employee):
+    """Everything the public staff verification page shows -- parallel to
+    _alumni_verification_context() above, same disclosure level (identity
+    + affiliation + a status word, nothing else), not unified with it
+    (2026-08-21, explicit instruction -- Employee and AlumniProfile
+    disclose different fields for different reasons, a shared helper
+    would just grow branches).
+
+    rank_or_position: academic_rank's display value if set, else
+    position.title (NOT position.name -- Position has no such field,
+    confirmed against apps/staff/models.py directly) if a Position is
+    assigned, else None (template shows "--" via |default).
+
+    unit_name: whichever of department/service_unit/research_unit is
+    actually set (mutually exclusive by staff_track) -- .name on
+    whichever one it is, confirmed against apps/home/models.py's
+    Department and apps/staff/models.py's ServiceUnit/ResearchUnit.
+    """
+    if employee.academic_rank:
+        rank_or_position = employee.get_academic_rank_display()
+    elif employee.position_id:
+        rank_or_position = employee.position.title
+    else:
+        rank_or_position = None
+
+    if employee.department_id:
+        unit_name = employee.department.name
+    elif employee.service_unit_id:
+        unit_name = employee.service_unit.name
+    elif employee.research_unit_id:
+        unit_name = employee.research_unit.name
+    else:
+        unit_name = None
+
+    return {
+        "display_name": employee.user.profile.display_name,
+        "status_label": "Active" if employee.is_active else "Inactive",
+        "rank_or_position": rank_or_position,
+        "unit_name": unit_name,
+    }
+
+
 def verify_scan(request, qr_id):
     """
     Scan → holder verification.
 
-    Employee: unchanged -- redirects to get_absolute_url() (the full
-    staff profile page), exactly as before this pass.
+    Employee (2026-08-21, was: redirect to get_absolute_url(), the full
+    staff detail page): now renders a dedicated, minimal public
+    verification page directly, mirroring the AlumniProfile branch below
+    -- the full EmployeeDetailView carries no auth gate of its own, so
+    the old redirect meant every staff badge scan publicly exposed
+    complete HR detail. See _staff_verification_context() for exactly
+    what's shown instead.
 
     AlumniProfile (2026-08-14): renders a dedicated, minimal public
     verification page directly instead of redirecting to the full
@@ -118,7 +165,16 @@ def verify_scan(request, qr_id):
     makes rotate_token() a real lost-badge lever rather than
     decoration, and it stops guessed UUIDs from resolving.
     """
-    qr_code = QRCode.objects.filter(pk=qr_id).select_related("employee", "alumni_profile").first()
+    # select_related covers everything _staff_verification_context() and
+    # _alumni_verification_context() read off the holder -- same reasoning
+    # as apps.home.forms.AlumniProfileForm's own select_related comment:
+    # avoid one query per FK access on a page that must render fast for
+    # an anonymous scanner.
+    qr_code = QRCode.objects.filter(pk=qr_id).select_related(
+        "employee__user__profile", "employee__position", "employee__department",
+        "employee__service_unit", "employee__research_unit",
+        "alumni_profile__user__profile",
+    ).first()
 
     if qr_code is None or qr_code.holder is None:
         _log(request, qr_code, ScanLog.Result.UNKNOWN)
@@ -136,4 +192,6 @@ def verify_scan(request, qr_id):
             request, "qr_manager/alumni_verify.html", _alumni_verification_context(qr_code.alumni_profile)
         )
 
-    return redirect(qr_code.holder.get_absolute_url())
+    return _render_noindex(
+        request, "qr_manager/staff_verify.html", _staff_verification_context(qr_code.employee)
+    )

@@ -1,5 +1,6 @@
 from allauth.account.adapter import get_adapter
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.db.models import Count
@@ -25,6 +26,7 @@ from apps.user.mixins import StaffOrSuperuserRequiredMixin
 COUNTY_TOP_N = 15
 
 
+@login_required
 def all_uon_students(request):
     context = {}
     return render(request, "student/all_uon_students.html", context)
