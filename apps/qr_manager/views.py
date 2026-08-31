@@ -39,7 +39,35 @@ def _render_noindex(request, template_name, context=None, status=None):
     return response
 
 
-def _alumni_verification_context(alumni_profile):
+def _holder_name(holder_user, label):
+    """The name to print on a verification card, or "" if we have none.
+
+    display_name is not safe to read directly (qa_500_report finding 4).
+    The profile row can be absent -- deleted after the badge was minted
+    -- and since apps/user/signals.py began auto-creating one, it can
+    also exist with blank names until the holder fills them in. Either
+    way display_name must not reach the card unchecked: the first case
+    raised RelatedObjectDoesNotExist and 500ed a public, anonymous scan.
+
+    getattr with a default is safe here because Django's
+    RelatedObjectDoesNotExist subclasses AttributeError -- the same
+    pattern apps/user/adapter.py:101 already relies on.
+
+    Falls back to the QR's own label, which exists for precisely this
+    purpose (apps/qr_manager/models.py:115-117, "whatever identifies the
+    holder") and is the same fallback __str__ uses at models.py:151.
+
+    Deliberately never falls back to the e-mail address. This page is
+    public and withholds even the specific tier name, so publishing a
+    contact address to an anonymous scanner would be a new disclosure --
+    a worse one than the bug being fixed.
+    """
+    profile = getattr(holder_user, "profile", None)
+    name = (profile.display_name if profile is not None else "") or ""
+    return name.strip() or (label or "").strip()
+
+
+def _alumni_verification_context(alumni_profile, label=""):
     """Everything the public alumni verification page shows -- all read
     live from the database at request time (2026-08-14), nothing
     cached, stored, or derived from the QR payload itself.
@@ -87,7 +115,7 @@ def _alumni_verification_context(alumni_profile):
     duration = humanize_duration(signup, timezone.now()) if signup else None
 
     return {
-        "display_name": alumni_profile.user.profile.display_name,
+        "display_name": _holder_name(alumni_profile.user, label),
         "tier_category": tier_category,
         "validity_label": validity_label,
         "member_since": member_since,
@@ -95,7 +123,7 @@ def _alumni_verification_context(alumni_profile):
     }
 
 
-def _staff_verification_context(employee):
+def _staff_verification_context(employee, label=""):
     """Everything the public staff verification page shows -- parallel to
     _alumni_verification_context() above, same disclosure level (identity
     + affiliation + a status word, nothing else), not unified with it
@@ -130,7 +158,7 @@ def _staff_verification_context(employee):
         unit_name = None
 
     return {
-        "display_name": employee.user.profile.display_name,
+        "display_name": _holder_name(employee.user, label),
         "status_label": "Active" if employee.is_active else "Inactive",
         "rank_or_position": rank_or_position,
         "unit_name": unit_name,
@@ -188,10 +216,21 @@ def verify_scan(request, qr_id):
     _log(request, qr_code, qr_code.status)
 
     if qr_code.alumni_profile_id:
-        return _render_noindex(
-            request, "qr_manager/alumni_verify.html", _alumni_verification_context(qr_code.alumni_profile)
-        )
+        template = "qr_manager/alumni_verify.html"
+        context = _alumni_verification_context(qr_code.alumni_profile, qr_code.label)
+    else:
+        template = "qr_manager/staff_verify.html"
+        context = _staff_verification_context(qr_code.employee, qr_code.label)
 
-    return _render_noindex(
-        request, "qr_manager/staff_verify.html", _staff_verification_context(qr_code.employee)
-    )
+    # A card naming nobody, beside a validity badge, would assert that
+    # SOMEONE holds a valid membership without saying who -- precisely
+    # what a verification page must not do. It looks successful, so it
+    # is worse than an honest refusal. Falls through to the same page
+    # and status as an unknown badge, deliberately: a distinct response
+    # would tell a probing scanner that this id exists and its token is
+    # good, which is the very thing scan_invalid.html's own comment says
+    # the page must not reveal.
+    if not context["display_name"]:
+        return _render_noindex(request, "qr_manager/scan_invalid.html", status=404)
+
+    return _render_noindex(request, template, context)
