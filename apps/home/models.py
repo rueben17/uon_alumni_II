@@ -1089,7 +1089,20 @@ def get_alumni_profile_slug(instance):
     get_employee_slug — AlumniProfile no longer holds name data itself
     (docs/rebuild-schema.md)."""
     profile = instance.user.profile
-    return slugify(f"{profile.honorific} {profile.given_name} {profile.family_name}")
+    slug = slugify(f"{profile.honorific} {profile.given_name} {profile.family_name}")
+    # An auto-created profile (apps/user/signals.py) starts with blank
+    # names, so this slugifies to "". AlumniProfile.slug is
+    # blank=True/null=True, and django-autoslug leaves the field None in
+    # that case (autoslug/fields.py:267-273) -- which then breaks
+    # get_absolute_url(), since home:alumni_detail matches <slug:slug>
+    # and never None. Employee.slug is neither blank nor null, so
+    # autoslug falls back to the model name for it and stays functional;
+    # this returns the same placeholder so AlumniProfile behaves the
+    # same way. slug is unique=False here, so blank-named profiles may
+    # share the placeholder -- the UUID in the URL still distinguishes
+    # them -- and it upgrades to a real slug as soon as a name is
+    # entered, because the field is always_update=True.
+    return slug or instance._meta.model_name
 
 
 class QualificationLevel(models.TextChoices):
