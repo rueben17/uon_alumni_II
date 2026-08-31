@@ -682,18 +682,23 @@ class VerifyScanMissingProfileTests(TestCase):
         cls.qr = QRCode.objects.create(employee=cls.employee)
 
     def test_scan_survives_a_holder_whose_profile_row_is_gone(self):
-        # The badge was minted while the profile existed; it is removed
-        # afterwards. The printed QR code is unchanged and still scans.
+        """Finding 4's reproduction, flipped.
+
+        The badge was minted while the profile existed and is removed
+        afterwards; the printed QR code is unchanged and still scans.
+        It must refuse honestly rather than 500.
+        """
         _UserProfile.objects.filter(user=self.user).delete()
 
         url = _reverse("qr:verify", kwargs={"qr_id": self.qr.pk})
         resp = self.client.get(
             url, {"t": self.qr.token}, HTTP_HOST=STAFF_HOST
         )
-        self.assertLess(
-            resp.status_code, 500,
-            "Anonymous badge scan returned a server error because the "
-            "holder's UserProfile row is missing.",
+        self.assertEqual(resp.status_code, 404)
+        self.assertContains(resp, "could not be verified", status_code=404)
+        self.assertNotContains(
+            resp, self.user.email, status_code=404,
+            msg_prefix="an anonymous scan must never show an e-mail address",
         )
 
     def test_scan_works_while_the_profile_exists(self):
@@ -703,4 +708,87 @@ class VerifyScanMissingProfileTests(TestCase):
             url, {"t": self.qr.token}, HTTP_HOST=STAFF_HOST
         )
         self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["X-Robots-Tag"], "noindex")
+
+
+class ScanHolderNameFallbackTests(TestCase):
+    """Guards qa_500_report #4 -- display_name -> label -> honest refusal.
+
+    Covers both scan sites: apps/qr_manager/views.py:118 (alumni) and
+    :161 (staff), each now routed through _holder_name().
+
+    The blank-named case is the state the UserProfile invariant actually
+    produces (apps/user/signals.py auto-creates a profile with empty
+    names), so it matters at least as much as the deleted-profile case.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        from apps.home.models import AlumniProfile
+
+        cls.unit = ServiceUnit.objects.create(name="Fallback Unit")
+
+        # Staff holder whose auto-created profile has never been filled in.
+        cls.blank_user = User.objects.create_user(email="blank.staff@example.com")
+        cls.blank_employee = Employee.objects.create(
+            user=cls.blank_user,
+            staff_track=Employee.StaffTrack.SERVICE,
+            service_unit=cls.unit,
+        )
+        cls.blank_qr = QRCode.objects.create(employee=cls.blank_employee)
+
+        # Same, but the QR carries a label identifying the holder.
+        cls.labelled_user = User.objects.create_user(email="labelled@example.com")
+        cls.labelled_employee = Employee.objects.create(
+            user=cls.labelled_user,
+            staff_track=Employee.StaffTrack.SERVICE,
+            service_unit=cls.unit,
+        )
+        cls.labelled_qr = QRCode.objects.create(
+            employee=cls.labelled_employee, label="Contractor - Achieng Otieno"
+        )
+
+        # Alumni holder, blank-named, to cover the other site.
+        cls.alum_user = User.objects.create_user(email="blank.alum@example.com")
+        cls.alumni = AlumniProfile.objects.create(user=cls.alum_user)
+        cls.alum_qr = QRCode.objects.create(alumni_profile=cls.alumni)
+
+    def _scan(self, qr, host):
+        return self.client.get(
+            _reverse("qr:verify", kwargs={"qr_id": qr.pk}),
+            {"t": qr.token},
+            HTTP_HOST=host,
+        )
+
+    def test_blank_named_staff_holder_is_refused(self):
+        resp = self._scan(self.blank_qr, STAFF_HOST)
+        self.assertEqual(resp.status_code, 404)
+        self.assertContains(resp, "could not be verified", status_code=404)
+        self.assertNotContains(resp, self.blank_user.email, status_code=404)
+
+    def test_blank_named_alumni_holder_is_refused(self):
+        """The alumni site, views.py:118 -- mounted on the apex, since an
+        alumni badge encodes QR_SCAN_ORIGINS['alumni']."""
+        resp = self._scan(self.alum_qr, PUBLIC_HOST)
+        self.assertEqual(resp.status_code, 404)
+        self.assertNotContains(resp, self.alum_user.email, status_code=404)
+
+    def test_label_names_the_holder_when_the_profile_cannot(self):
+        """Second rung: QRCode.label exists to identify a holder the
+        profile does not (apps/qr_manager/models.py:115-117)."""
+        resp = self._scan(self.labelled_qr, STAFF_HOST)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Contractor - Achieng Otieno")
+        self.assertNotContains(resp, self.labelled_user.email)
+
+    def test_named_holder_still_renders_the_card(self):
+        """Pin -- the happy path must not regress to a refusal."""
+        profile = self.blank_user.profile
+        profile.given_name = "Wanjiku"
+        profile.family_name = "Kamau"
+        profile.save(update_fields=["given_name", "family_name"])
+
+        resp = self._scan(self.blank_qr, STAFF_HOST)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Wanjiku Kamau")
         self.assertEqual(resp["X-Robots-Tag"], "noindex")
