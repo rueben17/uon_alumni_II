@@ -162,8 +162,25 @@ class NavbarStaffHostGuardTests(TestCase):
 # ─────────────────────────────────────────────────────────────────────
 
 
-class StaffMisGatingDoesNotLeakTests(TestCase):
-    """Authenticated NON-employee, session shared onto staff.lvh.me."""
+class StaffEmployeeGatingTests(TestCase):
+    """Guards qa_500_report target 1 -- staff views gate on employee record.
+
+    SESSION_COOKIE_DOMAIN spans every subdomain, so an alumnus logged in
+    on the public host carries that session onto staff.lvh.me and passes
+    a bare LoginRequiredMixin. These three views previously carried one,
+    and fell back on get_object_or_404 to fail closed -- safe, but a 404
+    that says "no such page" where the truth is "you are not staff".
+
+    They now use EmployeeRequiredMixin, the same gate EmployeeListView
+    and EmployeeDetailView already use: anonymous -> 302 to login,
+    authenticated non-employee -> 403.
+
+    download_staff_qr_code is deliberately NOT included. apps/staff/
+    views.py:409-418 documents that it must serve admins who are not
+    employees ("admins need to fetch any employee's badge, not just
+    their own"), so employee-gating it would remove a capability the
+    owner-or-admin check below it grants on purpose.
+    """
 
     @classmethod
     def setUpTestData(cls):
@@ -172,22 +189,26 @@ class StaffMisGatingDoesNotLeakTests(TestCase):
     def setUp(self):
         self.client.force_login(self.alumnus)
 
-    def test_profile_edit_denies_a_non_employee(self):
+    def test_profile_edit_forbids_a_non_employee(self):
         resp = self.client.get("/profile/edit/", HTTP_HOST=STAFF_HOST)
-        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(resp.status_code, 403)
 
-    def test_profile_delete_denies_a_non_employee(self):
+    def test_profile_delete_forbids_a_non_employee(self):
         resp = self.client.get("/profile/delete/", HTTP_HOST=STAFF_HOST)
-        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(resp.status_code, 403)
 
-    def test_profile_delete_post_denies_a_non_employee(self):
+    def test_profile_delete_post_forbids_a_non_employee(self):
         resp = self.client.post("/profile/delete/", HTTP_HOST=STAFF_HOST)
-        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(resp.status_code, 403)
 
-    def test_employee_only_directory_still_403s_a_non_employee(self):
-        """EmployeeRequiredMixin's documented behaviour, for contrast:
-        authenticated-but-failing gets 403, not 404. This is the shape
-        the four views above should have."""
+    def test_complete_profile_forbids_a_non_employee(self):
+        import uuid as _uuid
+        resp = self.client.get(
+            f"/complete-profile/{_uuid.uuid4()}/", HTTP_HOST=STAFF_HOST
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_employee_only_directory_forbids_a_non_employee(self):
         resp = self.client.get("/", HTTP_HOST=STAFF_HOST)
         self.assertEqual(resp.status_code, 403)
 
@@ -195,3 +216,21 @@ class StaffMisGatingDoesNotLeakTests(TestCase):
         self.client.logout()
         resp = self.client.get("/", HTTP_HOST=STAFF_HOST)
         self.assertEqual(resp.status_code, 302)
+
+    def test_qr_download_still_reachable_by_a_non_employee_admin(self):
+        """Pin -- the deliberate exception. An admin with no Employee
+        record must still reach the badge route rather than be blocked
+        by a gate; 404 here is the owner-or-admin check finding no such
+        employee, which is the intended existence-hiding response."""
+        admin = User.objects.create_superuser(
+            email="badge.admin@example.com", password="x"
+        )
+        UserProfile.objects.create(
+            user=admin, given_name="Badge", family_name="Admin"
+        )
+        self.client.force_login(admin)
+        import uuid as _uuid
+        resp = self.client.get(
+            f"/someone/{_uuid.uuid4()}/download-qr/", HTTP_HOST=STAFF_HOST
+        )
+        self.assertEqual(resp.status_code, 404)

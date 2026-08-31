@@ -5,7 +5,6 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -234,7 +233,7 @@ class EmployeeListView(EmployeeRequiredMixin, ListView):
         return context
 
 
-class CompleteProfileView(LoginRequiredMixin, UpdateView):
+class CompleteProfileView(EmployeeRequiredMixin, UpdateView):
     """
     One-time onboarding. The adapter's completeness gate sends every
     incomplete login here; once the profile is complete, this view
@@ -267,7 +266,7 @@ class CompleteProfileView(LoginRequiredMixin, UpdateView):
         return response
 
 
-class ProfileUpdateView(LoginRequiredMixin, UpdateView):
+class ProfileUpdateView(EmployeeRequiredMixin, UpdateView):
     """
     Opt-in profile editing after onboarding. Always operates on the
     logged-in user's own record — no UUID in the URL, so identity
@@ -292,7 +291,7 @@ class ProfileUpdateView(LoginRequiredMixin, UpdateView):
         return response
 
 
-class ProfileDeleteView(LoginRequiredMixin, View):
+class ProfileDeleteView(EmployeeRequiredMixin, View):
     """
     Owner-only profile deletion with explicit confirmation.
     Deleting the Employee profile does not delete the User account.
