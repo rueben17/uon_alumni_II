@@ -84,26 +84,46 @@ class CurrentForStatusTests(TestCase):
             status=Membership.Status.PENDING,
         )
 
-    def test_current_for_prefers_the_active_membership(self):
-        """The member IS currently a Gold Life Member. Their unconfirmed
-        renewal request must not displace that."""
+    def test_current_active_for_returns_the_active_membership(self):
+        """The member IS a Gold Life Member. Their unconfirmed renewal
+        request must not displace that."""
         self.assertEqual(
-            Membership.objects.current_for(self.user), self.active
+            Membership.objects.current_active_for(self.user), self.active
         )
 
-    def test_qr_manager_status_filtered_lookup_stays_correct(self):
-        """Pins apps/qr_manager/views.py:64-66's workaround.
+    def test_current_for_still_returns_the_newest_row_of_any_status(self):
+        """Pins the deliberate split: current_for keeps its old contract.
 
-        Passes today. Here so that a fix to current_for() is not made by
-        weakening the one call site that already gets this right.
+        The admin's Current Membership columns (apps/home/admin.py:95
+        and :566) rely on this, because they render the status alongside
+        the tier -- a pending request has to stay visible there.
         """
-        found = (
+        self.assertEqual(Membership.objects.current_for(self.user), self.pending)
+
+    def test_current_active_for_matches_the_qr_manager_query(self):
+        """current_active_for must agree with the hand-rolled lookup at
+        apps/qr_manager/views.py:64-66, which needed this behaviour
+        before the manager offered it."""
+        hand_rolled = (
             Membership.objects
             .filter(user=self.user, status=Membership.Status.ACTIVE)
             .order_by("-created_at")
             .first()
         )
-        self.assertEqual(found, self.active)
+        self.assertEqual(hand_rolled, self.active)
+        self.assertEqual(
+            Membership.objects.current_active_for(self.user), hand_rolled
+        )
+
+    def test_current_active_for_is_none_when_nothing_is_active(self):
+        """A first request awaiting confirmation holds nothing yet.
+        Callers must handle None rather than assume a row."""
+        newcomer = _make_user("newcomer@example.com")
+        Membership.objects.create(
+            user=newcomer, tier=self.student, status=Membership.Status.PENDING
+        )
+        self.assertIsNone(Membership.objects.current_active_for(newcomer))
+        self.assertIsNotNone(Membership.objects.current_for(newcomer))
 
 
 class RenewMembershipTierTests(TestCase):
@@ -336,3 +356,171 @@ class AuthHostMatrixSweepTests(TestCase):
 
     def test_students_host_matrix(self):
         self._sweep(STUDENTS_HOST, STUDENT_PATHS)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# New coverage for the current_for fix (qa_500_report #2), sites 1 and 2.
+# Both exercise the state the bug needs: a held ACTIVE membership with a
+# NEWER unconfirmed PENDING renewal behind it.
+# ─────────────────────────────────────────────────────────────────────
+
+import shutil
+import tempfile
+
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
+
+# ReportLab and ImageField both write to disk, unaffected by the test
+# database's transaction rollback -- same reasoning as the module-level
+# override in apps/qr_manager/tests.py, scoped to the class that needs it.
+_qa500_media_root = tempfile.mkdtemp(prefix="home_qa500_media_")
+
+# A real, small PNG. ReportLab reads this back through PIL when drawing
+# the badge, so it has to be a genuinely decodable image rather than a
+# placeholder blob. RGB, not RGBA -- ReportLab takes an alpha-split path
+# for RGBA that a minimal image trips over.
+def _png_bytes():
+    from io import BytesIO
+
+    from PIL import Image
+
+    buf = BytesIO()
+    Image.new("RGB", (16, 16), "black").save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _pdf_text(body):
+    """Return the decoded text operators from a ReportLab PDF.
+
+    ReportLab writes content streams through /ASCII85Decode then
+    /FlateDecode, so the drawn strings are not present as raw bytes --
+    searching resp.content directly would pass or fail for the wrong
+    reasons. Decoding is the only way to assert on what the badge
+    actually says.
+    """
+    import base64
+    import zlib
+
+    out = []
+    pos = 0
+    while True:
+        start = body.find(b"stream", pos)
+        if start == -1:
+            break
+        # "endstream" contains "stream" -- skip those, or the stream
+        # boundaries come out shifted and every decode fails silently.
+        if body[start - 3:start] == b"end":
+            pos = start + 6
+            continue
+        stop = body.find(b"endstream", start)
+        if stop == -1:
+            break
+        data = body[start + 6:stop].strip()
+        pos = stop + 9
+        try:
+            if data.endswith(b"~>"):
+                data = base64.a85decode(data[:-2])
+            out.append(zlib.decompress(data))
+        except Exception:
+            continue
+    return b"".join(out)
+
+
+class _ActivePlusPendingMixin:
+    """Gold Life Member (ACTIVE) with a newer Student Annual renewal
+    (PENDING) awaiting Secretariat confirmation."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = _make_user("badge.member@example.com")
+        cls.alumni = AlumniProfile.objects.create(user=cls.user)
+        cls.gold = MembershipTier.objects.create(
+            name="Gold Life Member", fee=100000, tier_type="life",
+            duration_months=0,
+        )
+        cls.student = MembershipTier.objects.create(
+            name="Student Annual Membership", fee=500, tier_type="annual",
+            duration_months=12,
+        )
+        cls.active = Membership.objects.create(
+            user=cls.user, tier=cls.gold, status=Membership.Status.ACTIVE,
+            is_lifetime=True,
+        )
+        cls.pending = Membership.objects.create(
+            user=cls.user, tier=cls.student,
+            status=Membership.Status.PENDING,
+        )
+
+
+class AlumniProfileMembershipDisplayTests(_ActivePlusPendingMixin, TestCase):
+    """Site 1 -- apps/home/views.py:538, AlumniProfileDetailView.
+
+    The standing badge must show what the member HOLDS, while the
+    awaiting-confirmation panel shows the renewal in flight. Before the
+    fix a single current_for() call fed both, so the badge announced the
+    unconfirmed Student tier as the member's standing.
+
+    The panel is owner-only (alumni_detail.html:171), hence force_login.
+    """
+
+    def _url(self):
+        return reverse(
+            "home:alumni_detail",
+            kwargs={"slug": self.alumni.slug, "pk": self.alumni.pk},
+        )
+
+    def test_badge_shows_the_held_tier_and_panel_shows_the_pending_one(self):
+        self.client.force_login(self.user)
+        resp = self.client.get(self._url(), HTTP_HOST=PUBLIC_HOST)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["current_membership"], self.active)
+        self.assertEqual(resp.context["pending_membership"], self.pending)
+        self.assertContains(
+            resp, "Student Annual Membership &middot; Awaiting Confirmation"
+        )
+
+    def test_member_with_no_renewal_has_no_pending_row(self):
+        """Pin -- the panel must not appear for a member holding only an
+        active membership."""
+        self.pending.delete()
+        self.client.force_login(self.user)
+        resp = self.client.get(self._url(), HTTP_HOST=PUBLIC_HOST)
+        self.assertEqual(resp.context["current_membership"], self.active)
+        self.assertIsNone(resp.context["pending_membership"])
+        self.assertNotContains(resp, "Awaiting Confirmation")
+
+
+@override_settings(MEDIA_ROOT=_qa500_media_root)
+class AlumniQrBadgePdfTierTests(_ActivePlusPendingMixin, TestCase):
+    """Site 2 -- apps/home/views.py:683, the printed QR-badge PDF.
+
+    The tier and validity are drawn onto a physical artefact
+    (views.py:700 `tier_name = current_membership.tier.name`), so an
+    unconfirmed renewal must never reach it.
+    """
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(_qa500_media_root, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        self.alumni.qr_code_image.save(
+            "badge.png", SimpleUploadedFile("badge.png", _png_bytes()),
+            save=True,
+        )
+        self.client.force_login(self.user)
+
+    def test_pdf_carries_the_held_tier_not_the_pending_one(self):
+        url = reverse(
+            "home:alumni_qr_download",
+            kwargs={"slug": self.alumni.slug, "pk": self.alumni.pk},
+        )
+        resp = self.client.get(url, HTTP_HOST=PUBLIC_HOST)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "application/pdf")
+        drawn = _pdf_text(resp.content)
+        self.assertIn(b"Gold Life Member", drawn)
+        self.assertNotIn(b"Student Annual Membership", drawn)
+        # The validity line comes off the same row (views.py:702-704).
+        self.assertIn(b"Lifetime Membership", drawn)
