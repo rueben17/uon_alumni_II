@@ -668,9 +668,12 @@ class VerifyScanMissingProfileTests(TestCase):
     def setUpTestData(cls):
         cls.unit = ServiceUnit.objects.create(name="Registry")
         cls.user = User.objects.create_user(email="badge.holder@example.com")
-        _UserProfile.objects.create(
-            user=cls.user, given_name="Badge", family_name="Holder"
-        )
+        # Fill the auto-created profile (apps/user/signals.py) rather
+        # than making a second one -- UserProfile's pk is the user's pk.
+        _profile = cls.user.profile
+        _profile.given_name = "Badge"
+        _profile.family_name = "Holder"
+        _profile.save(update_fields=["given_name", "family_name"])
         cls.employee = Employee.objects.create(
             user=cls.user,
             staff_track=Employee.StaffTrack.SERVICE,

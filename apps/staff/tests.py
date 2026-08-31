@@ -25,7 +25,6 @@ User = get_user_model()
 
 
 from apps.staff.models import Employee, ServiceUnit
-from apps.user.models import UserProfile
 
 PUBLIC_HOST = "lvh.me"
 STAFF_HOST = "staff.lvh.me"
@@ -35,9 +34,23 @@ STAFF_HOST = "staff.lvh.me"
 STAFF_LOOKALIKE_HOST = "mystaff.lvh.me"
 
 
+def _name_profile(user, given, family):
+    """Fill the auto-created profile rather than making a second one.
+
+    apps/user/signals.py creates a UserProfile for every new User, and
+    UserProfile's pk IS the user's pk -- so UserProfile.objects.create()
+    in a fixture now collides with the row that already exists.
+    """
+    profile = user.profile
+    profile.given_name = given
+    profile.family_name = family
+    profile.save(update_fields=["given_name", "family_name"])
+    return profile
+
+
 def _make_user(email, **extra):
     user = User.objects.create_user(email=email, **extra)
-    UserProfile.objects.create(user=user, given_name="Test", family_name="Person")
+    _name_profile(user, "Test", "Person")
     return user
 
 
@@ -225,9 +238,7 @@ class StaffEmployeeGatingTests(TestCase):
         admin = User.objects.create_superuser(
             email="badge.admin@example.com", password="x"
         )
-        UserProfile.objects.create(
-            user=admin, given_name="Badge", family_name="Admin"
-        )
+        _name_profile(admin, "Badge", "Admin")
         self.client.force_login(admin)
         import uuid as _uuid
         resp = self.client.get(
