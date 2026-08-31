@@ -3,9 +3,30 @@
 **Date:** 2026-08-31
 **Branch:** `feature/qa-500-tests`
 **Findings:** [`qa_500_report.md`](../qa_500_report.md) #2 and #3
+**Summary added:** 2026-09-01
 **Status:** design only. **No code changed** — the manager, all six call sites, every test, settings and migrations are untouched.
 
 Refines [`qa-500-tierB-plans-2026-08-31.md`](qa-500-tierB-plans-2026-08-31.md), which named the corporate-onboarding trace as an outstanding gap. That gap is walked in §2 below. Where this document and the plans doc disagree, **this one supersedes it** — three sites moved (see §6).
+
+---
+
+## Summary
+
+**The model itself settles the argument.** `models.py:1408-1412`, on `Status.SUPERSEDED`, says it exists so that *"current membership [can] stay a simple status filter instead of every call site having to order-by-latest to find it."* `current_for` is the order-by-latest that status was introduced to make unnecessary. `services.py:37-50` already enforces at most one ACTIVE row per user, so a status filter is deterministic rather than a guess.
+
+**Corporate has no special path.** It is only `tier_type == "corporate"` (`models.py:975`); the membership lifecycle is generic. What makes it the risk case is the KES 1,000,000 fee forcing an instalment plan, and `record_installment_payment` activating only on the **first** instalment — so the ACTIVE-plus-PENDING pair persists for that whole period. There is exactly one such window, from `views.py:891` to `admin.py:721`/`:730`, and `admin.py:704-707` states it can sit *"for days/weeks."* **No schema or migration change is needed.**
+
+**Three site decisions changed from the plans doc** (detail in §6):
+
+- **Site 1 is not a one-line swap.** `alumni_detail.html:175` branches on `{% if current_membership.status == 'pending' %}` to render the "Awaiting Confirmation" panel, so active-only would dead-code it. It needs two context variables plus a template change — the only site that is not mechanical.
+- **Site 3 → active-only** (the plans doc said "latest, likely"). Its pending case is already served separately by `pending_payment` at `views.py:848`.
+- **Sites 5 and 6 → confirmed no change.** Both render `get_status_display()` explicitly, so showing "Gold Life Member (Pending)" is the feature — that list is the Secretariat's work queue.
+
+**One reachability finding:** `renew_membership()` has no production caller, so site 4's bug is latent — reachable today only from the finding-3 reproduction test. Still worth fixing: it is loaded for the first caller.
+
+**Proposed API** keeps `current_for` exactly as it is and adds `current_active_for`, so only sites 2, 3 and 4 take a one-line edit and sites 5 and 6 need none.
+
+**Gating questions** are in §8. The two that actually block the fix pass are **Q1** (site 1's template split) and **Q2** (whether a lapsed member should still get their previous tier pre-selected on the renewal form).
 
 ---
 
