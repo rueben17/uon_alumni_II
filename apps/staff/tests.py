@@ -71,33 +71,31 @@ class StaffNamespaceReverseTests(TestCase):
 
 
 class NavbarStaffHostGuardTests(TestCase):
-    """Reproduction -- navbar.html's host guard is a substring test.
+    """Guards qa_500_report #7 -- navbar staff links are host-independent.
 
-    templates/snippets/navbar.html:34 and :314 reverse the staff
-    namespace WITHOUT the subdomain_url tag:
+    templates/snippets/navbar.html:34 and :314 used to reverse the staff
+    namespace bare:
 
         <a href="{% url 'staff:profile_update' %}"
 
-    Each sits inside this nesting (navbar.html:4, :17, :21, :29):
+    inside a guard that is a SUBSTRING test (navbar.html:17, :301):
 
-        {% with host=request.get_host %}
-          {% if 'staff' in host %}
-            {% if request.user.is_authenticated %}
-              {% if request.user.employee %}
+        {% if 'staff' in host %}
 
-    On lvh.me the outer guard is False, so the public site is safe --
-    confirmed by AuthHostMatrixSweepTests in apps/home/tests.py, which
-    sweeps an employee across every public route without a 5xx. On
-    staff.lvh.me the guard is True and 'staff:' resolves, so that host
-    is fine too.
+    ALLOWED_HOSTS admits the whole '.lvh.me' wildcard in development and
+    '.uonalumni.or.ke' in production (settings.py:77-81), while
+    SUBDOMAIN_URLCONFS maps only the exact keys 'staff' and 'students'
+    (settings.py:423-428). So a host merely CONTAINING 'staff' rendered
+    the block while SubdomainRoutingMiddleware routed the request to
+    main.urls, where the 'staff:' namespace does not exist -- a
+    NoReverseMatch, i.e. a 500.
 
-    The gap is that `'staff' in host` is a SUBSTRING test, not a
-    subdomain test. ALLOWED_HOSTS admits the whole '.lvh.me' wildcard in
-    dev and '.uonalumni.or.ke' in production (settings.py:77-81), while
-    SUBDOMAIN_URLCONFS maps only the exact keys 'staff' and 'students'.
-    Any other host containing 'staff' renders the block while
-    SubdomainRoutingMiddleware routes the request to main.urls, where
-    'staff:' does not exist.
+    Both links now use {% subdomain_url ... 'staff' %}, which reverses
+    against apps.staff.site_urls whatever host rendered the page -- the
+    same tag the file already loads at :2 and uses at :218 and :439.
+    The substring guard is left as it is: it no longer has a 500 behind
+    it, and tightening it would change what renders on the two sibling
+    'staff' not in host blocks at :231 and :452 too.
     """
 
     @classmethod
@@ -110,14 +108,14 @@ class NavbarStaffHostGuardTests(TestCase):
             service_unit=unit,
         )
 
-    def test_staff_lookalike_host_does_not_500_for_an_employee(self):
+    def test_staff_lookalike_host_renders_an_absolute_staff_link(self):
+        """The reproduction, flipped: this host routes to main.urls, so a
+        bare 'staff:' reverse would raise. It must now render, and the
+        link must point at the staff subdomain rather than this host."""
         self.client.force_login(self.employee_user)
         resp = self.client.get("/", HTTP_HOST=STAFF_LOOKALIKE_HOST)
-        self.assertLess(
-            resp.status_code, 500,
-            "navbar.html rendered its staff block on a host that routes "
-            "to main.urls, where the 'staff:' namespace does not exist.",
-        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "http://staff.lvh.me/profile/edit/")
 
     def test_public_host_is_unaffected_for_an_employee(self):
         """Pin -- the outer guard does its job on the real public host."""
