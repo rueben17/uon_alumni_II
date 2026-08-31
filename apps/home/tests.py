@@ -220,21 +220,35 @@ class MissingUserProfileTests(TestCase):
 
 
 class AlumniProfileDetailAccessTests(TestCase):
-    """Finding 7 — AlumniProfileDetailView is ungated.
+    """Guards qa_500_report #6 -- the profile page is members-only, and
+    its sensitive fields are owner-or-admin.
 
-    apps/home/views.py:515:
+    apps/home/views.py:515 was a bare DetailView with no gate, so an
+    anonymous visitor holding a profile URL read the member's contact
+    details and membership standing. Now LoginRequiredMixin.
 
-        class AlumniProfileDetailView(DetailView):
-
-    No LoginRequiredMixin, no owner check. get_context_data
-    (views.py:537-541) attaches current_membership and the alumnus's
-    non-primary EmailAddress, and the template carries payment history.
+    "Logged in" spans subdomains via SESSION_COOKIE_DOMAIN, so a staff
+    or student account also reaches this apex view -- which is why
+    alt_email and the payment-history panel are scoped to
+    owner-or-admin rather than to any authenticated user.
     """
 
     @classmethod
     def setUpTestData(cls):
-        cls.user = _make_user("alum@example.com")
-        cls.alumni = AlumniProfile.objects.create(user=cls.user)
+        from allauth.account.models import EmailAddress
+
+        cls.owner = _make_user("owner@example.com")
+        cls.alumni = AlumniProfile.objects.create(user=cls.owner)
+        EmailAddress.objects.create(
+            user=cls.owner, email="owner.alt@example.com", primary=False
+        )
+        cls.other_member = _make_user("other.member@example.com")
+        cls.admin = User.objects.create_superuser(
+            email="profile.admin@example.com", password="x"
+        )
+        UserProfile.objects.create(
+            user=cls.admin, given_name="Profile", family_name="Admin"
+        )
 
     def _url(self):
         return reverse(
@@ -242,15 +256,61 @@ class AlumniProfileDetailAccessTests(TestCase):
             kwargs={"slug": self.alumni.slug, "pk": self.alumni.pk},
         )
 
-    def test_anonymous_visitor_cannot_read_a_members_profile(self):
-        """An anonymous GET should not return a member's profile page."""
+    def test_anonymous_visitor_is_redirected_to_login(self):
         resp = self.client.get(self._url(), HTTP_HOST=PUBLIC_HOST)
-        self.assertNotEqual(
-            resp.status_code, 200,
-            "AlumniProfileDetailView served a member's profile, including "
-            "membership standing and alternate e-mail, to an anonymous "
-            "visitor.",
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/accounts/", resp["Location"])
+
+    def test_authenticated_non_owner_sees_the_directory_fields(self):
+        self.client.force_login(self.other_member)
+        resp = self.client.get(self._url(), HTTP_HOST=PUBLIC_HOST)
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.context["is_owner_or_admin"])
+        self.assertContains(resp, self.owner.email)
+
+    def test_authenticated_non_owner_gets_no_sensitive_fields(self):
+        self.client.force_login(self.other_member)
+        resp = self.client.get(self._url(), HTTP_HOST=PUBLIC_HOST)
+        self.assertIsNone(resp.context["alt_email"])
+        self.assertNotContains(resp, "owner.alt@example.com")
+        self.assertNotContains(resp, "Alt. Email")
+        # alumni_detail.html:326 mentions "Payment History" inside an HTML
+        # comment, which renders -- assert on the heading markup.
+        self.assertNotContains(resp, ">Payment History</h2>")
+
+    def test_owner_sees_the_sensitive_fields(self):
+        self.client.force_login(self.owner)
+        resp = self.client.get(self._url(), HTTP_HOST=PUBLIC_HOST)
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.context["is_owner_or_admin"])
+        self.assertContains(resp, "owner.alt@example.com")
+        self.assertContains(resp, ">Payment History</h2>")
+
+    def test_admin_sees_the_sensitive_fields(self):
+        """The Secretariat handles membership queries against this page."""
+        self.client.force_login(self.admin)
+        resp = self.client.get(self._url(), HTTP_HOST=PUBLIC_HOST)
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.context["is_owner_or_admin"])
+        self.assertContains(resp, "owner.alt@example.com")
+        self.assertContains(resp, ">Payment History</h2>")
+
+    def test_sparse_profile_renders_for_an_authenticated_viewer(self):
+        """No membership, no payments, no alternate e-mail -- the page
+        must render rather than 500 on an absent related row."""
+        sparse_user = _make_user("sparse@example.com")
+        sparse = AlumniProfile.objects.create(user=sparse_user)
+        self.client.force_login(self.other_member)
+        resp = self.client.get(
+            reverse(
+                "home:alumni_detail",
+                kwargs={"slug": sparse.slug, "pk": sparse.pk},
+            ),
+            HTTP_HOST=PUBLIC_HOST,
         )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNone(resp.context["current_membership"])
+        self.assertIsNone(resp.context["pending_membership"])
 
 
 # ─────────────────────────────────────────────────────────────────────
