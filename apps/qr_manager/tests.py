@@ -625,3 +625,79 @@ class HumanizeDurationTests(SimpleTestCase):
         start = datetime(2026, 1, 15)
         end = datetime(2026, 2, 15)
         self.assertEqual(humanize_duration(start, end), "1 month")
+
+
+# ─────────────────────────────────────────────────────────────────────
+# QA 500 sweep (Phase 1, 2026-08-31) — reproduction tests appended below.
+# Expected to FAIL on the current tree; see qa_500_report.md at the repo
+# root. Explicit lvh.me-family HTTP_HOST on every request, because
+# SUBDOMAIN_DOMAIN is 'lvh.me' under test.
+# ─────────────────────────────────────────────────────────────────────
+
+from django.urls import reverse as _reverse
+
+from apps.user.models import UserProfile as _UserProfile
+
+PUBLIC_HOST = "lvh.me"
+STAFF_HOST = "staff.lvh.me"
+
+
+class VerifyScanMissingProfileTests(TestCase):
+    """Finding 6 at its worst call site — a PUBLIC, ANONYMOUS 500.
+
+    apps/qr_manager/views.py:133, inside _staff_verification_context():
+
+        "display_name": employee.user.profile.display_name,
+
+    and the alumni twin at views.py:90:
+
+        "display_name": alumni_profile.user.profile.display_name,
+
+    Both are plain Python dict construction, not template rendering, so
+    the RelatedObjectDoesNotExist propagates as a 500. (In a template it
+    would be swallowed — ObjectDoesNotExist sets
+    silent_variable_failure = True — which is exactly why this one bites
+    here and not on the pages that read the same attribute in markup.)
+
+    Reachable whenever a UserProfile is removed after the holder record
+    was created: an admin deleting the profile row, or any cascade that
+    takes it. The badge stays in someone's wallet and keeps resolving.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.unit = ServiceUnit.objects.create(name="Registry")
+        cls.user = User.objects.create_user(email="badge.holder@example.com")
+        _UserProfile.objects.create(
+            user=cls.user, given_name="Badge", family_name="Holder"
+        )
+        cls.employee = Employee.objects.create(
+            user=cls.user,
+            staff_track=Employee.StaffTrack.SERVICE,
+            service_unit=cls.unit,
+        )
+        cls.qr = QRCode.objects.create(employee=cls.employee)
+
+    def test_scan_survives_a_holder_whose_profile_row_is_gone(self):
+        # The badge was minted while the profile existed; it is removed
+        # afterwards. The printed QR code is unchanged and still scans.
+        _UserProfile.objects.filter(user=self.user).delete()
+
+        url = _reverse("qr:verify", kwargs={"qr_id": self.qr.pk})
+        resp = self.client.get(
+            url, {"t": self.qr.token}, HTTP_HOST=STAFF_HOST
+        )
+        self.assertLess(
+            resp.status_code, 500,
+            "Anonymous badge scan returned a server error because the "
+            "holder's UserProfile row is missing.",
+        )
+
+    def test_scan_works_while_the_profile_exists(self):
+        """Passes today — pins the happy path the fix must preserve."""
+        url = _reverse("qr:verify", kwargs={"qr_id": self.qr.pk})
+        resp = self.client.get(
+            url, {"t": self.qr.token}, HTTP_HOST=STAFF_HOST
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["X-Robots-Tag"], "noindex")
