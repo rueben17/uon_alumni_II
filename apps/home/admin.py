@@ -89,6 +89,9 @@ class AlumniProfileResource(resources.ModelResource):
         return obj.qualification.name if obj.qualification_id else ''
 
     def dehydrate_current_membership(self, obj):
+        # current_for (latest of ANY status), not current_active_for --
+        # deliberate: this column renders the status alongside the tier,
+        # so a row awaiting Secretariat confirmation must stay visible.
         membership = Membership.objects.current_for(obj.user)
         return f"{membership.tier.name} ({membership.get_status_display()})" if membership else ''
 
@@ -557,6 +560,9 @@ class AlumniProfileAdmin(ExportMixin, admin.ModelAdmin):
 
     @admin.display(description='Current Membership')
     def current_membership_display(self, obj):
+        # current_for (latest of ANY status), not current_active_for --
+        # deliberate: this is the list the Secretariat works from, and it
+        # renders the status, so pending requests must stay visible here.
         membership = Membership.objects.current_for(obj.user)
         if membership is None:
             return '—'

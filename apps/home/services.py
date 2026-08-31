@@ -111,7 +111,7 @@ def renew_membership(user, payment_frequency=Membership.PaymentFrequency.ONCE):
     "renew what they already have," not "change tier." Raises if there's
     no current membership to read the tier from (a first-time grant is
     assign_membership_tier(), not this)."""
-    current = Membership.objects.current_for(user)
+    current = Membership.objects.current_active_for(user)
     if current is None:
         raise ValueError("No current membership to renew -- use assign_membership_tier() for a first-time grant.")
     return assign_membership_tier(user, current.tier, payment_frequency=payment_frequency)

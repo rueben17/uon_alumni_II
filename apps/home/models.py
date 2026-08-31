@@ -1372,13 +1372,41 @@ class AlumniPhoneNumber(models.Model):
 
 class MembershipManager(models.Manager):
     def current_for(self, user):
-        """Most recent membership row for a user, active or otherwise --
-        the manager method todo.md 0.1 asks for instead of a denormalized
-        pointer. Ordered by Meta.ordering (-created_at), so "current"
-        means "most recently requested," which is also "most recently
-        activated" under the one-row-per-request pattern each request
-        view uses (see apps/home/views.py)."""
+        """Most recent membership row for a user, of ANY status -- the
+        manager method todo.md 0.1 asks for instead of a denormalized
+        pointer. Ordered by Meta.ordering (-created_at), so this means
+        "most recently requested", which during a renewal is the
+        unconfirmed PENDING row rather than the membership the member
+        actually holds.
+
+        That is the right answer for "is there a request in flight" --
+        the admin's own Current Membership columns rely on it, since
+        they render the status alongside the tier. It is the wrong
+        answer for anything that states or prints a member's standing:
+        use current_active_for() for that.
+        """
         return self.filter(user=user).first()
+
+    def current_active_for(self, user):
+        """The membership the user actually holds right now, or None.
+
+        The service layer supersedes any prior ACTIVE row before
+        activating a new one, inside transaction.atomic()
+        (apps/home/services.py:37-50), so at most one ACTIVE row exists
+        per user -- the ordering below is a tie-breaker, not a
+        semantic. Mirrors the hand-rolled query at
+        apps/qr_manager/views.py:64-66, which needed this before the
+        manager offered it.
+
+        Returns None when the member holds nothing active: a first
+        request still awaiting Secretariat confirmation, or a lapsed
+        membership. Callers must handle that rather than assume a row.
+        """
+        return (
+            self.filter(user=user, status=self.model.Status.ACTIVE)
+            .order_by("-created_at")
+            .first()
+        )
 
 
 class Membership(models.Model):

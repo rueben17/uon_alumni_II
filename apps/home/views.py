@@ -535,8 +535,20 @@ class AlumniProfileDetailView(DetailView):
         from allauth.account.models import EmailAddress
 
         context = super().get_context_data(**kwargs)
-        current_membership = Membership.objects.current_for(self.object.user)
+        # Two rows, not one (2026-09-01): current_membership is what the
+        # member actually holds and drives the standing badge, while a
+        # renewal awaiting Secretariat confirmation is a separate PENDING
+        # row that the awaiting-confirmation panel renders. current_for()
+        # returned whichever was newer, so a Gold Life Member who asked
+        # to renew showed as holding the unconfirmed tier.
+        current_membership = Membership.objects.current_active_for(self.object.user)
         context["current_membership"] = current_membership
+        context["pending_membership"] = (
+            Membership.objects
+            .filter(user=self.object.user, status=Membership.Status.PENDING)
+            .order_by("-created_at")
+            .first()
+        )
         context["alt_email"] = EmailAddress.objects.filter(user=self.object.user, primary=False).first()
         # Only what this member actually has -- not the full tier matrix
         # (that's the separate Categories & Benefits page). Excluded/
@@ -680,7 +692,7 @@ def download_alumni_qr_code(request, slug, pk):
         response["Content-Disposition"] = f'attachment; filename="{safe_name}_qr.png"'
         return response
 
-    current_membership = Membership.objects.current_for(alumni.user)
+    current_membership = Membership.objects.current_active_for(alumni.user)
     if current_membership is None:
         tier_name = "No active membership"
         validity_period = "—"
@@ -836,7 +848,7 @@ class AlumniMembershipUpdateView(LoginRequiredMixin, View):
 
     def get(self, request, *args, **kwargs):
         alumni = get_object_or_404(AlumniProfile, pk=kwargs["pk"], user=request.user)
-        current_membership = Membership.objects.current_for(request.user)
+        current_membership = Membership.objects.current_active_for(request.user)
         # ?tier=<pk> (2026-08-19, snippets/tiers.html's Subscribe button)
         # wins over the member's current tier when present -- someone
         # who clicked "Subscribe" on a specific card came here to move
