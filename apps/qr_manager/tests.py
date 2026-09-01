@@ -35,6 +35,24 @@ def tearDownModule():
     shutil.rmtree(_test_media_root, ignore_errors=True)
 
 
+def _name_profile(user, given, family):
+    """Fill the auto-created profile rather than naming the Employee.
+
+    Employee no longer holds name data -- it moved to UserProfile per
+    docs/rebuild-schema.md, and apps/staff/models.py:186 notes that call
+    sites read through self.user.profile.* instead. These fixtures were
+    never updated, so Employee(given_name=..., family_name=...) raised
+    TypeError in setUpClass and took each class down with it.
+
+    apps/user/signals.py creates the profile, so this fills it in.
+    """
+    profile = user.profile
+    profile.given_name = given
+    profile.family_name = family
+    profile.save(update_fields=["given_name", "family_name"])
+    return profile
+
+
 def _grant_qrcode_perms(user):
     """Simulate membership in the 'QR Supervisors' group described in
     apps/qr_manager/admin.py's setup docs: full CRUD on QRCode."""
@@ -67,15 +85,17 @@ class QRCodeAdminScopingTests(TestCase):
 
         cls.lib_emp_user = User.objects.create_user(email="lib.emp@example.com")
         cls.lib_emp = Employee.objects.create(
-            user=cls.lib_emp_user, given_name="Lib", family_name="Employee",
+            user=cls.lib_emp_user,
             staff_track=Employee.StaffTrack.SERVICE, service_unit=cls.library,
         )
+        _name_profile(cls.lib_emp_user, "Lib", "Employee")
 
         cls.fin_emp_user = User.objects.create_user(email="fin.emp@example.com")
         cls.fin_emp = Employee.objects.create(
-            user=cls.fin_emp_user, given_name="Fin", family_name="Employee",
+            user=cls.fin_emp_user,
             staff_track=Employee.StaffTrack.SERVICE, service_unit=cls.finance,
         )
+        _name_profile(cls.fin_emp_user, "Fin", "Employee")
 
         # Staff, has the group permissions, but no Supervisor row.
         cls.no_unit_user = User.objects.create_user(
@@ -221,9 +241,10 @@ class QRCodeAdminPermissionMethodTests(TestCase):
 
         cls.fin_emp_user = User.objects.create_user(email="fin.emp2@example.com")
         cls.fin_emp = Employee.objects.create(
-            user=cls.fin_emp_user, given_name="Fin", family_name="Employee",
+            user=cls.fin_emp_user,
             staff_track=Employee.StaffTrack.SERVICE, service_unit=cls.finance,
         )
+        _name_profile(cls.fin_emp_user, "Fin", "Employee")
         cls.qr_fin = QRCode.objects.create(employee=cls.fin_emp)
 
     def test_has_permission_methods_deny_other_unit_object_directly(self):
@@ -314,14 +335,16 @@ class QRSupervisorSiteTests(TestCase):
 
         cls.lib_emp_user = User.objects.create_user(email="lib.emp3@example.com")
         cls.lib_emp = Employee.objects.create(
-            user=cls.lib_emp_user, given_name="Lib", family_name="Employee3",
+            user=cls.lib_emp_user,
             staff_track=Employee.StaffTrack.SERVICE, service_unit=cls.library,
         )
+        _name_profile(cls.lib_emp_user, "Lib", "Employee3")
         cls.fin_emp_user = User.objects.create_user(email="fin.emp3@example.com")
         cls.fin_emp = Employee.objects.create(
-            user=cls.fin_emp_user, given_name="Fin", family_name="Employee3",
+            user=cls.fin_emp_user,
             staff_track=Employee.StaffTrack.SERVICE, service_unit=cls.finance,
         )
+        _name_profile(cls.fin_emp_user, "Fin", "Employee3")
         # QR generation is supervisor-triggered only -- create explicitly.
         QRCode.objects.create(employee=cls.lib_emp)
         QRCode.objects.create(employee=cls.fin_emp)
@@ -392,7 +415,9 @@ class QRSupervisorSiteTests(TestCase):
         )
         self.assertEqual(resp.status_code, 403)
         self.lib_emp.refresh_from_db()
-        self.assertEqual(self.lib_emp.given_name, "Lib")
+        # The name lives on UserProfile now, not Employee -- the point of
+        # the assertion is unchanged: the blocked POST mutated nothing.
+        self.assertEqual(self.lib_emp.user.profile.given_name, "Lib")
 
     def test_superuser_sees_everything_on_supervisor_site(self):
         self.client.force_login(self.superuser)
@@ -428,14 +453,16 @@ class ScanLogAdminScopingTests(TestCase):
 
         cls.lib_emp_user = User.objects.create_user(email="lib.emp4@example.com")
         cls.lib_emp = Employee.objects.create(
-            user=cls.lib_emp_user, given_name="Lib", family_name="Employee4",
+            user=cls.lib_emp_user,
             staff_track=Employee.StaffTrack.SERVICE, service_unit=cls.library,
         )
+        _name_profile(cls.lib_emp_user, "Lib", "Employee4")
         cls.fin_emp_user = User.objects.create_user(email="fin.emp4@example.com")
         cls.fin_emp = Employee.objects.create(
-            user=cls.fin_emp_user, given_name="Fin", family_name="Employee4",
+            user=cls.fin_emp_user,
             staff_track=Employee.StaffTrack.SERVICE, service_unit=cls.finance,
         )
+        _name_profile(cls.fin_emp_user, "Fin", "Employee4")
 
         cls.superuser = User.objects.create_superuser(
             email="admin4@example.com", password="x"
