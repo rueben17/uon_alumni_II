@@ -1,0 +1,13 @@
+# Coverage configuration for the test-coverage build (2026-09-01).
+# Mirrors the flags used for the Phase 0 baseline in
+# docs/coverage-phase0-2026-09-01.md, so figures stay comparable.
+[run]
+source = apps
+omit =
+    */migrations/*
+    */tests.py
+    */__pycache__/*
+
+[report]
+show_missing = True
+skip_covered = False
