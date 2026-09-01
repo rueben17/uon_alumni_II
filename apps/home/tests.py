@@ -620,3 +620,464 @@ class AlumniQrBadgePdfTierTests(_ActivePlusPendingMixin, TestCase):
         self.assertNotIn(b"Student Annual Membership", drawn)
         # The validity line comes off the same row (views.py:702-704).
         self.assertIn(b"Lifetime Membership", drawn)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Coverage phase 1 -- membership lifecycle end to end.
+# assign -> activate -> supersede -> record instalment -> lapse.
+#
+# Characterisation tests: these assert what apps/home/services.py and
+# the Membership model ACTUALLY do, not what they ought to. See
+# docs/coverage-phase1-step1-2026-09-01.md.
+#
+# Service-level throughout, so no HTTP_HOST is needed. created_at is set
+# explicitly wherever ordering is load-bearing -- Meta.ordering is
+# ["-created_at"] and same-microsecond creation makes "newest"
+# ambiguous.
+# ─────────────────────────────────────────────────────────────────────
+
+from datetime import timedelta
+from decimal import Decimal
+
+from django.core.management import call_command
+from django.utils import timezone
+
+from apps.home import services
+from apps.home.tasks import expire_lapsed_installment_plans
+
+
+def _life_tier(name="Gold Life Member", fee=100000):
+    return MembershipTier.objects.create(
+        name=name, fee=fee, tier_type="life", duration_months=0,
+    )
+
+
+def _annual_tier(name="Full Annual Member", fee=2000, months=12):
+    # duration_months must be non-zero: MembershipTier.is_lifetime() is
+    # `tier_type == 'life' or duration_months == 0` (models.py:1005-1007),
+    # so a 0-month annual tier would count as lifetime.
+    return MembershipTier.objects.create(
+        name=name, fee=fee, tier_type="annual", duration_months=months,
+    )
+
+
+class MembershipSupersessionInvariantTests(TestCase):
+    """The one-ACTIVE-row invariant (services.py:29-50).
+
+    apps/home/models.py's current_active_for() is correct only because
+    the service layer supersedes any prior ACTIVE row before activating
+    a new one. Until now nothing verified that.
+    """
+
+    def setUp(self):
+        self.user = _make_user("lifecycle@example.com")
+        self.gold = _life_tier()
+        self.annual = _annual_tier()
+
+    def _activated(self, tier):
+        membership = services.assign_membership_tier(self.user, tier)
+        return services.activate_membership(membership)
+
+    def test_activating_supersedes_the_prior_active_row(self):
+        first = self._activated(self.annual)
+        second = services.assign_membership_tier(self.user, self.gold)
+        services.activate_membership(second)
+
+        first.refresh_from_db()
+        self.assertEqual(first.status, Membership.Status.SUPERSEDED)
+
+    def test_exactly_one_active_row_remains(self):
+        """The invariant current_active_for() depends on."""
+        self._activated(self.annual)
+        services.activate_membership(
+            services.assign_membership_tier(self.user, self.gold)
+        )
+
+        active = Membership.objects.filter(
+            user=self.user, status=Membership.Status.ACTIVE
+        )
+        self.assertEqual(active.count(), 1)
+        self.assertEqual(active.first().tier, self.gold)
+        self.assertEqual(
+            Membership.objects.current_active_for(self.user), active.first()
+        )
+
+    def test_membership_number_carries_forward(self):
+        """services.py:42-43 copies the prior row's number onto the new
+        one, so the number identifies the person, not the payment
+        period."""
+        first = self._activated(self.annual)
+        original_number = first.membership_number
+        self.assertTrue(original_number)
+
+        second = services.activate_membership(
+            services.assign_membership_tier(self.user, self.gold)
+        )
+        self.assertEqual(second.membership_number, original_number)
+
+    def test_supersede_precedes_activate_so_the_constraint_holds(self):
+        """Membership.Meta declares a partial unique constraint --
+        unique_active_membership_number, on membership_number WHERE
+        status='active'. Both rows share a number after the carry
+        forward, so activating before superseding would violate it.
+        Reaching this assertion at all proves the ordering."""
+        first = self._activated(self.annual)
+        second = services.activate_membership(
+            services.assign_membership_tier(self.user, self.gold)
+        )
+        first.refresh_from_db()
+
+        self.assertEqual(first.membership_number, second.membership_number)
+        self.assertEqual(first.status, Membership.Status.SUPERSEDED)
+        self.assertEqual(second.status, Membership.Status.ACTIVE)
+
+    def test_first_ever_activation_supersedes_nothing(self):
+        membership = services.assign_membership_tier(self.user, self.annual)
+        returned = services.activate_membership(membership)
+
+        self.assertEqual(returned.status, Membership.Status.ACTIVE)
+        self.assertEqual(Membership.objects.filter(user=self.user).count(), 1)
+
+
+class ActivateMembershipTests(TestCase):
+    """services.activate_membership (services.py:53-76)."""
+
+    def setUp(self):
+        self.user = _make_user("activate@example.com")
+        self.annual = _annual_tier()
+        self.gold = _life_tier()
+
+    def test_activation_stamps_status_and_dates_from_the_tier(self):
+        on = timezone.now().date()
+        membership = services.activate_membership(
+            services.assign_membership_tier(self.user, self.annual),
+            payment_date=on,
+        )
+
+        self.assertEqual(membership.status, Membership.Status.ACTIVE)
+        self.assertEqual(membership.started_on, on)
+        self.assertEqual(membership.expires_on, self.annual.get_expiry_date(on))
+        self.assertFalse(membership.is_lifetime)
+        self.assertTrue(membership.membership_number)
+
+    def test_lifetime_tier_leaves_no_expiry(self):
+        membership = services.activate_membership(
+            services.assign_membership_tier(self.user, self.gold)
+        )
+
+        self.assertTrue(membership.is_lifetime)
+        self.assertIsNone(membership.expires_on)
+        self.assertTrue(membership.is_valid)
+
+    def test_reactivating_an_active_row_skips_supersession(self):
+        """Characterises the first_activation guard at services.py:72.
+
+        A second call takes the False branch, so no supersession runs --
+        the row cannot supersede itself. It does still re-run
+        Membership.activate(), which recomputes expires_on from the new
+        payment date while leaving started_on alone (models.py:1583-1586).
+        """
+        first_date = timezone.now().date() - timedelta(days=30)
+        membership = services.activate_membership(
+            services.assign_membership_tier(self.user, self.annual),
+            payment_date=first_date,
+        )
+        original_expiry = membership.expires_on
+
+        later = timezone.now().date()
+        services.activate_membership(membership, payment_date=later)
+        membership.refresh_from_db()
+
+        # No self-supersession, and still exactly one row.
+        self.assertEqual(membership.status, Membership.Status.ACTIVE)
+        self.assertEqual(Membership.objects.filter(user=self.user).count(), 1)
+        # started_on is only set when unset, so it survives.
+        self.assertEqual(membership.started_on, first_date)
+        # expires_on, however, is recomputed from the later date.
+        self.assertEqual(membership.expires_on, self.annual.get_expiry_date(later))
+        self.assertGreater(membership.expires_on, original_expiry)
+
+
+class RecordInstallmentPaymentTests(TestCase):
+    """services.record_installment_payment (services.py:79-93) and the
+    model method it delegates to (models.py:1620-1638)."""
+
+    def setUp(self):
+        self.user = _make_user("instalments@example.com")
+        self.tier = _annual_tier(name="Corporate Membership", fee=12000)
+
+    def _plan(self):
+        return services.assign_membership_tier(
+            self.user, self.tier,
+            payment_frequency=Membership.PaymentFrequency.MONTHLY,
+        )
+
+    def test_first_payment_activates_and_sets_the_next_due_date(self):
+        paid_on = timezone.now().date()
+        membership = services.record_installment_payment(
+            self._plan(), Decimal("1000"), payment_date=paid_on
+        )
+
+        self.assertEqual(membership.status, Membership.Status.ACTIVE)
+        self.assertEqual(membership.amount_paid, Decimal("1000"))
+        self.assertEqual(membership.balance_due, Decimal("11000"))
+        self.assertEqual(
+            membership.next_installment_due, paid_on + timedelta(days=30)
+        )
+
+    def test_second_payment_accumulates_without_reactivating(self):
+        plan = self._plan()
+        first_date = timezone.now().date() - timedelta(days=10)
+        services.record_installment_payment(plan, Decimal("1000"), payment_date=first_date)
+        plan.refresh_from_db()
+        started = plan.started_on
+
+        services.record_installment_payment(plan, Decimal("2500"))
+        plan.refresh_from_db()
+
+        self.assertEqual(plan.amount_paid, Decimal("3500"))
+        self.assertEqual(plan.status, Membership.Status.ACTIVE)
+        # started_on unchanged -- activate() did not run a second time.
+        self.assertEqual(plan.started_on, started)
+        self.assertEqual(Membership.objects.filter(user=self.user).count(), 1)
+
+    def test_next_due_date_advances_by_the_frequency_grace_days(self):
+        plan = self._plan()
+        first_date = timezone.now().date() - timedelta(days=10)
+        services.record_installment_payment(plan, Decimal("1000"), payment_date=first_date)
+        plan.refresh_from_db()
+        self.assertEqual(plan.next_installment_due, first_date + timedelta(days=30))
+
+        second_date = timezone.now().date()
+        services.record_installment_payment(plan, Decimal("1000"), payment_date=second_date)
+        plan.refresh_from_db()
+
+        self.assertEqual(plan.next_installment_due, second_date + timedelta(days=30))
+        self.assertEqual(
+            Membership.INSTALLMENT_FREQUENCY_DAYS[Membership.PaymentFrequency.MONTHLY], 30
+        )
+
+    def test_clearing_the_balance_sets_no_further_due_date(self):
+        """models.py:1635 only pushes the date while balance_due > 0."""
+        membership = services.record_installment_payment(
+            self._plan(), Decimal("12000")
+        )
+
+        self.assertEqual(membership.balance_due, Decimal("0"))
+        self.assertIsNone(membership.next_installment_due)
+        self.assertEqual(membership.status, Membership.Status.ACTIVE)
+
+
+class RenewMembershipServiceTests(TestCase):
+    """services.renew_membership (services.py:108-117)."""
+
+    def setUp(self):
+        self.user = _make_user("renewer2@example.com")
+        self.annual = _annual_tier()
+
+    def test_renewal_creates_a_pending_row_at_the_active_tier(self):
+        services.activate_membership(
+            services.assign_membership_tier(self.user, self.annual)
+        )
+        renewed = services.renew_membership(self.user)
+
+        self.assertEqual(renewed.tier, self.annual)
+        self.assertEqual(renewed.status, Membership.Status.PENDING)
+        self.assertEqual(Membership.objects.filter(user=self.user).count(), 2)
+
+    def test_renewal_without_an_active_membership_raises(self):
+        """services.py:116 -- a first-time grant is assign_membership_tier."""
+        with self.assertRaises(ValueError):
+            services.renew_membership(self.user)
+
+
+class UpgradeToLifetimeServiceTests(TestCase):
+    """services.upgrade_to_lifetime (services.py:120-127)."""
+
+    def setUp(self):
+        self.user = _make_user("upgrader@example.com")
+
+    def test_upgrade_to_a_life_tier_creates_a_pending_row(self):
+        gold = _life_tier()
+        upgraded = services.upgrade_to_lifetime(self.user, gold)
+
+        self.assertEqual(upgraded.tier, gold)
+        self.assertEqual(upgraded.status, Membership.Status.PENDING)
+
+    def test_upgrade_to_a_non_life_tier_raises(self):
+        annual = _annual_tier()
+        with self.assertRaises(ValueError):
+            services.upgrade_to_lifetime(self.user, annual)
+
+
+class ExpireLapsedInstallmentPlansTests(TestCase):
+    """apps/home/tasks.py:168 and the command it wraps.
+
+    Tested as a direct callable, never through the django-q2 cluster --
+    the task is an ordinary function and the broker adds nothing to
+    verify here.
+    """
+
+    def setUp(self):
+        self.today = timezone.now().date()
+        self.tier = _annual_tier(name="Corporate Membership", fee=12000)
+
+    def _plan(self, email, due_days_ago, frequency=Membership.PaymentFrequency.MONTHLY,
+              status=Membership.Status.ACTIVE, paid="1000"):
+        user = _make_user(email)
+        membership = Membership.objects.create(
+            user=user, tier=self.tier, status=status,
+            payment_frequency=frequency, amount_paid=Decimal(paid),
+        )
+        if due_days_ago is not None:
+            membership.next_installment_due = self.today - timedelta(days=due_days_ago)
+            membership.save(update_fields=["next_installment_due"])
+        return membership
+
+    def test_an_overdue_installment_plan_is_expired(self):
+        # 40 days past due, grace is 30 -> is_overdue True.
+        plan = self._plan("overdue@example.com", due_days_ago=40)
+        self.assertTrue(plan.is_overdue)
+
+        expire_lapsed_installment_plans()
+
+        plan.refresh_from_db()
+        self.assertEqual(plan.status, Membership.Status.EXPIRED)
+
+    def test_task_is_callable_directly_without_the_cluster(self):
+        """The task wraps call_command; both entry points behave alike."""
+        plan = self._plan("direct@example.com", due_days_ago=40)
+        call_command("expire_lapsed_installment_plans", verbosity=0)
+        plan.refresh_from_db()
+        self.assertEqual(plan.status, Membership.Status.EXPIRED)
+
+    def test_it_leaves_everything_else_alone(self):
+        """The failure mode of a scheduled mutation job is collateral
+        damage, so this is the assertion that matters most."""
+        overdue = self._plan("sweep.overdue@example.com", due_days_ago=40)
+        not_yet = self._plan("sweep.current@example.com", due_days_ago=5)
+        lump_sum = self._plan(
+            "sweep.once@example.com", due_days_ago=40,
+            frequency=Membership.PaymentFrequency.ONCE,
+        )
+        pending = self._plan(
+            "sweep.pending@example.com", due_days_ago=40,
+            status=Membership.Status.PENDING,
+        )
+        already = self._plan(
+            "sweep.expired@example.com", due_days_ago=40,
+            status=Membership.Status.EXPIRED,
+        )
+        paid_off = self._plan(
+            "sweep.paidoff@example.com", due_days_ago=40, paid="12000",
+        )
+
+        expire_lapsed_installment_plans()
+
+        for membership, expected, label in [
+            (overdue, Membership.Status.EXPIRED, "overdue plan"),
+            (not_yet, Membership.Status.ACTIVE, "not yet past grace"),
+            (lump_sum, Membership.Status.ACTIVE, "one-off payment"),
+            (pending, Membership.Status.PENDING, "pending"),
+            (already, Membership.Status.EXPIRED, "already expired"),
+            (paid_off, Membership.Status.ACTIVE, "balance cleared"),
+        ]:
+            with self.subTest(case=label):
+                membership.refresh_from_db()
+                self.assertEqual(membership.status, expected)
+
+
+class GenerateMembershipNumberTests(TestCase):
+    """Characterises models.py:1565-1569.
+
+        def generate_membership_number(self):
+            year = timezone.now().year
+            last = Membership.objects.filter(membership_number__endswith=f"/{year}").count()
+            return f"UoNAA/{last + 1:06d}/{year}"
+
+    A count(), not a sequence -- so what the next number is depends on
+    how many numbered rows currently exist, not on how many have ever
+    been issued. These tests record what that actually means across
+    supersession, expiry and deletion.
+    """
+
+    def setUp(self):
+        self.tier = _annual_tier()
+        self.year = timezone.now().year
+
+    def _activate_for(self, email):
+        user = _make_user(email)
+        return services.activate_membership(
+            services.assign_membership_tier(user, self.tier)
+        )
+
+    def test_numbers_increment_across_members(self):
+        first = self._activate_for("num.one@example.com")
+        second = self._activate_for("num.two@example.com")
+
+        self.assertEqual(first.membership_number, f"UoNAA/000001/{self.year}")
+        self.assertEqual(second.membership_number, f"UoNAA/000002/{self.year}")
+
+    def test_supersession_issues_no_new_number_but_skips_the_sequence(self):
+        """Characterises a surprise: renewals make the numbering skip.
+
+        The successor carries the superseded row's number forward, so no
+        new number is *issued* -- but the count() at models.py:1567
+        counts ROWS whose number ends "/{year}", not distinct numbers.
+        After one renewal two rows share one number, so the count reads
+        2 and the next member is issued 000003. 000002 is never used.
+
+        Uniqueness -- the only thing the method's docstring promises
+        ("unique per calendar year of activation") -- still holds, so
+        this is recorded rather than treated as a defect. The practical
+        effect is that numbers are not dense and inflate faster than the
+        membership does: a member who renews annually consumes a number
+        from the sequence every year without receiving a new one.
+        """
+        first = self._activate_for("num.super@example.com")
+        original = first.membership_number
+        self.assertEqual(original, f"UoNAA/000001/{self.year}")
+
+        successor = services.activate_membership(
+            services.assign_membership_tier(first.user, self.tier)
+        )
+        # No new number issued -- carried forward.
+        self.assertEqual(successor.membership_number, original)
+        self.assertEqual(
+            Membership.objects.filter(
+                membership_number=original
+            ).count(), 2,
+        )
+
+        # ...but the next member skips 000002, because two rows now
+        # carry 000001 and the count sees both.
+        other = self._activate_for("num.after.super@example.com")
+        self.assertEqual(other.membership_number, f"UoNAA/000003/{self.year}")
+
+    def test_expiry_does_not_free_a_number(self):
+        """An EXPIRED row still holds its number and is still counted."""
+        first = self._activate_for("num.expire@example.com")
+        first.status = Membership.Status.EXPIRED
+        first.save(update_fields=["status"])
+
+        nxt = self._activate_for("num.after.expire@example.com")
+        self.assertEqual(nxt.membership_number, f"UoNAA/000002/{self.year}")
+
+    def test_deleting_a_membership_frees_its_number_for_reuse(self):
+        """The count()-derived sequence is not monotonic: deleting a
+        numbered row lowers the count, so the next activation reissues
+        the number the deleted row held.
+
+        The partial unique constraint (unique_active_membership_number)
+        does not prevent this -- it only guards numbers across rows that
+        are currently ACTIVE, and the deleted row is gone.
+        """
+        first = self._activate_for("num.keep@example.com")
+        second = self._activate_for("num.delete@example.com")
+        reused_number = second.membership_number
+        second.delete()
+
+        third = self._activate_for("num.reuse@example.com")
+
+        self.assertEqual(third.membership_number, reused_number)
+        self.assertNotEqual(third.membership_number, first.membership_number)
