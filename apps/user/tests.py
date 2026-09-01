@@ -196,3 +196,104 @@ class EnsureUserProfileSignalTests(TestCase):
         self.assertFalse(profile.email_opt_in)
         self.assertIsNone(profile.consent_given_at)
         self.assertEqual(profile.nationality, "Kenyan")
+
+
+# ─────────────────────────────────────────────────────────────────────
+# The backfill data migration (apps/user/migrations/0002).
+# Exercises the migration's own function against the real model
+# registry, rather than asserting on migration bookkeeping -- what
+# matters is that the rows land, exactly once, and that nothing existing
+# is disturbed.
+# ─────────────────────────────────────────────────────────────────────
+
+from importlib import import_module
+
+from django.apps import apps as global_apps
+
+_backfill_migration = import_module(
+    "apps.user.migrations.0002_backfill_user_profiles"
+)
+
+
+def _make_profileless_user(email):
+    """An account as it existed before apps/user/signals.py.
+
+    The signal now creates a profile for every new User, so the legacy
+    state has to be constructed by removing it again -- there is no
+    longer any way to make one directly.
+    """
+    user = User.objects.create_user(email=email)
+    UserProfile.objects.filter(pk=user.pk).delete()
+    return user
+
+
+class BackfillUserProfilesMigrationTests(TestCase):
+    """qa_500_report findings 4 and 5 -- the backlog, not the intake."""
+
+    def _run(self):
+        _backfill_migration.backfill(global_apps, None)
+
+    def test_backfills_a_profile_less_account(self):
+        user = _make_profileless_user("legacy@example.com")
+        self.assertFalse(UserProfile.objects.filter(pk=user.pk).exists())
+
+        self._run()
+
+        self.assertTrue(UserProfile.objects.filter(pk=user.pk).exists())
+
+    def test_backfilled_profile_invents_no_data(self):
+        user = _make_profileless_user("legacy.blank@example.com")
+        self._run()
+
+        profile = UserProfile.objects.get(pk=user.pk)
+        self.assertEqual(profile.given_name, "")
+        self.assertEqual(profile.family_name, "")
+        self.assertFalse(profile.sms_opt_in)
+        self.assertFalse(profile.email_opt_in)
+        self.assertIsNone(profile.consent_given_at)
+
+    def test_running_twice_is_a_no_op(self):
+        user = _make_profileless_user("legacy.twice@example.com")
+        self._run()
+        self._run()
+        self.assertEqual(UserProfile.objects.filter(pk=user.pk).count(), 1)
+
+    def test_inert_when_every_account_already_has_one(self):
+        user = User.objects.create_user(email="already@example.com")
+        profile = user.profile
+        profile.given_name = "Already"
+        profile.family_name = "Present"
+        profile.save(update_fields=["given_name", "family_name"])
+
+        self._run()
+
+        profile.refresh_from_db()
+        self.assertEqual(profile.given_name, "Already")
+        self.assertEqual(profile.family_name, "Present")
+        self.assertEqual(UserProfile.objects.filter(pk=user.pk).count(), 1)
+
+    def test_existing_profiles_are_left_alone(self):
+        """A mixed database: one legacy account, one intact."""
+        legacy = _make_profileless_user("mixed.legacy@example.com")
+        intact = User.objects.create_user(email="mixed.intact@example.com")
+        profile = intact.profile
+        profile.given_name = "Wanjiku"
+        profile.family_name = "Kamau"
+        profile.save(update_fields=["given_name", "family_name"])
+
+        self._run()
+
+        self.assertTrue(UserProfile.objects.filter(pk=legacy.pk).exists())
+        profile.refresh_from_db()
+        self.assertEqual(profile.display_name, "Wanjiku Kamau")
+
+    def test_reverse_does_not_delete_anything(self):
+        """unbackfill is a deliberate no-op -- a profile created by this
+        migration may have been edited since, and reversing must not
+        destroy real data."""
+        user = _make_profileless_user("legacy.reverse@example.com")
+        self._run()
+
+        _backfill_migration.unbackfill(global_apps, None)
+
+        self.assertTrue(UserProfile.objects.filter(pk=user.pk).exists())
