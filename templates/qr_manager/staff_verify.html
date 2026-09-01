@@ -1,0 +1,50 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    {% comment %}
+    Same privacy stance as qr_manager/alumni_verify.html: this page
+    carries a real employee's name and standing, so it must never turn
+    up in search results just because someone's badge got scanned.
+    {% endcomment %}
+    <meta name="robots" content="noindex">
+    <title>Badge verification — UoNAA</title>
+    <link rel="stylesheet" href="{% static 'css/output.css' %}">
+</head>
+<body class="m-0 min-h-screen bg-slate-100 font-sans text-black">
+    <div class="mx-auto my-8 max-w-md rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="rounded-t-xl bg-slate-900 px-6 py-4 text-center text-sm font-semibold uppercase tracking-wide text-white">
+            UoNAA Badge Verification
+        </div>
+
+        <div class="space-y-4 p-6">
+            <div>
+                <h1 class="text-xl font-semibold text-black">{{ display_name }}</h1>
+            </div>
+
+            <div>
+                {% if status_label == "Active" %}
+                    <span class="inline-flex items-center rounded-full bg-green-50 px-3 py-1 text-xs font-semibold uppercase text-green-700">{{ status_label }}</span>
+                {% else %}
+                    <span class="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-semibold uppercase text-red-700">{{ status_label }}</span>
+                {% endif %}
+            </div>
+
+            <div class="grid grid-cols-1 gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm text-black">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Rank / Position</p>
+                    <p>{{ rank_or_position|default:"—" }}</p>
+                </div>
+                {% if unit_name %}
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Unit</p>
+                        <p>{{ unit_name }}</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>
