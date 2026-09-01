@@ -1081,3 +1081,382 @@ class GenerateMembershipNumberTests(TestCase):
 
         self.assertEqual(third.membership_number, reused_number)
         self.assertNotEqual(third.membership_number, first.membership_number)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Coverage priority 4 (re-scoped) -- the payment-confirmation path.
+#
+# apps/home/payments.py is a placeholder seam: there is no payment
+# gateway in this project, so nothing external is mocked here. The money
+# actually moves in PaymentAdmin.mark_completed (admin.py:686-738),
+# which is what most of this block covers. See
+# docs/coverage-phase1-payments-step1-2026-09-01.md.
+#
+# Admin actions are invoked DIRECTLY rather than through the admin HTTP
+# flow -- the same approach the backfill-migration tests take.
+# ─────────────────────────────────────────────────────────────────────
+
+from unittest import mock
+
+from django.contrib.admin.sites import AdminSite
+from django.contrib.messages.storage.fallback import FallbackStorage
+from django.test import RequestFactory
+
+from apps.home.admin import PaymentAdmin
+from apps.home.models import Payment
+from apps.home.payments import (
+    GATEWAYS,
+    ManualGateway,
+    PaymentGateway,
+    get_gateway,
+    initiate_payment,
+)
+
+
+def _admin_request():
+    """self.message_user() writes to the message store, so it must exist."""
+    request = RequestFactory().post("/membership-admin/")
+    request.session = {}
+    request._messages = FallbackStorage(request)
+    return request
+
+
+def _payment_admin():
+    return PaymentAdmin(Payment, AdminSite())
+
+
+def _alumni_for(email):
+    user = _make_user(email)
+    return AlumniProfile.objects.create(user=user), user
+
+
+# ── payments.py: the placeholder seam (6) ────────────────────────────
+
+
+class PaymentGatewaySeamTests(TestCase):
+    """apps/home/payments.py in full.
+
+    Every method routes to ManualGateway -- no credentials for any real
+    provider exist (the module docstring says so, and settings carries
+    none). These tests close the file and pin the dispatch seam that is
+    the module's whole reason for existing.
+    """
+
+    def setUp(self):
+        self.alumni, self.user = _alumni_for("payer@example.com")
+        self.tier = _annual_tier()
+        self.payment = Payment.objects.create(
+            alumni=self.alumni, membership_tier=self.tier,
+            amount=Decimal("2000"), payment_method="mpesa",
+        )
+
+    def test_every_known_method_routes_to_the_manual_gateway(self):
+        for method in ("mpesa", "credit_card", "bank_transfer"):
+            with self.subTest(method=method):
+                self.assertIsInstance(get_gateway(method), ManualGateway)
+
+    def test_an_unknown_method_falls_back_to_the_manual_gateway(self):
+        """GATEWAYS.get(payment_method, ManualGateway) -- the default arm."""
+        self.assertIsInstance(get_gateway("bitcoin"), ManualGateway)
+        self.assertIsInstance(get_gateway(""), ManualGateway)
+
+    def test_manual_initiate_returns_the_payment_unchanged(self):
+        result = ManualGateway().initiate(self.payment)
+
+        self.assertIs(result, self.payment)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.payment_status, "pending")
+
+    def test_manual_verify_reports_the_current_status(self):
+        self.assertEqual(ManualGateway().verify(self.payment), "pending")
+        self.payment.payment_status = "completed"
+        self.assertEqual(ManualGateway().verify(self.payment), "completed")
+
+    def test_the_base_interface_refuses_to_be_used_directly(self):
+        base = PaymentGateway()
+        with self.assertRaises(NotImplementedError):
+            base.initiate(self.payment)
+        with self.assertRaises(NotImplementedError):
+            base.verify(self.payment)
+
+    def test_initiate_payment_dispatches_through_the_registry(self):
+        """The seam a real gateway would plug into later: swapping a
+        GATEWAYS entry must change what initiate_payment() calls."""
+        sentinel = mock.Mock()
+        sentinel.return_value.initiate.return_value = "dispatched"
+
+        with mock.patch.dict(GATEWAYS, {"mpesa": sentinel}):
+            result = initiate_payment(self.payment)
+
+        self.assertEqual(result, "dispatched")
+        sentinel.return_value.initiate.assert_called_once_with(self.payment)
+
+
+# ── PaymentAdmin.mark_completed -- where the money moves (6) ─────────
+
+
+class PaymentAdminMarkCompletedTests(TestCase):
+    """apps/home/admin.py:686-738.
+
+    The only code in the project that turns a confirmed payment into an
+    active membership. Every activation routes through the service layer
+    (:727, :736), so the one-ACTIVE-row invariant holds from here too.
+    """
+
+    def setUp(self):
+        self.admin = _payment_admin()
+        self.request = _admin_request()
+        self.alumni, self.user = _alumni_for("confirmer@example.com")
+        self.tier = _annual_tier(name="Corporate Membership", fee=12000)
+
+    def _run(self, *payments):
+        pks = [p.pk for p in payments]
+        self.admin.mark_completed(self.request, Payment.objects.filter(pk__in=pks))
+
+    def test_a_linked_payment_records_an_instalment(self):
+        membership = services.assign_membership_tier(
+            self.user, self.tier,
+            payment_frequency=Membership.PaymentFrequency.MONTHLY,
+        )
+        payment = Payment.objects.create(
+            alumni=self.alumni, membership_tier=self.tier, membership=membership,
+            amount=Decimal("3000"), payment_method="mpesa",
+        )
+
+        self._run(payment)
+
+        membership.refresh_from_db()
+        payment.refresh_from_db()
+        self.assertEqual(payment.payment_status, "completed")
+        self.assertEqual(membership.status, Membership.Status.ACTIVE)
+        self.assertEqual(membership.amount_paid, Decimal("3000"))
+
+    def test_an_unlinked_payment_activates_the_newest_pending_row(self):
+        older = services.assign_membership_tier(self.user, self.tier)
+        newer = services.assign_membership_tier(self.user, self.tier)
+        # Meta.ordering is ["-created_at"], and the admin picks the newest
+        # PENDING row (admin.py:731) -- make the order unambiguous.
+        Membership.objects.filter(pk=older.pk).update(
+            created_at=timezone.now() - timedelta(days=2)
+        )
+        payment = Payment.objects.create(
+            alumni=self.alumni, membership_tier=self.tier,
+            amount=Decimal("12000"), payment_method="bank_transfer",
+        )
+
+        self._run(payment)
+
+        newer.refresh_from_db()
+        older.refresh_from_db()
+        self.assertEqual(newer.status, Membership.Status.ACTIVE)
+        self.assertEqual(older.status, Membership.Status.PENDING)
+
+    def test_an_unlinked_payment_with_no_pending_row_creates_one(self):
+        """admin.py:733-734 -- created PENDING, then activated through
+        the service layer, so the invariant is not bypassed."""
+        payment = Payment.objects.create(
+            alumni=self.alumni, membership_tier=self.tier,
+            amount=Decimal("12000"), payment_method="mpesa",
+        )
+        self.assertFalse(Membership.objects.filter(user=self.user).exists())
+
+        self._run(payment)
+
+        membership = Membership.objects.get(user=self.user)
+        self.assertEqual(membership.status, Membership.Status.ACTIVE)
+        self.assertEqual(membership.tier, self.tier)
+
+    def test_a_payment_without_a_tier_is_skipped(self):
+        """admin.py:720-722 -- marked completed, then `continue`. The
+        payment is still confirmed; no membership is touched."""
+        payment = Payment.objects.create(
+            alumni=self.alumni, amount=Decimal("500"), payment_method="mpesa",
+        )
+
+        self._run(payment)
+
+        payment.refresh_from_db()
+        self.assertEqual(payment.payment_status, "completed")
+        self.assertFalse(Membership.objects.filter(user=self.user).exists())
+
+    def test_the_due_date_is_anchored_to_confirmation_not_submission(self):
+        """admin.py:704-707, decided 2026-08-21: a request can sit pending
+        for weeks, so anchoring the schedule to payment_date could make an
+        instalment read as overdue the moment it activates."""
+        membership = services.assign_membership_tier(
+            self.user, self.tier,
+            payment_frequency=Membership.PaymentFrequency.MONTHLY,
+        )
+        submitted = timezone.now() - timedelta(days=45)
+        payment = Payment.objects.create(
+            alumni=self.alumni, membership_tier=self.tier, membership=membership,
+            amount=Decimal("3000"), payment_method="mpesa",
+            payment_date=submitted,
+        )
+
+        self._run(payment)
+
+        membership.refresh_from_db()
+        today = timezone.now().date()
+        self.assertEqual(membership.next_installment_due, today + timedelta(days=30))
+        self.assertNotEqual(
+            membership.next_installment_due, submitted.date() + timedelta(days=30)
+        )
+        self.assertFalse(membership.is_overdue)
+
+    def test_confirming_a_renewal_supersedes_the_prior_active_row(self):
+        """The invariant end to end from the payment side."""
+        gold = _life_tier()
+        held = services.activate_membership(
+            services.assign_membership_tier(self.user, gold)
+        )
+        renewal = services.assign_membership_tier(self.user, self.tier)
+        payment = Payment.objects.create(
+            alumni=self.alumni, membership_tier=self.tier, membership=renewal,
+            amount=Decimal("12000"), payment_method="mpesa",
+        )
+
+        self._run(payment)
+
+        held.refresh_from_db()
+        renewal.refresh_from_db()
+        self.assertEqual(held.status, Membership.Status.SUPERSEDED)
+        self.assertEqual(renewal.status, Membership.Status.ACTIVE)
+        self.assertEqual(
+            Membership.objects.filter(
+                user=self.user, status=Membership.Status.ACTIVE
+            ).count(), 1,
+        )
+
+
+# ── Payment.mark_as_* model methods (4) ──────────────────────────────
+
+
+class PaymentStatusMethodTests(TestCase):
+    """apps/home/models.py:1749-1785. These mutate the Payment row only."""
+
+    def setUp(self):
+        self.alumni, self.user = _alumni_for("statuses@example.com")
+        self.tier = _annual_tier()
+
+    def _payment(self, method="mpesa"):
+        return Payment.objects.create(
+            alumni=self.alumni, membership_tier=self.tier,
+            amount=Decimal("2000"), payment_method=method,
+        )
+
+    def test_completion_routes_the_receipt_number_by_method(self):
+        mpesa = self._payment("mpesa")
+        mpesa.mark_as_completed(receipt_number="QGR7X8Y9Z0")
+        mpesa.refresh_from_db()
+        self.assertEqual(mpesa.payment_status, "completed")
+        self.assertIsNotNone(mpesa.completion_date)
+        self.assertEqual(mpesa.mpesa_receipt_number, "QGR7X8Y9Z0")
+        # Both receipt fields are null=True (models.py:1701-1702), so the
+        # one not used by this payment method stays None, not "".
+        self.assertIsNone(mpesa.bank_reference)
+
+        bank = self._payment("bank_transfer")
+        bank.mark_as_completed(receipt_number="BNK-00042")
+        bank.refresh_from_db()
+        self.assertEqual(bank.bank_reference, "BNK-00042")
+        self.assertIsNone(bank.mpesa_receipt_number)
+
+    def test_failure_records_the_reason(self):
+        payment = self._payment()
+        payment.mark_as_failed(reason="Insufficient funds")
+        payment.refresh_from_db()
+        self.assertEqual(payment.payment_status, "failed")
+        self.assertEqual(payment.notes, "Insufficient funds")
+
+    def test_pending_verification_sets_the_status(self):
+        payment = self._payment()
+        payment.mark_as_pending_verification()
+        payment.refresh_from_db()
+        self.assertEqual(payment.payment_status, "pending_verification")
+
+    def test_refund_records_the_reason(self):
+        payment = self._payment()
+        payment.mark_as_refunded(reason="Duplicate transfer")
+        payment.refresh_from_db()
+        self.assertEqual(payment.payment_status, "refunded")
+        self.assertEqual(payment.notes, "Duplicate transfer")
+
+
+# ── Candidate findings D and E (2) ───────────────────────────────────
+
+
+class PaymentMembershipDivergenceTests(TestCase):
+    """Reproductions for findings D and E. Both assert CURRENT
+    behaviour; neither is fixed here."""
+
+    def setUp(self):
+        self.admin = _payment_admin()
+        self.request = _admin_request()
+        self.alumni, self.user = _alumni_for("divergence@example.com")
+        self.tier = _annual_tier()
+
+    def test_finding_d_marking_a_payment_completed_leaves_membership_pending(self):
+        """FINDING D -- a live money bug, documented not fixed.
+
+        Payment.mark_as_completed (models.py:1749-1759) touches the
+        Payment row only; none of the mark_as_* methods references
+        Membership. The service layer is called from exactly one place,
+        the bulk action at admin.py:727/736, and PaymentAdmin has no
+        save_model override while payment_status is an editable field in
+        its fieldset (admin.py:664, readonly_fields at :656 lists only
+        transaction_reference/created_at/updated_at).
+
+        So a Secretariat member who opens a Payment in the change form
+        and sets its status to "completed" -- or anyone calling this
+        model method from the shell, or a future gateway callback --
+        records the money as received while the membership stays
+        PENDING. Only the bulk action does both.
+        """
+        membership = services.assign_membership_tier(self.user, self.tier)
+        payment = Payment.objects.create(
+            alumni=self.alumni, membership_tier=self.tier, membership=membership,
+            amount=Decimal("2000"), payment_method="mpesa",
+        )
+
+        payment.mark_as_completed(receipt_number="QGR000001")
+
+        payment.refresh_from_db()
+        membership.refresh_from_db()
+        self.assertEqual(payment.payment_status, "completed")
+        # The defect: money in, membership not activated.
+        self.assertEqual(membership.status, Membership.Status.PENDING)
+        self.assertIsNone(Membership.objects.current_active_for(self.user))
+
+    def test_finding_e_a_refund_does_not_reverse_an_activation(self):
+        """FINDING E -- policy-dependent, documented not fixed.
+
+        mark_as_refunded / mark_as_failed (models.py:1764-1785) do not
+        touch the membership, so a payment refunded after the bulk
+        action activated it leaves the member ACTIVE with no payment
+        behind them. Whether that is wrong is an Association decision --
+        honouring a membership through a refund dispute is defensible --
+        but it is currently implicit rather than chosen.
+        """
+        membership = services.assign_membership_tier(self.user, self.tier)
+        payment = Payment.objects.create(
+            alumni=self.alumni, membership_tier=self.tier, membership=membership,
+            amount=Decimal("2000"), payment_method="mpesa",
+        )
+        self.admin.mark_completed(
+            self.request, Payment.objects.filter(pk=payment.pk)
+        )
+        membership.refresh_from_db()
+        self.assertEqual(membership.status, Membership.Status.ACTIVE)
+
+        payment.refresh_from_db()
+        payment.mark_as_refunded(reason="Chargeback")
+
+        payment.refresh_from_db()
+        membership.refresh_from_db()
+        self.assertEqual(payment.payment_status, "refunded")
+        # The membership survives the refund.
+        self.assertEqual(membership.status, Membership.Status.ACTIVE)
+        self.assertEqual(
+            Membership.objects.current_active_for(self.user), membership
+        )
