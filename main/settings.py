@@ -532,7 +532,9 @@ ALLOWED_STUDENT_LOGIN_DOMAINS = split_env_list(
 # development/testing. Set RESTRICT_GOOGLE_LOGIN_DOMAINS=False in .env to
 # allow any Google account onto staff/students too (main already does,
 # always).
-RESTRICT_GOOGLE_LOGIN_DOMAINS = os.getenv('RESTRICT_GOOGLE_LOGIN_DOMAINS', 'True') == 'True'
+RESTRICT_GOOGLE_LOGIN_DOMAINS = os.getenv(
+    'RESTRICT_GOOGLE_LOGIN_DOMAINS', 'True'
+).strip().lower() in ('true', '1', 'yes')
 
 # ----- Google provider -----
 
