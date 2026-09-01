@@ -188,6 +188,26 @@ def _staff_subdomain_url(request, path):
     return f"{scheme}://staff.{domain}{port}{path}"
 
 
+def _apex_url(request, path):
+    """
+    Build an absolute URL on the apex (no subdomain), preserving the dev
+    port -- the mirror of _staff_subdomain_url above, and the same
+    construction get_logout_redirect_url uses to send every subdomain
+    back to the main site.
+
+    Needed for the same reason: a bare path returned to a browser sitting
+    on staff.<domain> is requested from the STAFF urlconf, which has no
+    home: routes at all, so it 404s. Pinning the reverse to main.urls
+    fixes which urlconf resolves the name; this fixes which host serves
+    the result.
+    """
+    base = settings.SUBDOMAIN_DOMAIN
+    host = request.get_host()
+    port = f":{host.split(':')[1]}" if ":" in host else ""
+    scheme = "https" if request.is_secure() else "http"
+    return f"{scheme}://{base}{port}{path}"
+
+
 def _admin_onboarding_redirect_url(user, request):
     """
     is_staff (non-superuser) accounts must have both a complete Employee
@@ -222,7 +242,9 @@ def _admin_onboarding_redirect_url(user, request):
         # staff subdomain the request urlconf is apps.staff.site_urls,
         # where the `home` namespace does not exist at all -- an
         # unpinned reverse raised NoReverseMatch and 500ed the login.
-        return reverse("home:uon_alumni_register", urlconf="main.urls")
+        return _apex_url(
+            request, reverse("home:uon_alumni_register", urlconf="main.urls")
+        )
 
     return None
 

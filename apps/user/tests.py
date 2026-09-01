@@ -680,12 +680,11 @@ class LoginRedirectResolutionTests(TestCase):
         an is_staff non-superuser who had finished onboarding but had no
         AlumniProfile. It is now pinned to main.urls.
 
-        RESIDUAL, deliberately asserted: the result is a PATH on the
-        apex, so a browser sitting on staff.<domain> will request it
-        from the staff host and get a 404. Reversing no longer crashes,
-        but the redirect still points at the wrong host -- the branch
-        above solves exactly that with _staff_subdomain_url(). See the
-        pass report.
+        The redirect is an ABSOLUTE apex URL, not a bare path: this
+        function runs for any is_staff login regardless of host, so a
+        path would be requested from whichever host the browser is on
+        and 404 against the staff urlconf. _apex_url() mirrors what
+        _staff_subdomain_url() does for the branch above.
         """
         staffer = _saved_user("complete.staff@uonbi.ac.ke")
         staffer.is_staff = True
@@ -701,7 +700,9 @@ class LoginRedirectResolutionTests(TestCase):
             set_urlconf(None)
 
         self.assertEqual(
-            url, reverse("home:uon_alumni_register", urlconf="main.urls")
+            url,
+            "http://lvh.me"
+            + reverse("home:uon_alumni_register", urlconf="main.urls"),
         )
 
     def test_plain_user_on_staff_is_routed_by_completeness(self):  # ⌂
