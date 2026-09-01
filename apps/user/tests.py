@@ -670,17 +670,22 @@ class LoginRedirectResolutionTests(TestCase):
         self.assertIn("complete-profile", url)
 
     def test_admin_staff_without_alumni_profile_on_the_staff_host(self):  # ⌂
-        """FINDING B (qa-500-style reproduction, red by design).
+        """Guards the finding-B fix.
 
-        adapter.py:220 returns a BARE reverse("home:uon_alumni_register")
-        with no urlconf=, while the branch immediately above it builds an
-        absolute staff URL precisely because the host may differ. Under
-        the staff subdomain's urlconf (apps.staff.site_urls) the `home`
-        namespace is not registered, so this raises NoReverseMatch -- a
-        500 on login for an is_staff non-superuser who has finished
-        onboarding but has no AlumniProfile.
+        adapter.py:220 used to reverse "home:uon_alumni_register" with no
+        urlconf=, while the branch immediately above it built an absolute
+        staff URL precisely because the host may differ. Under the staff
+        subdomain's urlconf (apps.staff.site_urls) the `home` namespace
+        does not exist, so it raised NoReverseMatch -- a 500 on login for
+        an is_staff non-superuser who had finished onboarding but had no
+        AlumniProfile. It is now pinned to main.urls.
 
-        Asserted as the CURRENT behaviour, not the desired one.
+        RESIDUAL, deliberately asserted: the result is a PATH on the
+        apex, so a browser sitting on staff.<domain> will request it
+        from the staff host and get a 404. Reversing no longer crashes,
+        but the redirect still points at the wrong host -- the branch
+        above solves exactly that with _staff_subdomain_url(). See the
+        pass report.
         """
         staffer = _saved_user("complete.staff@uonbi.ac.ke")
         staffer.is_staff = True
@@ -691,10 +696,13 @@ class LoginRedirectResolutionTests(TestCase):
         request = _request(host="staff.lvh.me", subdomain="staff", user=staffer)
         set_urlconf("apps.staff.site_urls")
         try:
-            with self.assertRaises(NoReverseMatch):
-                self.adapter.get_login_redirect_url(request)
+            url = self.adapter.get_login_redirect_url(request)
         finally:
             set_urlconf(None)
+
+        self.assertEqual(
+            url, reverse("home:uon_alumni_register", urlconf="main.urls")
+        )
 
     def test_plain_user_on_staff_is_routed_by_completeness(self):  # ⌂
         user = _saved_user()

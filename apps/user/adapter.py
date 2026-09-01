@@ -217,7 +217,12 @@ def _admin_onboarding_redirect_url(user, request):
         return _staff_subdomain_url(request, path)
 
     if not hasattr(user, "alumni_profile"):
-        return reverse("home:uon_alumni_register")
+        # Pinned to main.urls, same as AlumniProfile.get_absolute_url():
+        # this runs for any is_staff login regardless of host, and on the
+        # staff subdomain the request urlconf is apps.staff.site_urls,
+        # where the `home` namespace does not exist at all -- an
+        # unpinned reverse raised NoReverseMatch and 500ed the login.
+        return reverse("home:uon_alumni_register", urlconf="main.urls")
 
     return None
 
