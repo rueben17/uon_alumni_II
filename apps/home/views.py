@@ -464,7 +464,26 @@ class AlumniRegisterView(MpesaEligibilityMixin, QualificationMapMixin, LoginRequ
                 initial["surname"] = profile.family_name
         return initial
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        # Attach the registrant to the (unsaved) instance BEFORE validation.
+        # CreateView otherwise passes no instance at all, so ModelForm builds
+        # a bare AlumniProfile() with user_id None, and
+        # AlumniProfileForm.clean_phone_mobile's self-exclusion --
+        # `if self.instance.user_id: owner = owner.exclude(...)` -- has
+        # nothing to exclude. A registrant whose User.phone was already set
+        # was then told their OWN number belonged to another account.
+        #
+        # _state.adding stays True on an unsaved instance, so __init__'s
+        # prefill branch is still correctly skipped and get_initial above
+        # keeps seeding the form.
+        kwargs["instance"] = AlumniProfile(user=self.request.user)
+        return kwargs
+
     def form_valid(self, form):
+        # Redundant now that get_form_kwargs attaches the user, but left in
+        # place deliberately: it is the assignment allauth-era callers and
+        # any future non-CreateView path would still rely on.
         form.instance.user = self.request.user
         response = super().form_valid(form)
 
