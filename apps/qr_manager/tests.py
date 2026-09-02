@@ -819,3 +819,424 @@ class ScanHolderNameFallbackTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Wanjiku Kamau")
         self.assertEqual(resp["X-Robots-Tag"], "noindex")
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Coverage priority 6 -- QR badge GENERATION.
+#
+# Scan verification is already covered by the QA-500 sweep; this is the
+# minting path: generate_qr, _qr_watermark_image, and the lost-badge
+# levers. See docs/coverage-phase1-qrgen-step1-2026-09-02.md.
+#
+# The module-level temp MEDIA_ROOT above is reused -- these tests write
+# real PNGs through ImageField.save(). Finding L means default_storage
+# is FileSystemStorage, not Cloudinary, so there is no live-call risk
+# and no mocking is needed for the writes.
+#
+# Model-level throughout, except the three that scan through the view
+# to prove real invalidation -- those carry an lvh.me-family host.
+# ─────────────────────────────────────────────────────────────────────
+
+from io import BytesIO
+from pathlib import Path
+from unittest import mock as _mock
+
+from django.core.files.uploadedfile import SimpleUploadedFile as _QrUpload
+
+from apps.home.models import AlumniProfile, Banner
+
+_DEV_ORIGINS = {
+    "staff": "http://staff.lvh.me:8000",
+    "alumni": "http://www.lvh.me:8000",
+}
+_PROD_ORIGINS = {
+    "staff": "https://staff.uonalumni.or.ke",
+    "alumni": "https://www.uonalumni.or.ke",
+}
+
+
+def _qr_png(colour="black", size=(24, 24)):
+    """A genuinely decodable PNG.
+
+    ResizedImageField and PIL both read the bytes back, so a hand-rolled
+    blob fails here -- the same lesson the QR-badge PDF pass learned.
+    """
+    from PIL import Image
+
+    buf = BytesIO()
+    Image.new("RGB", size, colour).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _qr_user(email):
+    user = User.objects.create_user(email=email)
+    _name_profile(user, "Badge", "Holder")
+    return user
+
+
+def _qr_employee(email="gen.staff@example.com"):
+    user = _qr_user(email)
+    unit = ServiceUnit.objects.create(name=f"Unit {user.pk}")
+    return Employee.objects.create(
+        user=user, staff_track=Employee.StaffTrack.SERVICE, service_unit=unit
+    )
+
+
+def _qr_alumni(email="gen.alumna@example.com"):
+    return AlumniProfile.objects.create(user=_qr_user(email))
+
+
+# ── generate_qr (8) ──────────────────────────────────────────────────
+
+
+class GenerateQrTests(TestCase):
+    """apps/qr_manager/models.py:224-301."""
+
+    def test_a_holderless_code_generates_nothing(self):
+        code = QRCode.objects.create(label="Visitor pass")
+        self.assertIsNone(code.holder)
+
+        self.assertIsNone(code.generate_qr())
+
+    def test_a_badge_is_written_and_its_url_returned(self):
+        employee = _qr_employee()
+        code = QRCode.objects.create(employee=employee)
+
+        url = code.generate_qr()
+
+        employee.refresh_from_db()
+        self.assertTrue(employee.qr_code_image)
+        self.assertTrue(url)
+        self.assertTrue(employee.qr_code_image.storage.exists(employee.qr_code_image.name))
+
+    def test_the_filename_is_the_holder_uuid_not_the_slug(self):
+        """models.py:298 -- slugs are mutable and would orphan printed
+        badges; the UUID is stable."""
+        employee = _qr_employee()
+        code = QRCode.objects.create(employee=employee)
+
+        code.generate_qr()
+
+        employee.refresh_from_db()
+        self.assertIn(str(employee.pk), employee.qr_code_image.name)
+        self.assertTrue(employee.qr_code_image.name.endswith(".png"))
+
+    @override_settings(QR_SCAN_ORIGINS=_PROD_ORIGINS)
+    def test_the_encoded_origin_follows_the_holder_type(self):
+        """FINDING N, current behaviour.
+
+        scan_url reads settings.QR_SCAN_ORIGINS at CALL time, so
+        whatever origin is configured when a badge is minted is baked
+        into the printed artefact permanently. A staff badge must never
+        read "www." and an alumni badge must never read "staff.".
+        """
+        staff_code = QRCode.objects.create(employee=_qr_employee())
+        alumni_code = QRCode.objects.create(alumni_profile=_qr_alumni())
+
+        self.assertTrue(staff_code.scan_url.startswith("https://staff.uonalumni.or.ke/qr/"))
+        self.assertTrue(alumni_code.scan_url.startswith("https://www.uonalumni.or.ke/qr/"))
+
+        # A holder-less code falls back to the alumni origin (models.py:218).
+        bare = QRCode.objects.create(label="Event pass")
+        self.assertTrue(bare.scan_url.startswith("https://www.uonalumni.or.ke/qr/"))
+
+    @override_settings(QR_SCAN_ORIGINS=_DEV_ORIGINS)
+    def test_a_badge_minted_in_dev_encodes_the_dev_origin(self):
+        """FINDING N, the other half: nothing in generate_qr validates
+        that the configured origin looks like production, so a badge
+        minted with DEBUG settings carries lvh.me onto paper. Only the
+        deploy-day regenerate step catches it, and that is a human
+        process."""
+        code = QRCode.objects.create(employee=_qr_employee())
+
+        self.assertIn("lvh.me:8000", code.scan_url)
+        self.assertIn(f"/qr/{code.id}/", code.scan_url)
+
+    def test_the_encoded_url_carries_the_current_token(self):
+        code = QRCode.objects.create(employee=_qr_employee())
+        self.assertIn(f"?t={code.token}", code.scan_url)
+
+    def test_an_existing_badge_is_not_regenerated_without_force(self):
+        """models.py:248-249 -- the early return. The deploy-day
+        regenerate depends entirely on someone passing force=True."""
+        employee = _qr_employee()
+        code = QRCode.objects.create(employee=employee)
+        code.generate_qr()
+        employee.refresh_from_db()
+        first_name = employee.qr_code_image.name
+
+        code.rotate_token()
+        code.generate_qr()
+
+        employee.refresh_from_db()
+        self.assertEqual(employee.qr_code_image.name, first_name)
+
+    def test_force_regenerates_after_a_token_rotation(self):
+        employee = _qr_employee()
+        code = QRCode.objects.create(employee=employee)
+        code.generate_qr()
+        old_token = code.token
+
+        code.rotate_token()
+        self.assertNotEqual(code.token, old_token)
+        code.generate_qr(force=True)
+
+        employee.refresh_from_db()
+        self.assertTrue(employee.qr_code_image)
+        self.assertIn(f"?t={code.token}", code.scan_url)
+
+    def test_save_holder_false_leaves_the_holder_unsaved(self):
+        employee = _qr_employee()
+        code = QRCode.objects.create(employee=employee)
+
+        code.generate_qr(save_holder=False)
+
+        # In memory the field is set; the row is not updated.
+        self.assertTrue(employee.qr_code_image)
+        self.assertFalse(Employee.objects.get(pk=employee.pk).qr_code_image)
+
+
+# ── _qr_watermark_image (4) ──────────────────────────────────────────
+
+
+class QrWatermarkTests(TestCase):
+    """apps/qr_manager/models.py:20-60."""
+
+    def _banner(self, **fields):
+        banner = Banner.objects.create()
+        for name, colour in fields.items():
+            getattr(banner, name).save(
+                f"{name}.png", _QrUpload(f"{name}.png", _qr_png(colour)), save=True
+            )
+        return banner
+
+    def test_an_admin_uploaded_watermark_is_used(self):
+        from apps.qr_manager.models import _qr_watermark_image
+
+        self._banner(staff_qr_watermark="red")
+
+        image = _qr_watermark_image(is_alumni=False)
+
+        self.assertIsNotNone(image)
+        self.assertEqual(image.mode, "RGBA")
+
+    def test_alumni_and_staff_select_different_fields(self):
+        """models.py:29 -- two distinct institutional marks, not one
+        generic logo."""
+        from apps.qr_manager.models import _qr_watermark_image
+
+        self._banner(staff_qr_watermark="red")
+
+        # The staff field is set, so the staff branch finds a Banner image.
+        self.assertIsNotNone(_qr_watermark_image(is_alumni=False))
+        # The alumni field is unset on that same Banner, so the alumni
+        # branch falls through to the static crest instead.
+        alumni_image = _qr_watermark_image(is_alumni=True)
+        self.assertIsNotNone(alumni_image)
+
+    def test_it_falls_back_to_the_static_crest(self):
+        from apps.qr_manager.models import _qr_watermark_image
+
+        self.assertFalse(Banner.objects.exists())
+
+        self.assertIsNotNone(_qr_watermark_image(is_alumni=False))
+        self.assertIsNotNone(_qr_watermark_image(is_alumni=True))
+
+    def test_it_returns_none_when_neither_source_exists(self):
+        """models.py:60 -- the real branch, not a mock. BASE_DIR is read
+        at call time, so pointing it at an empty directory removes the
+        static fallback."""
+        from apps.qr_manager.models import _qr_watermark_image
+
+        self.assertFalse(Banner.objects.exists())
+        empty = tempfile.mkdtemp(prefix="qr_no_static_")
+        self.addCleanup(shutil.rmtree, empty, True)
+
+        with override_settings(BASE_DIR=Path(empty)):
+            self.assertIsNone(_qr_watermark_image(is_alumni=False))
+            self.assertIsNone(_qr_watermark_image(is_alumni=True))
+
+    def test_a_badge_is_still_generated_with_no_watermark_at_all(self):
+        """models.py:60 returns None when neither a Banner nor the static
+        file exists, and generate_qr then simply skips the paste -- a
+        silent, unwatermarked badge rather than an error."""
+        employee = _qr_employee()
+        code = QRCode.objects.create(employee=employee)
+
+        with _mock.patch(
+            "apps.qr_manager.models._qr_watermark_image", return_value=None
+        ) as patched:
+            url = code.generate_qr()
+
+        patched.assert_called_once()
+        employee.refresh_from_db()
+        self.assertTrue(url)
+        self.assertTrue(employee.qr_code_image)
+
+
+# ── rotate_token / revoke / delete (5) ───────────────────────────────
+
+
+class LostBadgeLeverTests(TestCase):
+    """models.py:189-200 and :304-312.
+
+    The two lost-badge levers do NOT behave alike, and that asymmetry is
+    finding M.
+    """
+
+    def setUp(self):
+        self.employee = _qr_employee("lever@example.com")
+        self.code = QRCode.objects.create(employee=self.employee)
+
+    def _scan(self, token):
+        return self.client.get(
+            _reverse("qr:verify", kwargs={"qr_id": self.code.pk}),
+            {"t": token},
+            HTTP_HOST=STAFF_HOST,
+        )
+
+    def test_rotate_token_invalidates_every_printed_copy(self):
+        """The lever that actually works: verify_scan compares the
+        supplied token with secrets.compare_digest, so an old printed
+        badge fails."""
+        old_token = self.code.token
+        self.assertEqual(self._scan(old_token).status_code, 200)
+
+        self.code.rotate_token()
+
+        self.assertEqual(self._scan(old_token).status_code, 403)
+        self.assertEqual(self._scan(self.code.token).status_code, 200)
+
+    def test_rotate_token_does_not_regenerate_the_stored_badge(self):
+        """FINDING M, second half. The docstring says "Regenerate +
+        reprint afterwards" -- a manual step with nothing enforcing it,
+        so the stored image keeps encoding the old token until someone
+        acts."""
+        self.code.generate_qr()
+        old_token = self.code.token
+
+        self.code.rotate_token()
+
+        self.employee.refresh_from_db()
+        # The image file is untouched by the rotation...
+        self.assertTrue(self.employee.qr_code_image)
+        # ...while scan_url has already moved on to the new token.
+        self.assertIn(f"?t={self.code.token}", self.code.scan_url)
+        self.assertNotEqual(self.code.token, old_token)
+
+    def test_finding_m_revoke_does_not_block_a_scan(self):
+        """FINDING M, asserted as CURRENT behaviour.
+
+        revoke() flips is_active, and QRCode.status duly reports
+        REVOKED -- but verify_scan never consults is_valid or is_active
+        (its docstring says validity enforcement is "deferred by
+        design"). So a revoked badge still renders a normal
+        verification card; only the ScanLog line changes.
+        """
+        self.code.revoke()
+        self.code.refresh_from_db()
+        self.assertFalse(self.code.is_active)
+        self.assertEqual(self.code.status, "REVOKED")
+
+        response = self._scan(self.code.token)
+
+        # Still a rendered card, not a refusal.
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            ScanLog.objects.filter(qrcode=self.code).latest("scanned_at").result,
+            "REVOKED",
+        )
+
+    def test_delete_clears_the_holders_badge_image(self):
+        """models.py:304-312 -- otherwise the profile page keeps showing
+        a badge that no longer exists and scans UNKNOWN."""
+        self.code.generate_qr()
+        self.employee.refresh_from_db()
+        self.assertTrue(self.employee.qr_code_image)
+
+        self.code.delete()
+
+        self.employee.refresh_from_db()
+        self.assertFalse(self.employee.qr_code_image)
+        self.assertFalse(QRCode.objects.filter(pk=self.code.pk).exists())
+
+    def test_deleting_a_holderless_code_does_not_raise(self):
+        bare = QRCode.objects.create(label="Guest")
+        bare.delete()
+        self.assertFalse(QRCode.objects.filter(pk=bare.pk).exists())
+
+
+# ── Supervisor (1, with subTests) ────────────────────────────────────
+
+
+class SupervisorUnitTests(TestCase):
+    """models.py:392-422."""
+
+    def setUp(self):
+        self.user = _qr_user("supervisor@example.com")
+        self.unit = ServiceUnit.objects.create(name="Registry")
+
+    def test_unit_selection_validation_and_query_building(self):
+        from django.core.exceptions import ValidationError
+
+        role = Supervisor.objects.create(user=self.user, service_unit=self.unit)
+
+        with self.subTest("unit picks the one that is set"):
+            self.assertEqual(role.unit, self.unit)
+
+        with self.subTest("clean accepts exactly one"):
+            role.clean()
+
+        with self.subTest("clean rejects none"):
+            with self.assertRaises(ValidationError):
+                Supervisor(user=self.user).clean()
+
+        with self.subTest("__str__ names the unit"):
+            self.assertIn("Registry", str(role))
+
+        with self.subTest("unit_q_for matches the supervised unit"):
+            employee = _qr_employee("sup.emp@example.com")
+            employee.service_unit = self.unit
+            employee.save(update_fields=["service_unit"])
+            q = Supervisor.unit_q_for(self.user)
+            self.assertIn(employee, Employee.objects.filter(q))
+
+        with self.subTest("unit_q_for prefixes for QRCode querysets"):
+            code = QRCode.objects.create(employee=employee)
+            q = Supervisor.unit_q_for(self.user, prefix="employee__")
+            self.assertIn(code, QRCode.objects.filter(q))
+
+        with self.subTest("unit_q_for handles a department supervisor"):
+            from apps.home.models import Department, Faculty
+
+            dept_user = _qr_user("dept.sup@example.com")
+            faculty = Faculty.objects.create(faculty_name="Engineering")
+            department = Department.objects.create(name="Civil", faculty=faculty)
+            Supervisor.objects.create(user=dept_user, department=department)
+            dept_emp = _qr_employee("dept.emp@example.com")
+            dept_emp.staff_track = Employee.StaffTrack.TEACHING
+            dept_emp.service_unit = None
+            dept_emp.department = department
+            dept_emp.save()
+            self.assertIn(
+                dept_emp, Employee.objects.filter(Supervisor.unit_q_for(dept_user))
+            )
+
+        with self.subTest("unit_q_for handles a research-unit supervisor"):
+            from apps.staff.models import ResearchUnit
+
+            res_user = _qr_user("res.sup@example.com")
+            research = ResearchUnit.objects.create(name="Climate Lab")
+            Supervisor.objects.create(user=res_user, research_unit=research)
+            res_emp = _qr_employee("res.emp@example.com")
+            res_emp.staff_track = Employee.StaffTrack.RESEARCH
+            res_emp.service_unit = None
+            res_emp.research_unit = research
+            res_emp.save()
+            self.assertIn(
+                res_emp, Employee.objects.filter(Supervisor.unit_q_for(res_user))
+            )
+
+        with self.subTest("a non-supervisor matches nothing"):
+            outsider = _qr_user("outsider@example.com")
+            self.assertIs(Supervisor.unit_q_for(outsider), False)
