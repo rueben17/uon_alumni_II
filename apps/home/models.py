@@ -1760,6 +1760,20 @@ class Payment(models.Model):
         
         self.save(update_fields=['payment_status', 'completion_date', 'mpesa_receipt_number', 'bank_reference'])
         self._log_transaction('complete', request_data={'receipt': receipt_number})
+
+        # Activate the membership this payment was for (finding D). The
+        # old_status guard is what makes a repeat call safe: the admin
+        # bulk action calls this method AND used to activate itself, and
+        # record_installment_payment accumulates amount_paid
+        # unconditionally -- so a double confirmation would double-count
+        # the money even though the status stayed correct.
+        #
+        # Imported inside the method: services imports this module at
+        # module level, so a top-level import here would be circular.
+        if old_status != 'completed':
+            from apps.home import services
+
+            services.confirm_payment(self)
     
     def mark_as_failed(self, reason=None):
         """Mark payment as failed with optional reason."""

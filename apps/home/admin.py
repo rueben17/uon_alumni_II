@@ -716,26 +716,33 @@ class PaymentAdmin(admin.ModelAdmin):
         below is untouched -- only the installment path was asked for.
         """
         updated = 0
-        today = timezone.now().date()
         for payment in queryset.select_related('alumni__user', 'membership_tier', 'membership'):
             payment.mark_as_completed()
-            tier = payment.membership_tier
-            if not tier:
-                continue
-
-            if payment.membership_id:
-                services.record_installment_payment(payment.membership, payment.amount, payment_date=today)
-            else:
-                payment_date = payment.payment_date.date() if payment.payment_date else None
-                user = payment.alumni.user
-                membership = Membership.objects.filter(
-                    user=user, tier=tier, status=Membership.Status.PENDING
-                ).order_by('-created_at').first()
-                if membership is None:
-                    membership = Membership.objects.create(user=user, tier=tier)
-                services.activate_membership(membership, payment_date=payment_date)
-            updated += 1
+            # mark_as_completed now activates via services.confirm_payment
+            # (finding D), so this loop no longer does it inline. The count
+            # still reports only payments that had a tier to apply, as
+            # before -- a tier-less payment is confirmed but updates no
+            # membership.
+            if payment.membership_tier:
+                updated += 1
         self.message_user(request, f"{updated} payment(s) marked completed and membership updated.")
+
+    def save_model(self, request, obj, form, change):
+        """Confirming a payment by editing payment_status in the change
+        form must activate the membership too (finding D).
+
+        payment_status is an editable field here, and the change form
+        saves through a plain ModelForm -- it never calls
+        mark_as_completed(), so without this hook a Secretariat member
+        could record the money and leave the membership PENDING.
+        """
+        became_completed = (
+            "payment_status" in form.changed_data
+            and obj.payment_status == "completed"
+        )
+        super().save_model(request, obj, form, change)
+        if became_completed:
+            services.confirm_payment(obj)
     mark_completed.short_description = "Mark selected payments as completed (and update membership)"
 
     def mark_failed(self, request, queryset):
