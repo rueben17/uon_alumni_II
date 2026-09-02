@@ -1848,45 +1848,42 @@ class AlumniRegistrationFormTests(TestCase):
         form = AlumniRegistrationForm(data=self._data(
             membership_tier=self.expensive.pk,
             payment_method="bank_transfer",
-            # Required here, though it should not be -- see finding K.
-            installment_amount="500000",
         ))
         self.assertTrue(form.is_valid(), form.errors)
 
-    def test_finding_k_installment_amount_is_wrongly_required(self):
-        """FINDING K -- a new live bug, pinned as current behaviour.
+    def test_finding_k_lump_sum_registration_may_leave_the_amount_blank(self):
+        """Guards the finding-K fix.
 
-        installment_amount is declared required=False (forms.py:350),
-        and its own help text says "leave blank to pay the full fee".
-        But AlumniProfileForm.__init__ (:144-145) rebuilds every field's
-        required flag from an optional_fields allow-list:
+        AlumniProfileForm.__init__ rebuilds every field's required flag
+        from an optional_fields allow-list that knows nothing about the
+        subscription fields this subclass adds, so it was silently
+        overriding installment_amount's required=False. A member
+        registering with "Once" and leaving the amount blank -- exactly
+        what the help text tells them to do -- was refused, blocking the
+        lump-sum registration path at the form.
 
-            for field_name in self.fields:
-                self.fields[field_name].required = field_name not in optional_fields
-
-        The four subscription fields AlumniRegistrationForm adds are not
-        in that list, so the inherited __init__ silently overrides the
-        declaration and makes installment_amount mandatory.
-
-        Effect: a member registering with "Once" who leaves the amount
-        blank -- exactly what the help text tells them to do -- is
-        refused. The lump-sum registration path is blocked at the form.
-
-        MembershipUpdateForm declares the identical field but has its own
-        __init__, so it is unaffected: proof the fault is the inherited
-        loop, not the field.
+        AlumniRegistrationForm.__init__ now re-asserts it.
         """
         data = self._data()
         self.assertNotIn("installment_amount", data)
 
         form = AlumniRegistrationForm(data=data)
 
-        self.assertFalse(form.is_valid())
-        self.assertIn("installment_amount", form.errors)
-        self.assertIn("required", form.errors["installment_amount"][0].lower())
+        self.assertTrue(form.is_valid(), form.errors)
+        # clean() strips it for ONCE regardless, so the view still falls
+        # back to tier.fee.
+        self.assertIsNone(form.cleaned_data["installment_amount"])
 
-        # The declaration says otherwise, and the sibling form honours it.
-        self.assertFalse(AlumniRegistrationForm.base_fields["installment_amount"].required)
+    def test_the_other_subscription_fields_stay_required(self):
+        """The fix re-asserts ONE field. The inherited loop is right about
+        the rest, and they must not be loosened with it."""
+        form = AlumniRegistrationForm()
+        for name in ("membership_tier", "payment_method", "payment_frequency",
+                     "privacy_consent"):
+            with self.subTest(field=name):
+                self.assertTrue(form.fields[name].required)
+        self.assertFalse(form.fields["installment_amount"].required)
+        # The sibling form declares the identical field and is untouched.
         self.assertFalse(MembershipUpdateForm().fields["installment_amount"].required)
 
 
