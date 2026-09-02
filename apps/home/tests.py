@@ -1460,3 +1460,562 @@ class PaymentMembershipDivergenceTests(TestCase):
         self.assertEqual(
             Membership.objects.current_active_for(self.user), membership
         )
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Coverage priority 5 -- apps/home/forms.py.
+#
+# Before this block, not one clean_*/clean()/save()/__init__ in that
+# module had ever executed in a test: the 34% baseline was almost
+# entirely field declarations running at import. See
+# docs/coverage-phase1-forms-step1-2026-09-01.md.
+#
+# All pure-data -- no form here takes a request or a user, so no
+# HTTP_HOST is needed anywhere in this block. Forms are INSTANTIATED
+# rather than inspected as classes, because querysets and `required`
+# flags are set in __init__.
+# ─────────────────────────────────────────────────────────────────────
+
+from django.core.files.uploadedfile import SimpleUploadedFile as _Upload
+
+from apps.home.forms import (
+    AlumniDigitalIDApplicationForm,
+    AlumniProfileForm,
+    AlumniRegistrationForm,
+    ContactForm,
+    MembershipUpdateForm,
+    ProfileClaimCodeForm,
+    ProfileClaimSearchForm,
+)
+from apps.home.models import ContactMessage, Faculty, Qualification
+
+_forms_media_root = tempfile.mkdtemp(prefix="home_forms_media_")
+
+
+def _faculty_and_qualification(name="Agriculture"):
+    faculty = Faculty.objects.create(faculty_name=name)
+    qualification = Qualification.objects.create(
+        faculty=faculty, level="bachelors", name=f"BSc {name}"
+    )
+    return faculty, qualification
+
+
+def _profile_form_data(**overrides):
+    """The minimum AlumniProfileForm accepts, UoN branch.
+
+    Required-ness is decided in __init__ from its optional_fields
+    allow-list (forms.py:121-145), so this mirrors what that leaves
+    mandatory.
+    """
+    data = {
+        "surname": "Kamau",
+        "first_name": "Wanjiku",
+        "date_of_birth": "1990-01-01",
+        "id_passport_no": "12345678",
+        "phone_mobile": "0712345678",
+        "graduation_institution": "uon",
+    }
+    data.update(overrides)
+    return data
+
+
+# ── ContactForm (2) ──────────────────────────────────────────────────
+
+
+class ContactFormTests(TestCase):
+    """forms.py:13-28."""
+
+    def test_valid_message_is_accepted_without_a_subject(self):
+        form = ContactForm(data={
+            "name": "Wanjiku Kamau",
+            "email": "wanjiku@example.com",
+            "message": "Please send me the AGM agenda.",
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["subject"], "")
+
+    def test_the_model_required_fields_are_enforced(self):
+        form = ContactForm(data={"subject": "Only a subject"})
+        self.assertFalse(form.is_valid())
+        for field in ("name", "email", "message"):
+            with self.subTest(field=field):
+                self.assertIn(field, form.errors)
+
+
+# ── AlumniProfileForm (13) ───────────────────────────────────────────
+
+
+class AlumniProfileFormPhoneTests(TestCase):
+    """clean_phone_mobile (forms.py:215-227) and clean_phone_alt (:229-236)."""
+
+    def setUp(self):
+        self.faculty, self.qualification = _faculty_and_qualification()
+
+    def _form(self, instance=None, **overrides):
+        data = _profile_form_data(
+            faculty=self.faculty.pk, qualification=self.qualification.pk, **overrides
+        )
+        return AlumniProfileForm(data=data, instance=instance)
+
+    def test_a_local_number_is_normalised_to_e164(self):
+        form = self._form()
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["phone_mobile"], "+254712345678")
+
+    def test_an_invalid_number_is_rejected(self):
+        form = self._form(phone_mobile="not-a-number")
+        self.assertFalse(form.is_valid())
+        self.assertIn("phone_mobile", form.errors)
+
+    def test_a_number_owned_by_another_account_is_rejected(self):
+        other = _make_user("other.owner@example.com")
+        other.phone = "+254712345678"
+        other.save(update_fields=["phone"])
+
+        form = self._form()
+
+        self.assertFalse(form.is_valid())
+        self.assertIn(
+            "already registered to another account", str(form.errors["phone_mobile"])
+        )
+
+    def test_finding_f_registration_rejects_the_users_own_number(self):
+        """FINDING F -- a live bug, pinned as current behaviour.
+
+        clean_phone_mobile self-excludes on self.instance.user_id:
+
+            owner = User.objects.filter(phone=normalized)
+            if self.instance.user_id:
+                owner = owner.exclude(pk=self.instance.user_id)
+
+        On the registration path that is None, because
+        AlumniRegisterView.form_valid sets form.instance.user at
+        views.py:468 -- which only runs once is_valid() has passed. So
+        the exclusion is skipped and a registering user whose
+        User.phone is already populated is told their OWN number
+        belongs to somebody else.
+
+        Not biting today because Google OAuth does not set User.phone;
+        a legacy-imported account would hit it. Asserted as current
+        behaviour, NOT fixed here.
+        """
+        registrant = _make_user("registrant@example.com")
+        registrant.phone = "+254712345678"
+        registrant.save(update_fields=["phone"])
+
+        # The real registration shape. CreateView builds the form with no
+        # instance, so ModelForm makes a bare AlumniProfile() whose
+        # user_id is None -- assigning .user happens later, in form_valid.
+        form = self._form()
+        self.assertIsNone(form.instance.user_id)
+
+        self.assertFalse(form.is_valid())
+        self.assertIn(
+            "already registered to another account", str(form.errors["phone_mobile"])
+        )
+
+    def test_the_edit_path_accepts_the_users_own_number(self):
+        """Contrast with finding F: a saved instance has user_id, so the
+        self-exclusion works and editing does not trip over itself."""
+        owner = _make_user("editor@example.com")
+        owner.phone = "+254712345678"
+        owner.save(update_fields=["phone"])
+        alumni = AlumniProfile.objects.create(user=owner)
+
+        form = self._form(instance=alumni)
+
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_alternate_phone_is_optional(self):
+        form = self._form(phone_alt="")
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["phone_alt"], "")
+
+    def test_alternate_phone_is_normalised_when_given(self):
+        form = self._form(phone_alt="0722000111")
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["phone_alt"], "+254722000111")
+
+    def test_an_invalid_alternate_phone_is_rejected(self):
+        form = self._form(phone_alt="12")
+        self.assertFalse(form.is_valid())
+        self.assertIn("phone_alt", form.errors)
+
+
+class AlumniProfileFormIdentityTests(TestCase):
+    """clean_id_passport_no (forms.py:238-245)."""
+
+    def setUp(self):
+        self.faculty, self.qualification = _faculty_and_qualification()
+
+    def _form(self, **overrides):
+        return AlumniProfileForm(data=_profile_form_data(
+            faculty=self.faculty.pk, qualification=self.qualification.pk, **overrides
+        ))
+
+    def test_a_fresh_id_is_accepted(self):
+        self.assertTrue(self._form().is_valid())
+
+    def test_an_id_held_by_another_profile_is_rejected(self):
+        holder = _make_user("id.holder@example.com")
+        profile = holder.profile
+        profile.national_id = "12345678"
+        profile.save(update_fields=["national_id"])
+
+        form = self._form(phone_mobile="0722333444")
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("id_passport_no", form.errors)
+
+    def test_surrounding_whitespace_does_not_defeat_the_check(self):
+        """Finding G from Step 1 is RETRACTED -- it does not reproduce.
+
+        I claimed the exact-match lookup would let the same ID through
+        with incidental whitespace. It does not: forms.CharField strips
+        by default (strip=True since Django 1.9), so " 12345678 " is
+        already "12345678" by the time clean_id_passport_no runs. The
+        duplicate is caught.
+        """
+        holder = _make_user("g.holder@example.com")
+        profile = holder.profile
+        profile.national_id = "12345678"
+        profile.save(update_fields=["national_id"])
+
+        form = self._form(id_passport_no=" 12345678 ", phone_mobile="0733444555")
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("id_passport_no", form.errors)
+
+
+class AlumniProfileFormInstitutionTests(TestCase):
+    """clean() (forms.py:247-277) -- which unit is required depends on
+    graduation_institution, so neither branch is required field-level."""
+
+    def setUp(self):
+        self.faculty, self.qualification = _faculty_and_qualification()
+
+    def test_uon_requires_faculty_and_qualification(self):
+        form = AlumniProfileForm(data=_profile_form_data())
+        self.assertFalse(form.is_valid())
+        self.assertIn("faculty", form.errors)
+        self.assertIn("qualification", form.errors)
+
+    def test_a_qualification_from_another_faculty_is_rejected(self):
+        other_faculty, other_qualification = _faculty_and_qualification("Law")
+        form = AlumniProfileForm(data=_profile_form_data(
+            faculty=self.faculty.pk, qualification=other_qualification.pk
+        ))
+
+        self.assertFalse(form.is_valid())
+        self.assertIn(
+            "does not belong to the selected faculty", str(form.errors["qualification"])
+        )
+
+    def test_other_institution_requires_its_own_two_fields(self):
+        form = AlumniProfileForm(data=_profile_form_data(
+            graduation_institution="other"
+        ))
+        self.assertFalse(form.is_valid())
+        self.assertIn("other_institution_name", form.errors)
+        self.assertIn("other_institution_qualification", form.errors)
+
+    def test_other_institution_nulls_the_uon_fields(self):
+        form = AlumniProfileForm(data=_profile_form_data(
+            graduation_institution="other",
+            faculty=self.faculty.pk,
+            qualification=self.qualification.pk,
+            other_institution_name="Kenyatta University",
+            other_institution_qualification="BSc Chemistry",
+        ))
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertIsNone(form.cleaned_data["faculty"])
+        self.assertIsNone(form.cleaned_data["qualification"])
+
+
+class AlumniProfileFormSaveTests(TestCase):
+    """save() (forms.py:279-315) -- the only form touching three models."""
+
+    def setUp(self):
+        self.faculty, self.qualification = _faculty_and_qualification()
+        self.user = _make_user("saver@example.com")
+
+    def test_save_fans_out_to_profile_user_and_allauth(self):
+        from allauth.account.models import EmailAddress
+
+        alumni = AlumniProfile(user=self.user)
+        form = AlumniProfileForm(instance=alumni, data=_profile_form_data(
+            faculty=self.faculty.pk,
+            qualification=self.qualification.pk,
+            email="alt.address@example.com",
+            receive_newsletter=True,
+        ))
+        self.assertTrue(form.is_valid(), form.errors)
+
+        form.save()
+
+        self.user.refresh_from_db()
+        # Exactly one profile row: the signal made it, save() filled it.
+        self.assertEqual(UserProfile.objects.filter(pk=self.user.pk).count(), 1)
+        self.assertEqual(self.user.profile.given_name, "Wanjiku")
+        self.assertEqual(self.user.profile.family_name, "Kamau")
+        self.assertTrue(self.user.profile.email_opt_in)
+        self.assertEqual(self.user.phone, "+254712345678")
+        self.assertTrue(
+            EmailAddress.objects.filter(
+                user=self.user, email="alt.address@example.com", primary=False
+            ).exists()
+        )
+
+    def test_init_prefills_from_an_existing_profile_on_the_edit_path(self):
+        profile = self.user.profile
+        profile.given_name = "Amina"
+        profile.family_name = "Otieno"
+        profile.city = "Kisumu"
+        profile.save(update_fields=["given_name", "family_name", "city"])
+        alumni = AlumniProfile.objects.create(user=self.user)
+
+        form = AlumniProfileForm(instance=alumni)
+
+        self.assertFalse(alumni._state.adding)
+        self.assertEqual(form.fields["first_name"].initial, "Amina")
+        self.assertEqual(form.fields["surname"].initial, "Otieno")
+        self.assertEqual(form.fields["city"].initial, "Kisumu")
+
+
+# ── AlumniRegistrationForm (5) ───────────────────────────────────────
+
+
+class AlumniRegistrationFormTests(TestCase):
+    """forms.py:318-396 -- the profile form plus the subscription fields."""
+
+    def setUp(self):
+        self.faculty, self.qualification = _faculty_and_qualification()
+        self.affordable = _annual_tier(name="Full Annual Member", fee=2000)
+        self.expensive = _life_tier(name="Platinum Life Membership", fee=500000)
+
+    def _data(self, **overrides):
+        data = _profile_form_data(
+            faculty=self.faculty.pk,
+            qualification=self.qualification.pk,
+            membership_tier=self.affordable.pk,
+            payment_method="mpesa",
+            payment_frequency=Membership.PaymentFrequency.ONCE,
+            privacy_consent=True,
+        )
+        data.update(overrides)
+        return data
+
+    def test_the_dpa_consent_gate_refuses_submission(self):
+        """forms.py:360-369 -- required=True means the form itself
+        refuses, not just the UI."""
+        data = self._data()
+        del data["privacy_consent"]
+        form = AlumniRegistrationForm(data=data)
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("privacy_consent", form.errors)
+
+    def test_a_crafted_installment_amount_cannot_override_the_tier_fee(self):
+        """forms.py:375-382 -- ONCE strips the value rather than trusting
+        it to be blank, because the view does
+        `cleaned_data.get("installment_amount") or tier.fee`."""
+        form = AlumniRegistrationForm(data=self._data(installment_amount="1.00"))
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertIsNone(form.cleaned_data["installment_amount"])
+
+    def test_a_recurring_frequency_requires_an_amount(self):
+        form = AlumniRegistrationForm(data=self._data(
+            payment_frequency=Membership.PaymentFrequency.MONTHLY
+        ))
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("installment_amount", form.errors)
+
+    def test_mpesa_is_refused_above_the_fee_ceiling(self):
+        """MembershipTier.allows_mpesa is fee-based: fee <= 100000."""
+        self.assertFalse(self.expensive.allows_mpesa)
+        form = AlumniRegistrationForm(data=self._data(
+            membership_tier=self.expensive.pk, payment_method="mpesa"
+        ))
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("M-Pesa", form.errors["payment_method"][0])
+        self.assertIn("Bank Transfer", form.errors["payment_method"][0])
+
+    def test_bank_transfer_is_accepted_above_the_ceiling(self):
+        form = AlumniRegistrationForm(data=self._data(
+            membership_tier=self.expensive.pk,
+            payment_method="bank_transfer",
+            # Required here, though it should not be -- see finding K.
+            installment_amount="500000",
+        ))
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_finding_k_installment_amount_is_wrongly_required(self):
+        """FINDING K -- a new live bug, pinned as current behaviour.
+
+        installment_amount is declared required=False (forms.py:350),
+        and its own help text says "leave blank to pay the full fee".
+        But AlumniProfileForm.__init__ (:144-145) rebuilds every field's
+        required flag from an optional_fields allow-list:
+
+            for field_name in self.fields:
+                self.fields[field_name].required = field_name not in optional_fields
+
+        The four subscription fields AlumniRegistrationForm adds are not
+        in that list, so the inherited __init__ silently overrides the
+        declaration and makes installment_amount mandatory.
+
+        Effect: a member registering with "Once" who leaves the amount
+        blank -- exactly what the help text tells them to do -- is
+        refused. The lump-sum registration path is blocked at the form.
+
+        MembershipUpdateForm declares the identical field but has its own
+        __init__, so it is unaffected: proof the fault is the inherited
+        loop, not the field.
+        """
+        data = self._data()
+        self.assertNotIn("installment_amount", data)
+
+        form = AlumniRegistrationForm(data=data)
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("installment_amount", form.errors)
+        self.assertIn("required", form.errors["installment_amount"][0].lower())
+
+        # The declaration says otherwise, and the sibling form honours it.
+        self.assertFalse(AlumniRegistrationForm.base_fields["installment_amount"].required)
+        self.assertFalse(MembershipUpdateForm().fields["installment_amount"].required)
+
+
+# ── MembershipUpdateForm (5) ─────────────────────────────────────────
+
+
+class MembershipUpdateFormTests(TestCase):
+    """forms.py:399-455. Its clean() duplicates AlumniRegistrationForm's
+    verbatim (finding I) -- both are exercised independently for that
+    reason."""
+
+    def setUp(self):
+        self.affordable = _annual_tier(name="Full Annual Member", fee=2000)
+        self.expensive = _life_tier(name="Platinum Life Membership", fee=500000)
+
+    def _data(self, **overrides):
+        data = {
+            "membership_tier": self.affordable.pk,
+            "payment_method": "mpesa",
+            "payment_frequency": Membership.PaymentFrequency.ONCE,
+        }
+        data.update(overrides)
+        return data
+
+    def test_a_valid_renewal_is_accepted(self):
+        form = MembershipUpdateForm(data=self._data())
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_once_strips_a_crafted_installment_amount(self):
+        form = MembershipUpdateForm(data=self._data(installment_amount="0.01"))
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertIsNone(form.cleaned_data["installment_amount"])
+
+    def test_a_recurring_frequency_requires_an_amount(self):
+        form = MembershipUpdateForm(data=self._data(
+            payment_frequency=Membership.PaymentFrequency.QUARTERLY
+        ))
+        self.assertFalse(form.is_valid())
+        self.assertIn("installment_amount", form.errors)
+
+    def test_mpesa_is_refused_above_the_fee_ceiling(self):
+        form = MembershipUpdateForm(data=self._data(
+            membership_tier=self.expensive.pk, payment_method="mpesa"
+        ))
+        self.assertFalse(form.is_valid())
+        self.assertIn("payment_method", form.errors)
+
+    def test_an_inactive_tier_cannot_be_submitted(self):
+        """The queryset filters is_active=True (forms.py:408), and
+        ModelChoiceField re-validates against it -- so a hand-built POST
+        naming a retired tier is refused."""
+        retired = _annual_tier(name="Retired Tier", fee=1000)
+        retired.is_active = False
+        retired.save(update_fields=["is_active"])
+
+        form = MembershipUpdateForm(data=self._data(membership_tier=retired.pk))
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("membership_tier", form.errors)
+
+
+# ── ProfileClaimSearchForm (4) + ProfileClaimCodeForm (3) ────────────
+
+
+class ProfileClaimSearchFormTests(TestCase):
+    """forms.py:458-489."""
+
+    def test_neither_field_is_rejected(self):
+        form = ProfileClaimSearchForm(data={"email": "", "phone": ""})
+        self.assertFalse(form.is_valid())
+        self.assertIn("Enter an email address, a phone number, or both", str(form.errors))
+
+    def test_email_alone_is_enough(self):
+        form = ProfileClaimSearchForm(data={"email": "wanjiku@example.com"})
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_phone_alone_is_enough_and_is_normalised(self):
+        form = ProfileClaimSearchForm(data={"phone": "0712345678"})
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["phone"], "+254712345678")
+
+    def test_an_invalid_phone_is_rejected(self):
+        form = ProfileClaimSearchForm(data={"phone": "abc"})
+        self.assertFalse(form.is_valid())
+        self.assertIn("phone", form.errors)
+
+
+class ProfileClaimCodeFormTests(TestCase):
+    """forms.py:492-509."""
+
+    def test_a_six_digit_code_is_accepted(self):
+        form = ProfileClaimCodeForm(data={"code": "483920"})
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_a_non_numeric_code_is_rejected(self):
+        form = ProfileClaimCodeForm(data={"code": "48A920"})
+        self.assertFalse(form.is_valid())
+        self.assertIn("6-digit numeric code", str(form.errors["code"]))
+
+    def test_a_short_code_is_rejected(self):
+        form = ProfileClaimCodeForm(data={"code": "4839"})
+        self.assertFalse(form.is_valid())
+        self.assertIn("code", form.errors)
+
+
+# ── AlumniDigitalIDApplicationForm (2) ───────────────────────────────
+
+
+@override_settings(MEDIA_ROOT=_forms_media_root)
+class AlumniDigitalIDApplicationFormTests(TestCase):
+    """forms.py:512-530 -- one editable field, made required in __init__."""
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(_forms_media_root, ignore_errors=True)
+        super().tearDownClass()
+
+    def test_the_photo_is_required(self):
+        form = AlumniDigitalIDApplicationForm(data={}, files={})
+        self.assertFalse(form.is_valid())
+        self.assertIn("digital_id_photo", form.errors)
+
+    def test_a_real_image_is_accepted(self):
+        """A genuine PNG, not a placeholder blob -- ImageField reads it
+        back through PIL, as the QR-badge pass found the hard way.
+
+        FINDING J, noted: nothing here limits size or dimensions.
+        """
+        upload = _Upload("id.png", _png_bytes(), content_type="image/png")
+        form = AlumniDigitalIDApplicationForm(data={}, files={"digital_id_photo": upload})
+
+        self.assertTrue(form.is_valid(), form.errors)
