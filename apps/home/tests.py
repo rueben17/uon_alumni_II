@@ -1396,22 +1396,18 @@ class PaymentMembershipDivergenceTests(TestCase):
         self.alumni, self.user = _alumni_for("divergence@example.com")
         self.tier = _annual_tier()
 
-    def test_finding_d_marking_a_payment_completed_leaves_membership_pending(self):
-        """FINDING D -- a live money bug, documented not fixed.
+    def test_finding_d_marking_a_payment_completed_activates_the_membership(self):
+        """Guards the finding-D fix.
 
-        Payment.mark_as_completed (models.py:1749-1759) touches the
-        Payment row only; none of the mark_as_* methods references
-        Membership. The service layer is called from exactly one place,
-        the bulk action at admin.py:727/736, and PaymentAdmin has no
-        save_model override while payment_status is an editable field in
-        its fieldset (admin.py:664, readonly_fields at :656 lists only
-        transaction_reference/created_at/updated_at).
+        Payment.mark_as_completed used to touch the Payment row only, and
+        the service layer was called from exactly one place -- the admin
+        bulk action. So completing a payment from the change form, the
+        shell, or a future gateway callback recorded the money while the
+        membership stayed PENDING.
 
-        So a Secretariat member who opens a Payment in the change form
-        and sets its status to "completed" -- or anyone calling this
-        model method from the shell, or a future gateway callback --
-        records the money as received while the membership stays
-        PENDING. Only the bulk action does both.
+        It now routes through services.confirm_payment(), guarded by the
+        method's own old_status so a repeat call cannot double-activate
+        or double-count amount_paid.
         """
         membership = services.assign_membership_tier(self.user, self.tier)
         payment = Payment.objects.create(
@@ -1424,9 +1420,12 @@ class PaymentMembershipDivergenceTests(TestCase):
         payment.refresh_from_db()
         membership.refresh_from_db()
         self.assertEqual(payment.payment_status, "completed")
-        # The defect: money in, membership not activated.
-        self.assertEqual(membership.status, Membership.Status.PENDING)
-        self.assertIsNone(Membership.objects.current_active_for(self.user))
+        # Money in, membership activated -- through the service layer, so
+        # supersession and the one-ACTIVE-row invariant still apply.
+        self.assertEqual(membership.status, Membership.Status.ACTIVE)
+        self.assertEqual(
+            Membership.objects.current_active_for(self.user), membership
+        )
 
     def test_finding_e_a_refund_does_not_reverse_an_activation(self):
         """FINDING E -- policy-dependent, documented not fixed.
@@ -1460,3 +1459,194 @@ class PaymentMembershipDivergenceTests(TestCase):
         self.assertEqual(
             Membership.objects.current_active_for(self.user), membership
         )
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Finding D fix guards -- activation now happens wherever a payment
+# transitions to completed, not only in the admin bulk action.
+# See docs/finding-D-design-2026-09-02.md.
+# ─────────────────────────────────────────────────────────────────────
+
+
+class _StubChangeForm:
+    """Stands in for the admin's ModelForm.
+
+    PaymentAdmin.save_model reads only `changed_data`; the form itself is
+    Django's and not under test here. Using a stub keeps these tests
+    about the hook rather than about reconstructing every fieldset field.
+    """
+
+    def __init__(self, changed_data):
+        self.changed_data = changed_data
+
+
+class PaymentActivationOnCompletionTests(TestCase):
+    """Every route to `completed` activates the membership (finding D)."""
+
+    def setUp(self):
+        self.admin = _payment_admin()
+        self.request = _admin_request()
+        self.alumni, self.user = _alumni_for("activation@example.com")
+        self.tier = _annual_tier(name="Corporate Membership", fee=12000)
+
+    def _pending(self, frequency=Membership.PaymentFrequency.ONCE):
+        return services.assign_membership_tier(
+            self.user, self.tier, payment_frequency=frequency
+        )
+
+    def _payment(self, membership=None, amount=Decimal("12000"), **kwargs):
+        return Payment.objects.create(
+            alumni=self.alumni, membership_tier=self.tier, membership=membership,
+            amount=amount, payment_method="mpesa", **kwargs
+        )
+
+    # (a) the case the design showed a model-method hook alone would miss
+    def test_change_form_save_to_completed_activates(self):
+        membership = self._pending()
+        payment = self._payment(membership)
+        payment.payment_status = "completed"
+
+        self.admin.save_model(
+            self.request, payment, _StubChangeForm(["payment_status"]), change=True
+        )
+
+        membership.refresh_from_db()
+        self.assertEqual(membership.status, Membership.Status.ACTIVE)
+
+    # (b)
+    def test_change_form_save_not_touching_status_activates_nothing(self):
+        membership = self._pending()
+        payment = self._payment(membership)
+        payment.notes = "Called the member to confirm."
+
+        self.admin.save_model(
+            self.request, payment, _StubChangeForm(["notes"]), change=True
+        )
+
+        membership.refresh_from_db()
+        self.assertEqual(membership.status, Membership.Status.PENDING)
+
+    # (c)
+    def test_shell_mark_as_completed_activates(self):
+        membership = self._pending()
+        payment = self._payment(membership)
+
+        payment.mark_as_completed(receipt_number="QGR000001")
+
+        membership.refresh_from_db()
+        self.assertEqual(membership.status, Membership.Status.ACTIVE)
+        self.assertEqual(
+            Membership.objects.current_active_for(self.user), membership
+        )
+
+    # (d) the guard that makes the simplified bulk loop safe
+    def test_re_completing_does_not_double_activate_or_double_count(self):
+        """record_installment_payment accumulates amount_paid BEFORE its
+        own first_activation check, so without the old_status guard a
+        second confirmation would double-count the money even though the
+        status stayed correct."""
+        membership = self._pending(Membership.PaymentFrequency.MONTHLY)
+        payment = self._payment(membership, amount=Decimal("3000"))
+
+        self.admin.mark_completed(
+            self.request, Payment.objects.filter(pk=payment.pk)
+        )
+        membership.refresh_from_db()
+        self.assertEqual(membership.amount_paid, Decimal("3000"))
+
+        payment.refresh_from_db()
+        payment.mark_as_completed()
+
+        membership.refresh_from_db()
+        self.assertEqual(membership.amount_paid, Decimal("3000"))
+        self.assertEqual(membership.status, Membership.Status.ACTIVE)
+        self.assertEqual(
+            Membership.objects.filter(
+                user=self.user, status=Membership.Status.ACTIVE
+            ).count(), 1,
+        )
+
+    # (e) the invariant, through the new route
+    def test_bulk_action_still_supersedes_a_prior_active_row(self):
+        gold = _life_tier()
+        held = services.activate_membership(
+            services.assign_membership_tier(self.user, gold)
+        )
+        renewal = self._pending()
+        payment = self._payment(renewal)
+
+        self.admin.mark_completed(
+            self.request, Payment.objects.filter(pk=payment.pk)
+        )
+
+        held.refresh_from_db()
+        renewal.refresh_from_db()
+        self.assertEqual(held.status, Membership.Status.SUPERSEDED)
+        self.assertEqual(renewal.status, Membership.Status.ACTIVE)
+        self.assertEqual(
+            Membership.objects.filter(
+                user=self.user, status=Membership.Status.ACTIVE
+            ).count(), 1,
+        )
+
+    # (f) both date arms, still deliberately different
+    def test_instalment_arm_anchors_to_today(self):
+        membership = self._pending(Membership.PaymentFrequency.MONTHLY)
+        submitted = timezone.now() - timedelta(days=45)
+        payment = self._payment(
+            membership, amount=Decimal("3000"), payment_date=submitted
+        )
+
+        payment.mark_as_completed()
+
+        membership.refresh_from_db()
+        today = timezone.now().date()
+        self.assertEqual(membership.next_installment_due, today + timedelta(days=30))
+        self.assertFalse(membership.is_overdue)
+
+    def test_lump_sum_arm_still_uses_the_payment_date(self):
+        """The unlinked path passes payment.payment_date, not today --
+        the asymmetry is deliberate (services.confirm_payment's
+        docstring, and admin.py's original :708-716)."""
+        membership = self._pending()
+        submitted = timezone.now() - timedelta(days=45)
+        # Unlinked: no membership FK, so confirm_payment looks up the
+        # newest PENDING row for this user and tier.
+        payment = self._payment(membership=None, payment_date=submitted)
+
+        payment.mark_as_completed()
+
+        membership.refresh_from_db()
+        self.assertEqual(membership.status, Membership.Status.ACTIVE)
+        self.assertEqual(membership.started_on, submitted.date())
+
+    # (g) the accepted residual
+    def test_raw_status_assignment_still_does_not_activate(self):
+        """Documented boundary, deliberately not closed.
+
+        Nothing observes a bare field write, so this path bypasses
+        confirm_payment. Catching it would need a save() override or a
+        signal tracking the previous value. Every entry point the
+        application actually uses goes through mark_as_completed() or
+        the admin.
+        """
+        membership = self._pending()
+        payment = self._payment(membership)
+
+        payment.payment_status = "completed"
+        payment.save(update_fields=["payment_status"])
+
+        membership.refresh_from_db()
+        self.assertEqual(membership.status, Membership.Status.PENDING)
+
+    def test_a_payment_without_a_tier_activates_nothing(self):
+        """confirm_payment returns None rather than raising."""
+        payment = Payment.objects.create(
+            alumni=self.alumni, amount=Decimal("500"), payment_method="mpesa",
+        )
+
+        payment.mark_as_completed()
+
+        payment.refresh_from_db()
+        self.assertEqual(payment.payment_status, "completed")
+        self.assertFalse(Membership.objects.filter(user=self.user).exists())
