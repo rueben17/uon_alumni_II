@@ -1105,6 +1105,8 @@ class GenerateMembershipNumberTests(TestCase):
 # flow -- the same approach the backfill-migration tests take.
 # ─────────────────────────────────────────────────────────────────────
 
+from io import StringIO
+from pathlib import Path
 from unittest import mock
 
 from django.contrib.admin.sites import AdminSite
@@ -2028,3 +2030,81 @@ class AlumniDigitalIDApplicationFormTests(TestCase):
         form = AlumniDigitalIDApplicationForm(data={}, files={"digital_id_photo": upload})
 
         self.assertTrue(form.is_valid(), form.errors)
+
+
+@override_settings(MEDIA_ROOT=_forms_media_root, STORAGES=LOCAL_STORAGES)
+class MigrateMediaCommandTests(TestCase):
+    """apps/home/management/commands/migrate_media_to_cloudinary.py.
+
+    Exercised in --dry-run against local filesystem storage, so no
+    Cloudinary call is possible. The real run is a production-host step
+    (docs/finding-L-runbook-2026-09-03.md), not something a test does.
+    """
+
+    def _banner_with_image(self):
+        from apps.home.models import Banner
+
+        banner = Banner.objects.create()
+        banner.logo.save("logo.png", SimpleUploadedFile("logo.png", _png_bytes()), save=True)
+        return banner
+
+    def _run(self, **opts):
+        out = StringIO()
+        call_command("migrate_media_to_cloudinary", stdout=out, **opts)
+        return out.getvalue()
+
+    def test_dry_run_reports_nothing_to_move_when_files_are_already_present(self):
+        """The idempotency check: the file was written through the very
+        storage the command targets, so it is already there."""
+        self._banner_with_image()
+
+        output = self._run(dry_run=True)
+
+        self.assertIn("DRY RUN", output)
+        self.assertIn("1 already present", output)
+        # The summary line says "0 file(s) would move"; it is the per-file
+        # line that must be absent.
+        self.assertNotIn("  would move:", output)
+
+    def test_a_row_whose_file_is_gone_is_logged_and_skipped(self):
+        """One orphaned row must not halt the run -- the command logs it
+        and carries on."""
+        banner = self._banner_with_image()
+        Path(_forms_media_root, banner.logo.name).unlink()
+
+        output = self._run(dry_run=True)
+
+        self.assertIn("missing on disk", output)
+        self.assertIn("1 missing on disk", output)
+        self.assertIn("Done:", output)
+
+    def test_dry_run_writes_nothing(self):
+        banner = self._banner_with_image()
+        before = banner.logo.name
+
+        self._run(dry_run=True)
+
+        banner.refresh_from_db()
+        self.assertEqual(banner.logo.name, before)
+
+    def test_the_model_flag_limits_the_sweep(self):
+        self._banner_with_image()
+
+        output = self._run(dry_run=True, model_label="home.Banner")
+
+        self.assertIn("Done:", output)
+
+    def test_an_unknown_model_is_rejected(self):
+        from django.core.management.base import CommandError
+
+        with self.assertRaises(CommandError):
+            self._run(dry_run=True, model_label="home.NoSuchModel")
+
+    def test_publication_file_is_excluded(self):
+        """It is already pinned to RawMediaCloudinaryStorage on the model,
+        so it has been writing to Cloudinary all along."""
+        from apps.home.management.commands.migrate_media_to_cloudinary import (
+            EXCLUDED_FIELDS,
+        )
+
+        self.assertIn(("home", "Publication", "file"), EXCLUDED_FIELDS)
