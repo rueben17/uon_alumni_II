@@ -368,6 +368,21 @@ class AlumniRegistrationForm(AlumniProfileForm):
         help_text="Required under the Data Protection Act, 2019. Read it first: /uon-alumni-page/privacy/",
     )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # AlumniProfileForm.__init__ rebuilds EVERY field's `required`
+        # from its own optional_fields allow-list, which knows nothing
+        # about the subscription fields this subclass adds -- so it was
+        # silently overriding installment_amount's required=False and
+        # refusing a lump-sum registration that left the amount blank,
+        # which is exactly what the field's help text tells people to do.
+        #
+        # Only this one is re-asserted: membership_tier, payment_method,
+        # payment_frequency and privacy_consent are all genuinely
+        # required, and the inherited loop is right about them. clean()
+        # below still demands an amount when the frequency isn't Once.
+        self.fields["installment_amount"].required = False
+
     def clean(self):
         cleaned_data = super().clean()
         frequency = cleaned_data.get("payment_frequency")
@@ -528,3 +543,9 @@ class AlumniDigitalIDApplicationForm(TailwindStyledFormMixin, forms.ModelForm):
             "A clear, front-facing photo. Reviewed by the Secretariat before it appears on your Alumni Digital ID."
         )
         self.apply_tailwind_styling()
+
+    def clean_digital_id_photo(self):
+        photo = self.cleaned_data.get("digital_id_photo")
+        if photo and photo.size > 2 * 1024 * 1024:
+            raise forms.ValidationError("Photo must be 2 MB or smaller.")
+        return photo

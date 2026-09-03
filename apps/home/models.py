@@ -1580,6 +1580,18 @@ class Membership(models.Model):
         mechanical rename, so it isn't built here. This method is what
         that service layer will call.
         """
+        # CAVEAT (2026-09-02, recorded not fixed): on a NON-first
+        # activation this re-stamps expires_on from the new payment_date,
+        # silently extending the term -- started_on survives, since it is
+        # only set when unset. That is safe today only because
+        # services.activate_membership has a single caller,
+        # services.confirm_payment, reached through two guarded doors
+        # (Payment.mark_as_completed's old_status check and
+        # PaymentAdmin.save_model's changed_data check). A second caller
+        # -- a gateway callback, a bulk re-activation command -- reopens
+        # the window, because nothing in this method resists a repeat
+        # call. Hardening it means deciding what a second activation
+        # SHOULD do, which is a business rule rather than a defect.
         payment_date = payment_date or timezone.now().date()
         self.status = self.Status.ACTIVE
         self.is_lifetime = self.tier.is_lifetime()

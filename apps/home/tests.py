@@ -1567,19 +1567,23 @@ class AlumniProfileFormPhoneTests(TestCase):
         self.assertIn("phone_mobile", form.errors)
 
     def test_a_number_owned_by_another_account_is_rejected(self):
+        """The exclusion must still catch real duplicates -- asserted in
+        the registration shape the view now produces, so the finding-F
+        fix cannot have loosened it."""
+        registrant = _make_user("registrant.dup@example.com")
         other = _make_user("other.owner@example.com")
         other.phone = "+254712345678"
         other.save(update_fields=["phone"])
 
-        form = self._form()
+        form = self._form(instance=AlumniProfile(user=registrant))
 
         self.assertFalse(form.is_valid())
         self.assertIn(
             "already registered to another account", str(form.errors["phone_mobile"])
         )
 
-    def test_finding_f_registration_rejects_the_users_own_number(self):
-        """FINDING F -- a live bug, pinned as current behaviour.
+    def test_finding_f_registration_accepts_the_users_own_number(self):
+        """Guards the finding-F fix.
 
         clean_phone_mobile self-excludes on self.instance.user_id:
 
@@ -1587,31 +1591,26 @@ class AlumniProfileFormPhoneTests(TestCase):
             if self.instance.user_id:
                 owner = owner.exclude(pk=self.instance.user_id)
 
-        On the registration path that is None, because
-        AlumniRegisterView.form_valid sets form.instance.user at
-        views.py:468 -- which only runs once is_valid() has passed. So
-        the exclusion is skipped and a registering user whose
-        User.phone is already populated is told their OWN number
-        belongs to somebody else.
+        CreateView used to pass no instance at all, so user_id was None
+        during validation -- the user was only attached afterwards, in
+        form_valid -- and a registrant whose User.phone was already
+        populated was told their OWN number belonged to somebody else.
 
-        Not biting today because Google OAuth does not set User.phone;
-        a legacy-imported account would hit it. Asserted as current
-        behaviour, NOT fixed here.
+        AlumniRegisterView.get_form_kwargs now supplies
+        AlumniProfile(user=request.user), so the existing exclusion has
+        something to exclude. clean_phone_mobile itself is unchanged.
         """
         registrant = _make_user("registrant@example.com")
         registrant.phone = "+254712345678"
         registrant.save(update_fields=["phone"])
 
-        # The real registration shape. CreateView builds the form with no
-        # instance, so ModelForm makes a bare AlumniProfile() whose
-        # user_id is None -- assigning .user happens later, in form_valid.
-        form = self._form()
-        self.assertIsNone(form.instance.user_id)
+        # The shape get_form_kwargs now produces: unsaved, but carrying
+        # the registrant.
+        instance = AlumniProfile(user=registrant)
+        self.assertTrue(instance._state.adding)
+        form = self._form(instance=instance)
 
-        self.assertFalse(form.is_valid())
-        self.assertIn(
-            "already registered to another account", str(form.errors["phone_mobile"])
-        )
+        self.assertTrue(form.is_valid(), form.errors)
 
     def test_the_edit_path_accepts_the_users_own_number(self):
         """Contrast with finding F: a saved instance has user_id, so the
@@ -1847,45 +1846,42 @@ class AlumniRegistrationFormTests(TestCase):
         form = AlumniRegistrationForm(data=self._data(
             membership_tier=self.expensive.pk,
             payment_method="bank_transfer",
-            # Required here, though it should not be -- see finding K.
-            installment_amount="500000",
         ))
         self.assertTrue(form.is_valid(), form.errors)
 
-    def test_finding_k_installment_amount_is_wrongly_required(self):
-        """FINDING K -- a new live bug, pinned as current behaviour.
+    def test_finding_k_lump_sum_registration_may_leave_the_amount_blank(self):
+        """Guards the finding-K fix.
 
-        installment_amount is declared required=False (forms.py:350),
-        and its own help text says "leave blank to pay the full fee".
-        But AlumniProfileForm.__init__ (:144-145) rebuilds every field's
-        required flag from an optional_fields allow-list:
+        AlumniProfileForm.__init__ rebuilds every field's required flag
+        from an optional_fields allow-list that knows nothing about the
+        subscription fields this subclass adds, so it was silently
+        overriding installment_amount's required=False. A member
+        registering with "Once" and leaving the amount blank -- exactly
+        what the help text tells them to do -- was refused, blocking the
+        lump-sum registration path at the form.
 
-            for field_name in self.fields:
-                self.fields[field_name].required = field_name not in optional_fields
-
-        The four subscription fields AlumniRegistrationForm adds are not
-        in that list, so the inherited __init__ silently overrides the
-        declaration and makes installment_amount mandatory.
-
-        Effect: a member registering with "Once" who leaves the amount
-        blank -- exactly what the help text tells them to do -- is
-        refused. The lump-sum registration path is blocked at the form.
-
-        MembershipUpdateForm declares the identical field but has its own
-        __init__, so it is unaffected: proof the fault is the inherited
-        loop, not the field.
+        AlumniRegistrationForm.__init__ now re-asserts it.
         """
         data = self._data()
         self.assertNotIn("installment_amount", data)
 
         form = AlumniRegistrationForm(data=data)
 
-        self.assertFalse(form.is_valid())
-        self.assertIn("installment_amount", form.errors)
-        self.assertIn("required", form.errors["installment_amount"][0].lower())
+        self.assertTrue(form.is_valid(), form.errors)
+        # clean() strips it for ONCE regardless, so the view still falls
+        # back to tier.fee.
+        self.assertIsNone(form.cleaned_data["installment_amount"])
 
-        # The declaration says otherwise, and the sibling form honours it.
-        self.assertFalse(AlumniRegistrationForm.base_fields["installment_amount"].required)
+    def test_the_other_subscription_fields_stay_required(self):
+        """The fix re-asserts ONE field. The inherited loop is right about
+        the rest, and they must not be loosened with it."""
+        form = AlumniRegistrationForm()
+        for name in ("membership_tier", "payment_method", "payment_frequency",
+                     "privacy_consent"):
+            with self.subTest(field=name):
+                self.assertTrue(form.fields[name].required)
+        self.assertFalse(form.fields["installment_amount"].required)
+        # The sibling form declares the identical field and is untouched.
         self.assertFalse(MembershipUpdateForm().fields["installment_amount"].required)
 
 
@@ -2011,13 +2007,21 @@ class AlumniDigitalIDApplicationFormTests(TestCase):
     def test_a_real_image_is_accepted(self):
         """A genuine PNG, not a placeholder blob -- ImageField reads it
         back through PIL, as the QR-badge pass found the hard way.
-
-        FINDING J, noted: nothing here limits size or dimensions.
         """
         upload = _Upload("id.png", _png_bytes(), content_type="image/png")
         form = AlumniDigitalIDApplicationForm(data={}, files={"digital_id_photo": upload})
 
         self.assertTrue(form.is_valid(), form.errors)
+
+    def test_a_photo_over_2mb_is_rejected(self):
+        """FINDING J -- a genuine PNG (PIL still verifies it; padding
+        after IEND is ignored) padded past the 2 MB cap."""
+        oversized = _png_bytes() + (b"\0" * (2 * 1024 * 1024))
+        upload = _Upload("id.png", oversized, content_type="image/png")
+        form = AlumniDigitalIDApplicationForm(data={}, files={"digital_id_photo": upload})
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("2 MB", str(form.errors["digital_id_photo"]))
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -2209,3 +2213,29 @@ class PaymentActivationOnCompletionTests(TestCase):
         payment.refresh_from_db()
         self.assertEqual(payment.payment_status, "completed")
         self.assertFalse(Membership.objects.filter(user=self.user).exists())
+
+
+class AlumniRegisterViewFormKwargsTests(TestCase):
+    """views.py -- AlumniRegisterView.get_form_kwargs is where finding F
+    is actually fixed. The form-level tests above assert the consequence;
+    this asserts the cause."""
+
+    def test_the_form_instance_carries_the_registrant(self):
+        from django.test import RequestFactory
+
+        from apps.home.views import AlumniRegisterView
+
+        user = _make_user("form.kwargs@example.com")
+        request = RequestFactory().get("/", HTTP_HOST=PUBLIC_HOST)
+        request.user = user
+
+        view = AlumniRegisterView()
+        view.request = request
+        view.object = None
+
+        kwargs = view.get_form_kwargs()
+
+        self.assertEqual(kwargs["instance"].user_id, user.pk)
+        # Still unsaved, so AlumniProfileForm.__init__'s prefill branch
+        # stays correctly skipped and get_initial keeps seeding the form.
+        self.assertTrue(kwargs["instance"]._state.adding)
