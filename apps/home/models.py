@@ -1089,7 +1089,20 @@ def get_alumni_profile_slug(instance):
     get_employee_slug — AlumniProfile no longer holds name data itself
     (docs/rebuild-schema.md)."""
     profile = instance.user.profile
-    return slugify(f"{profile.honorific} {profile.given_name} {profile.family_name}")
+    slug = slugify(f"{profile.honorific} {profile.given_name} {profile.family_name}")
+    # An auto-created profile (apps/user/signals.py) starts with blank
+    # names, so this slugifies to "". AlumniProfile.slug is
+    # blank=True/null=True, and django-autoslug leaves the field None in
+    # that case (autoslug/fields.py:267-273) -- which then breaks
+    # get_absolute_url(), since home:alumni_detail matches <slug:slug>
+    # and never None. Employee.slug is neither blank nor null, so
+    # autoslug falls back to the model name for it and stays functional;
+    # this returns the same placeholder so AlumniProfile behaves the
+    # same way. slug is unique=False here, so blank-named profiles may
+    # share the placeholder -- the UUID in the URL still distinguishes
+    # them -- and it upgrades to a real slug as soon as a name is
+    # entered, because the field is always_update=True.
+    return slug or instance._meta.model_name
 
 
 class QualificationLevel(models.TextChoices):
@@ -1372,13 +1385,41 @@ class AlumniPhoneNumber(models.Model):
 
 class MembershipManager(models.Manager):
     def current_for(self, user):
-        """Most recent membership row for a user, active or otherwise --
-        the manager method todo.md 0.1 asks for instead of a denormalized
-        pointer. Ordered by Meta.ordering (-created_at), so "current"
-        means "most recently requested," which is also "most recently
-        activated" under the one-row-per-request pattern each request
-        view uses (see apps/home/views.py)."""
+        """Most recent membership row for a user, of ANY status -- the
+        manager method todo.md 0.1 asks for instead of a denormalized
+        pointer. Ordered by Meta.ordering (-created_at), so this means
+        "most recently requested", which during a renewal is the
+        unconfirmed PENDING row rather than the membership the member
+        actually holds.
+
+        That is the right answer for "is there a request in flight" --
+        the admin's own Current Membership columns rely on it, since
+        they render the status alongside the tier. It is the wrong
+        answer for anything that states or prints a member's standing:
+        use current_active_for() for that.
+        """
         return self.filter(user=user).first()
+
+    def current_active_for(self, user):
+        """The membership the user actually holds right now, or None.
+
+        The service layer supersedes any prior ACTIVE row before
+        activating a new one, inside transaction.atomic()
+        (apps/home/services.py:37-50), so at most one ACTIVE row exists
+        per user -- the ordering below is a tie-breaker, not a
+        semantic. Mirrors the hand-rolled query at
+        apps/qr_manager/views.py:64-66, which needed this before the
+        manager offered it.
+
+        Returns None when the member holds nothing active: a first
+        request still awaiting Secretariat confirmation, or a lapsed
+        membership. Callers must handle that rather than assume a row.
+        """
+        return (
+            self.filter(user=user, status=self.model.Status.ACTIVE)
+            .order_by("-created_at")
+            .first()
+        )
 
 
 class Membership(models.Model):
@@ -1539,6 +1580,18 @@ class Membership(models.Model):
         mechanical rename, so it isn't built here. This method is what
         that service layer will call.
         """
+        # CAVEAT (2026-09-02, recorded not fixed): on a NON-first
+        # activation this re-stamps expires_on from the new payment_date,
+        # silently extending the term -- started_on survives, since it is
+        # only set when unset. That is safe today only because
+        # services.activate_membership has a single caller,
+        # services.confirm_payment, reached through two guarded doors
+        # (Payment.mark_as_completed's old_status check and
+        # PaymentAdmin.save_model's changed_data check). A second caller
+        # -- a gateway callback, a bulk re-activation command -- reopens
+        # the window, because nothing in this method resists a repeat
+        # call. Hardening it means deciding what a second activation
+        # SHOULD do, which is a business rule rather than a defect.
         payment_date = payment_date or timezone.now().date()
         self.status = self.Status.ACTIVE
         self.is_lifetime = self.tier.is_lifetime()
@@ -1743,6 +1796,20 @@ class Payment(models.Model):
         
         self.save(update_fields=['payment_status', 'completion_date', 'mpesa_receipt_number', 'bank_reference'])
         self._log_transaction('complete', request_data={'receipt': receipt_number})
+
+        # Activate the membership this payment was for (finding D). The
+        # old_status guard is what makes a repeat call safe: the admin
+        # bulk action calls this method AND used to activate itself, and
+        # record_installment_payment accumulates amount_paid
+        # unconditionally -- so a double confirmation would double-count
+        # the money even though the status stayed correct.
+        #
+        # Imported inside the method: services imports this module at
+        # module level, so a top-level import here would be circular.
+        if old_status != 'completed':
+            from apps.home import services
+
+            services.confirm_payment(self)
     
     def mark_as_failed(self, reason=None):
         """Mark payment as failed with optional reason."""

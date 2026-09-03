@@ -1,5 +1,6 @@
 from allauth.account.adapter import get_adapter
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.db.models import Count
@@ -25,6 +26,7 @@ from apps.user.mixins import StaffOrSuperuserRequiredMixin
 COUNTY_TOP_N = 15
 
 
+@login_required
 def all_uon_students(request):
     context = {}
     return render(request, "student/all_uon_students.html", context)
@@ -90,7 +92,7 @@ class StudentRegisterView(LoginRequiredMixin, CreateView):
         next_url = self.request.session.pop("post_login_next", None)
         if next_url and get_adapter().is_safe_url(next_url):
             return next_url
-        return reverse("all_uon_students")
+        return reverse("student:all_uon_students")
 
 
 class EvaluateApplicationView(StaffOrSuperuserRequiredMixin, View):

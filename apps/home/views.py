@@ -464,6 +464,22 @@ class AlumniRegisterView(MpesaEligibilityMixin, QualificationMapMixin, LoginRequ
                 initial["surname"] = profile.family_name
         return initial
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        # Attach the registrant to the (unsaved) instance BEFORE validation.
+        # CreateView otherwise passes no instance at all, so ModelForm builds
+        # a bare AlumniProfile() with user_id None, and
+        # AlumniProfileForm.clean_phone_mobile's self-exclusion --
+        # `if self.instance.user_id: owner = owner.exclude(...)` -- has
+        # nothing to exclude. A registrant whose User.phone was already set
+        # was then told their OWN number belonged to another account.
+        #
+        # _state.adding stays True on an unsaved instance, so __init__'s
+        # prefill branch is still correctly skipped and get_initial above
+        # keeps seeding the form.
+        kwargs["instance"] = AlumniProfile(user=self.request.user)
+        return kwargs
+
     def form_valid(self, form):
         # Wrapped in one transaction (2026-08-27) -- a real registration
         # hit a mid-request crash between AlumniProfile.save() and the
@@ -477,6 +493,9 @@ class AlumniRegisterView(MpesaEligibilityMixin, QualificationMapMixin, LoginRequ
         # in here fails, nothing commits, and the user just resubmits
         # the same form.
         with transaction.atomic():
+            # Redundant now that get_form_kwargs attaches the user, but left
+            # in place deliberately: it is the assignment allauth-era callers
+            # and any future non-CreateView path would still rely on.
             form.instance.user = self.request.user
             response = super().form_valid(form)
 
@@ -524,9 +543,19 @@ class AlumniRegisterView(MpesaEligibilityMixin, QualificationMapMixin, LoginRequ
         return self.object.get_absolute_url()
 
 
-class AlumniProfileDetailView(DetailView):
+class AlumniProfileDetailView(LoginRequiredMixin, DetailView):
     """
-    Public alumni profile page — mirrors staff's EmployeeDetailView.
+    Members-only alumni profile page (2026-09-01, qa_500_report #6)
+    -- mirrors staff's EmployeeDetailView, which carries a gate of
+    its own. This was a bare DetailView, so an anonymous visitor
+    holding a profile URL could read a member's contact details and
+    membership standing.
+
+    LoginRequiredMixin is the gate, so any authenticated account
+    reaches it -- including staff and student accounts, whose
+    sessions span every subdomain via SESSION_COOKIE_DOMAIN. That is
+    precisely why the sensitive fields below are scoped to
+    owner-or-admin rather than to "anyone logged in".
     Personal fields live on UserProfile/User now, not AlumniProfile
     (docs/rebuild-schema.md), and membership is its own model — the
     template reads through alumni.user.profile.* and the
@@ -547,18 +576,38 @@ class AlumniProfileDetailView(DetailView):
         from allauth.account.models import EmailAddress
 
         context = super().get_context_data(**kwargs)
-        current_membership = Membership.objects.current_for(self.object.user)
+        # Two rows, not one (2026-09-01): current_membership is what the
+        # member actually holds and drives the standing badge, while a
+        # renewal awaiting Secretariat confirmation is a separate PENDING
+        # row that the awaiting-confirmation panel renders. current_for()
+        # returned whichever was newer, so a Gold Life Member who asked
+        # to renew showed as holding the unconfirmed tier.
+        current_membership = Membership.objects.current_active_for(self.object.user)
         context["current_membership"] = current_membership
-        context["alt_email"] = EmailAddress.objects.filter(user=self.object.user, primary=False).first()
-        # Computed here, not as a template {% if %} with parentheses --
-        # Django's {% if %} tag doesn't support grouping parens at all
-        # (confirmed: `{% if a and (b or c) %}` raises TemplateSyntaxError,
-        # not a silent misparse), which is exactly what broke this page
-        # with a 500 on every load for a few minutes on 2026-08-27 after
-        # a first attempt used that syntax directly in the template.
-        user = self.request.user
-        context["can_view_payment_history"] = user.is_authenticated and (
-            user == self.object.user or user.is_staff or user.is_superuser
+        context["pending_membership"] = (
+            Membership.objects
+            .filter(user=self.object.user, status=Membership.Status.PENDING)
+            .order_by("-created_at")
+            .first()
+        )
+        # Owner or admin only (qa_500_report #6): an alternate e-mail
+        # address is contact PII, not directory information, so it is
+        # kept out of the context entirely for anyone else rather than
+        # merely hidden in the template. Computed here in Python, not as
+        # a template {% if %} with parentheses -- Django's {% if %} tag
+        # doesn't support grouping parens at all (confirmed: `{% if a
+        # and (b or c) %}` raises TemplateSyntaxError, not a silent
+        # misparse), which is exactly what broke this page with a 500 on
+        # every load for a few minutes on 2026-08-27 after a first
+        # attempt used that syntax directly in the template.
+        viewer = self.request.user
+        is_owner_or_admin = viewer.is_authenticated and (
+            viewer == self.object.user or viewer.is_staff or viewer.is_superuser
+        )
+        context["is_owner_or_admin"] = is_owner_or_admin
+        context["alt_email"] = (
+            EmailAddress.objects.filter(user=self.object.user, primary=False).first()
+            if is_owner_or_admin else None
         )
         # Only what this member actually has -- not the full tier matrix
         # (that's the separate Categories & Benefits page). Excluded/
@@ -702,7 +751,7 @@ def download_alumni_qr_code(request, slug, pk):
         response["Content-Disposition"] = f'attachment; filename="{safe_name}_qr.png"'
         return response
 
-    current_membership = Membership.objects.current_for(alumni.user)
+    current_membership = Membership.objects.current_active_for(alumni.user)
     if current_membership is None:
         tier_name = "No active membership"
         validity_period = "—"
@@ -858,7 +907,7 @@ class AlumniMembershipUpdateView(LoginRequiredMixin, View):
 
     def get(self, request, *args, **kwargs):
         alumni = get_object_or_404(AlumniProfile, pk=kwargs["pk"], user=request.user)
-        current_membership = Membership.objects.current_for(request.user)
+        current_membership = Membership.objects.current_active_for(request.user)
         # ?tier=<pk> (2026-08-19, snippets/tiers.html's Subscribe button)
         # wins over the member's current tier when present -- someone
         # who clicked "Subscribe" on a specific card came here to move

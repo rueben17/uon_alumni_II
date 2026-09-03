@@ -21,7 +21,10 @@ Design decisions ratified 2026-08-08, built 2026-08-10:
     single payment period, and the Phase 7 QR credential wants one
     durable identifier per member.
 """
+from decimal import Decimal
+
 from django.db import transaction
+from django.utils import timezone
 
 from apps.home.models import Membership
 
@@ -93,6 +96,74 @@ def record_installment_payment(membership, amount, payment_date=None):
     return membership
 
 
+def confirm_payment(payment):
+    """Activate the membership a confirmed payment was for.
+
+    The activation half of what PaymentAdmin.mark_completed used to do
+    inline. It lives here so that every path which completes a payment --
+    the admin bulk action, the admin change form, a shell call, a future
+    gateway callback -- reaches the same one door, rather than only the
+    bulk action doing it (finding D).
+
+    Assumes the payment is already marked completed; it never touches
+    payment status itself. Returns the membership it activated, or None
+    when the payment carries no tier and there is nothing to apply.
+
+    The two date arms are deliberately different and must stay that way
+    (2026-08-21): an installment plan anchors next_installment_due to
+    TODAY, the moment of Secretariat confirmation, because a request can
+    sit pending for days or weeks and anchoring to the submission date
+    could make an installment read as overdue the moment it activates.
+    A lump-sum activation still uses the payment's own date.
+
+    KNOWN BOUNDARY: assigning payment.payment_status = "completed" and
+    calling save() directly bypasses this, because nothing observes that
+    transition. Every entry point the application actually uses goes
+    through Payment.mark_as_completed() or the admin, both of which call
+    this. Catching a raw field write would need a save() override or a
+    signal tracking the previous value -- deliberately not done.
+
+    completion_date is backfilled here if still unset: every other
+    caller reaches this through Payment.mark_as_completed(), which
+    already sets it, but PaymentAdmin.save_model() (the change-form path)
+    edits payment_status directly through a plain ModelForm and never
+    calls that method, so without this it would stay NULL for that path
+    alone (main, 2026-08-27).
+    """
+    tier = payment.membership_tier
+    if not tier:
+        return None
+
+    if not payment.completion_date:
+        payment.completion_date = timezone.now()
+        payment.save(update_fields=["completion_date"])
+
+    if payment.membership_id:
+        record_installment_payment(
+            payment.membership, payment.amount, payment_date=timezone.now().date()
+        )
+        return payment.membership
+
+    payment_date = payment.payment_date.date() if payment.payment_date else None
+    user = payment.alumni.user
+    membership = Membership.objects.filter(
+        user=user, tier=tier, status=Membership.Status.PENDING
+    ).order_by('-created_at').first()
+    if membership is None:
+        membership = Membership.objects.create(user=user, tier=tier)
+    # Same gap record_installment_payment() has its own fix for (see
+    # Membership.record_installment_payment's 2026-08-28 comment) --
+    # activate_membership()/.activate() never touch amount_paid or
+    # subscription_amount, so a lump-sum payment confirmed through this
+    # branch left both NULL/0 forever: no "Paid in Full" box
+    # (balance_due never reaches 0), and nothing counted in the revenue
+    # analytics (main, 2026-08-28).
+    membership.amount_paid = (membership.amount_paid or Decimal("0")) + payment.amount
+    membership.subscription_amount = membership.amount_paid
+    activate_membership(membership, payment_date=payment_date)
+    return membership
+
+
 def assign_membership_tier(user, tier, payment_frequency=Membership.PaymentFrequency.ONCE):
     """Create a new pending Membership row for `user` at `tier` -- the
     general-purpose door for a first-time grant, a renewal, or an upgrade
@@ -111,7 +182,7 @@ def renew_membership(user, payment_frequency=Membership.PaymentFrequency.ONCE):
     "renew what they already have," not "change tier." Raises if there's
     no current membership to read the tier from (a first-time grant is
     assign_membership_tier(), not this)."""
-    current = Membership.objects.current_for(user)
+    current = Membership.objects.current_active_for(user)
     if current is None:
         raise ValueError("No current membership to renew -- use assign_membership_tier() for a first-time grant.")
     return assign_membership_tier(user, current.tier, payment_frequency=payment_frequency)

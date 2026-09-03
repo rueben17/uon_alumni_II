@@ -4,7 +4,7 @@ import re
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -19,6 +19,7 @@ from reportlab.platypus import Image as RLImage, Paragraph, SimpleDocTemplate, S
 from apps.home.models import Department
 from apps.staff.forms import CompleteProfileForm
 from apps.staff.models import Employee, ResearchUnit, ServiceUnit
+from apps.user.mixins import EmployeeRequiredMixin, employee_required
 
 MOBILE_USER_AGENT_RE = re.compile(r"Mobi|Android|iPhone|iPad|iPod", re.IGNORECASE)
 
@@ -61,6 +62,7 @@ def _get_or_create_staff_employee(user):
     return _ensure_employee(user)
 
 
+@employee_required
 def staff_dashboard(request):
     return HttpResponse("Staff dashboard")
 
@@ -108,7 +110,7 @@ def staff_logout(request):
     return redirect(f"{scheme}://{settings.SUBDOMAIN_DOMAIN}{port}/")
 
 
-class EmployeeListView(LoginRequiredMixin, ListView):
+class EmployeeListView(EmployeeRequiredMixin, ListView):
     """
     Public staff directory — all active employees.
     """
@@ -231,7 +233,7 @@ class EmployeeListView(LoginRequiredMixin, ListView):
         return context
 
 
-class CompleteProfileView(LoginRequiredMixin, UpdateView):
+class CompleteProfileView(EmployeeRequiredMixin, UpdateView):
     """
     One-time onboarding. The adapter's completeness gate sends every
     incomplete login here; once the profile is complete, this view
@@ -264,7 +266,7 @@ class CompleteProfileView(LoginRequiredMixin, UpdateView):
         return response
 
 
-class ProfileUpdateView(LoginRequiredMixin, UpdateView):
+class ProfileUpdateView(EmployeeRequiredMixin, UpdateView):
     """
     Opt-in profile editing after onboarding. Always operates on the
     logged-in user's own record — no UUID in the URL, so identity
@@ -289,7 +291,7 @@ class ProfileUpdateView(LoginRequiredMixin, UpdateView):
         return response
 
 
-class ProfileDeleteView(LoginRequiredMixin, View):
+class ProfileDeleteView(EmployeeRequiredMixin, View):
     """
     Owner-only profile deletion with explicit confirmation.
     Deleting the Employee profile does not delete the User account.
@@ -314,7 +316,7 @@ class ProfileDeleteView(LoginRequiredMixin, View):
         return redirect(f"{scheme}://{settings.SUBDOMAIN_DOMAIN}{port}/")
 
 
-class EmployeeDetailView(DetailView):
+class EmployeeDetailView(EmployeeRequiredMixin, DetailView):
     model = Employee
     template_name = "staff/staff_detail.html"
     context_object_name = "employee"
@@ -373,11 +375,15 @@ class EmployeeDetailView(DetailView):
         return context
 
 
+@employee_required
 def staff_detail_fallback(request, uuid):
     """
     Stable UUID landing page. Reached when an employee's profile is
-    incomplete (get_absolute_url routes here) — including via QR
-    scans, which encode this URL precisely because it never changes.
+    incomplete (get_absolute_url routes here) -- no longer reachable
+    from an anonymous QR scan since verify_scan()'s employee branch
+    now renders staff_verify.html directly instead of redirecting here
+    (2026-08-21); still reached from the authenticated onboarding flow,
+    where login_required is a no-op (already signed in to get here).
     """
     employee = get_object_or_404(Employee, id=uuid)
 
@@ -395,8 +401,21 @@ def staff_detail_fallback(request, uuid):
     )
 
 
+@login_required
 def download_staff_qr_code(request, staff_slug, pk):
     employee = get_object_or_404(Employee, slug=staff_slug, id=pk)
+
+    # Owner OR admin (2026-08-21) -- deliberately NOT get_object_or_404(...,
+    # user=request.user) like the alumni sibling (download_alumni_qr_code):
+    # admins need to fetch any employee's badge, not just their own, so the
+    # object is fetched unfiltered above and authorized here instead. Same
+    # is_staff/is_superuser predicate apps.user.mixins._is_admin_user /
+    # StaffOrSuperuserRequiredMixin use (inlined, not imported -- that
+    # helper is private to apps.user and this is a plain FBV, not a CBV
+    # test_func). 404, not 403, to match the alumni sibling's existence-
+    # hiding behavior for a non-owner.
+    if request.user != employee.user and not (request.user.is_staff or request.user.is_superuser):
+        return HttpResponse("QR code not found", status=404)
 
     if not employee.qr_code_image:
         return HttpResponse("QR code not found", status=404)

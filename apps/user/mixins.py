@@ -1,6 +1,8 @@
 from functools import wraps
 
 from django.contrib.auth.mixins import UserPassesTestMixin
+from django.contrib.auth.views import redirect_to_login
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect
 from django.urls import reverse
 
@@ -19,6 +21,47 @@ class StaffOrSuperuserRequiredMixin(UserPassesTestMixin):
 
     def test_func(self):
         return _is_admin_user(self.request.user)
+
+
+def user_is_employee(user):
+    """Real UoN employee, not Django-admin staff -- deliberately a
+    different predicate from _is_admin_user above (2026-08-21 QA audit,
+    2-AUTH): the staff directory/detail pages are for any employee, not
+    just accounts with Django's is_staff/is_superuser flag, which would
+    lock out ordinary (non-admin) employees. `.employee` is the
+    OneToOneField's related_name (apps.staff.models.Employee.user)."""
+    return user.is_authenticated and hasattr(user, "employee")
+
+
+class EmployeeRequiredMixin(UserPassesTestMixin):
+    """Gate for UoN-employee-only views (e.g. the staff directory/detail
+    pages) -- same shape as StaffOrSuperuserRequiredMixin above, swapped
+    to user_is_employee. UserPassesTestMixin's real default behavior
+    (confirmed live against StaffOrSuperuserRequiredMixin during the QA
+    audit, not just the docstring above): anonymous -> redirect to
+    login (302); authenticated but test_func() False -> PermissionDenied
+    (403)."""
+
+    def test_func(self):
+        return user_is_employee(self.request.user)
+
+
+def employee_required(view_func):
+    """FBV decorator with the SAME two-tier behavior as
+    EmployeeRequiredMixin -- NOT django.contrib.auth.decorators
+    .user_passes_test, which redirects an authenticated non-employee
+    back to login too (indistinguishable from anonymous, not the 403
+    this needs to actually gate data the way the CBV mixin does)."""
+
+    @wraps(view_func)
+    def wrapped(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect_to_login(request.get_full_path())
+        if not user_is_employee(request.user):
+            raise PermissionDenied
+        return view_func(request, *args, **kwargs)
+
+    return wrapped
 
 
 class AdminRedirectMixin:

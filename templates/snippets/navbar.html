@@ -31,7 +31,7 @@
                                             <p class="font-semibold text-sm tracking-wider">View Personal Details</p>
                                             <span class="text-xs">See your profile as others see it.</span>
                                         </a>
-                                        <a href="{% url 'staff:profile_update' %}" class="px-1.5 py-1.5 transition hover:bg-[#38b6ff] hover:text-white cursor-pointer">
+                                        <a href="{% subdomain_url 'staff:profile_update' 'staff' %}" class="px-1.5 py-1.5 transition hover:bg-[#38b6ff] hover:text-white cursor-pointer">
                                             <p class="font-semibold text-sm tracking-wider">Update Personal Details</p>
                                             <span class="text-xs">View and update your information.</span>
                                         </a>
@@ -311,7 +311,7 @@
                                         <div x-show="profileOpen" x-collapse class="pl-4 space-y-1">
                                             {% if request.user.employee %}
                                                 <a href="{{ request.user.employee.get_absolute_url }}" class="block px-3 py-2 text-sm transition font-light hover:bg-[#38b6ff] hover:text-white cursor-pointer">View Personal Details</a>
-                                                <a href="{% url 'staff:profile_update' %}" class="block px-3 py-2 text-sm transition font-light hover:bg-[#38b6ff] hover:text-white cursor-pointer">Update Personal Details</a>
+                                                <a href="{% subdomain_url 'staff:profile_update' 'staff' %}" class="block px-3 py-2 text-sm transition font-light hover:bg-[#38b6ff] hover:text-white cursor-pointer">Update Personal Details</a>
                                             {% endif %}
                                             <a href="" class="block px-3 py-2 text-sm transition font-light hover:bg-[#38b6ff] hover:text-white cursor-pointer">Staff ID</a>
                                             <a href="" class="block px-3 py-2 text-sm transition font-light hover:bg-[#38b6ff] hover:text-white cursor-pointer">Employment Record</a>
