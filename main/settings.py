@@ -361,13 +361,30 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# WhiteNoise compresses and fingerprints static files for efficient serving.
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# STORAGES is the ONLY storage form Django reads from 5.1 onwards.
+# STATICFILES_STORAGE and DEFAULT_FILE_STORAGE used to live here and were
+# removed in 5.1 -- Django 5.2 ignores them silently, with no warning, so
+# Cloudinary was fully configured and never actually used and WhiteNoise's
+# static backend was inert. Deleted rather than left beside this dict:
+# dead settings that still read as authoritative are how that went
+# unnoticed. See docs/finding-L-storage-design-2026-09-03.md.
+#
+# staticfiles uses CompressedStaticFilesStorage, not the Manifest variant:
+# the manifest backend raises at template-render time for any {% static %}
+# reference missing from the manifest, so a skipped or failed collectstatic
+# becomes a 500 on every page using that asset. Compression now, hashing
+# as a later deliberate change.
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage'},
+}
 
 # Cloudinary handles user-uploaded media in production.
 # Falls back to local filesystem when CLOUDINARY_CLOUD_NAME is not set (local dev).
 if os.environ.get('CLOUDINARY_CLOUD_NAME'):
-    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    STORAGES['default'] = {
+        'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage',
+    }
     CLOUDINARY_STORAGE = {
         'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME', ''),
         'API_KEY': os.environ.get('CLOUDINARY_API_KEY', ''),
@@ -532,7 +549,9 @@ ALLOWED_STUDENT_LOGIN_DOMAINS = split_env_list(
 # development/testing. Set RESTRICT_GOOGLE_LOGIN_DOMAINS=False in .env to
 # allow any Google account onto staff/students too (main already does,
 # always).
-RESTRICT_GOOGLE_LOGIN_DOMAINS = os.getenv('RESTRICT_GOOGLE_LOGIN_DOMAINS', 'True') == 'True'
+RESTRICT_GOOGLE_LOGIN_DOMAINS = os.getenv(
+    'RESTRICT_GOOGLE_LOGIN_DOMAINS', 'True'
+).strip().lower() in ('true', '1', 'yes')
 
 # ----- Google provider -----
 

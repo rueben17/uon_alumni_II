@@ -22,6 +22,7 @@ Design decisions ratified 2026-08-08, built 2026-08-10:
     durable identifier per member.
 """
 from django.db import transaction
+from django.utils import timezone
 
 from apps.home.models import Membership
 
@@ -90,6 +91,54 @@ def record_installment_payment(membership, amount, payment_date=None):
         if first_activation:
             _close_out(_supersede_prior_active(membership))
         membership.record_installment_payment(amount, payment_date=payment_date)
+    return membership
+
+
+def confirm_payment(payment):
+    """Activate the membership a confirmed payment was for.
+
+    The activation half of what PaymentAdmin.mark_completed used to do
+    inline. It lives here so that every path which completes a payment --
+    the admin bulk action, the admin change form, a shell call, a future
+    gateway callback -- reaches the same one door, rather than only the
+    bulk action doing it (finding D).
+
+    Assumes the payment is already marked completed; it never touches
+    payment status itself. Returns the membership it activated, or None
+    when the payment carries no tier and there is nothing to apply.
+
+    The two date arms are deliberately different and must stay that way
+    (2026-08-21): an installment plan anchors next_installment_due to
+    TODAY, the moment of Secretariat confirmation, because a request can
+    sit pending for days or weeks and anchoring to the submission date
+    could make an installment read as overdue the moment it activates.
+    A lump-sum activation still uses the payment's own date.
+
+    KNOWN BOUNDARY: assigning payment.payment_status = "completed" and
+    calling save() directly bypasses this, because nothing observes that
+    transition. Every entry point the application actually uses goes
+    through Payment.mark_as_completed() or the admin, both of which call
+    this. Catching a raw field write would need a save() override or a
+    signal tracking the previous value -- deliberately not done.
+    """
+    tier = payment.membership_tier
+    if not tier:
+        return None
+
+    if payment.membership_id:
+        record_installment_payment(
+            payment.membership, payment.amount, payment_date=timezone.now().date()
+        )
+        return payment.membership
+
+    payment_date = payment.payment_date.date() if payment.payment_date else None
+    user = payment.alumni.user
+    membership = Membership.objects.filter(
+        user=user, tier=tier, status=Membership.Status.PENDING
+    ).order_by('-created_at').first()
+    if membership is None:
+        membership = Membership.objects.create(user=user, tier=tier)
+    activate_membership(membership, payment_date=payment_date)
     return membership
 
 
