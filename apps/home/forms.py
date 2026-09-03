@@ -543,3 +543,9 @@ class AlumniDigitalIDApplicationForm(TailwindStyledFormMixin, forms.ModelForm):
             "A clear, front-facing photo. Reviewed by the Secretariat before it appears on your Alumni Digital ID."
         )
         self.apply_tailwind_styling()
+
+    def clean_digital_id_photo(self):
+        photo = self.cleaned_data.get("digital_id_photo")
+        if photo and photo.size > 2 * 1024 * 1024:
+            raise forms.ValidationError("Photo must be 2 MB or smaller.")
+        return photo

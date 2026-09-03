@@ -2008,13 +2008,21 @@ class AlumniDigitalIDApplicationFormTests(TestCase):
     def test_a_real_image_is_accepted(self):
         """A genuine PNG, not a placeholder blob -- ImageField reads it
         back through PIL, as the QR-badge pass found the hard way.
-
-        FINDING J, noted: nothing here limits size or dimensions.
         """
         upload = _Upload("id.png", _png_bytes(), content_type="image/png")
         form = AlumniDigitalIDApplicationForm(data={}, files={"digital_id_photo": upload})
 
         self.assertTrue(form.is_valid(), form.errors)
+
+    def test_a_photo_over_2mb_is_rejected(self):
+        """FINDING J -- a genuine PNG (PIL still verifies it; padding
+        after IEND is ignored) padded past the 2 MB cap."""
+        oversized = _png_bytes() + (b"\0" * (2 * 1024 * 1024))
+        upload = _Upload("id.png", oversized, content_type="image/png")
+        form = AlumniDigitalIDApplicationForm(data={}, files={"digital_id_photo": upload})
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("2 MB", str(form.errors["digital_id_photo"]))
 
 
 class AlumniRegisterViewFormKwargsTests(TestCase):
