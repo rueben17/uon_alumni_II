@@ -23,7 +23,20 @@ User = get_user_model()
 # dir for the whole module so test runs never leak files into the
 # real media/ directory.
 _test_media_root = tempfile.mkdtemp(prefix="qr_manager_test_media_")
-_media_root_override = override_settings(MEDIA_ROOT=_test_media_root)
+# Storage is overridden alongside MEDIA_ROOT, not instead of it: once
+# STORAGES['default'] is Cloudinary (main/settings.py), MEDIA_ROOT alone
+# stops isolating anything, because it is a FileSystemStorage concept --
+# these tests would upload to the live account instead. override_settings
+# replaces the whole STORAGES dict, so BOTH keys must be given or
+# staticfiles regresses to Django's default.
+LOCAL_STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}
+
+_media_root_override = override_settings(
+    MEDIA_ROOT=_test_media_root, STORAGES=LOCAL_STORAGES
+)
 
 
 def setUpModule():
@@ -1240,3 +1253,42 @@ class SupervisorUnitTests(TestCase):
         with self.subTest("a non-supervisor matches nothing"):
             outsider = _qr_user("outsider@example.com")
             self.assertIs(Supervisor.unit_q_for(outsider), False)
+
+
+class TestStorageIsolationTests(TestCase):
+    """The precondition for finding L's settings change.
+
+    main/settings.py makes Cloudinary the default storage whenever
+    CLOUDINARY_CLOUD_NAME is set -- which it is, from .env. MEDIA_ROOT is
+    a FileSystemStorage concept, so on its own it would stop isolating
+    file writes and this module's badge-generation tests would upload to
+    the live account instead. Silently: they would still pass.
+
+    The module-level override sets STORAGES as well. This asserts that it
+    actually took effect, rather than inferring it from the absence of
+    errors.
+    """
+
+    def test_writes_stay_on_the_local_filesystem(self):
+        from django.conf import settings as _s
+        from django.core.files.storage import FileSystemStorage, default_storage
+
+        self.assertIsInstance(default_storage, FileSystemStorage)
+        self.assertEqual(
+            _s.STORAGES["default"]["BACKEND"],
+            "django.core.files.storage.FileSystemStorage",
+        )
+        self.assertEqual(str(_s.MEDIA_ROOT), _test_media_root)
+
+    def test_a_generated_badge_lands_in_the_temp_directory(self):
+        """End to end: the file is on disk under the throwaway root, not
+        in a remote bucket."""
+        import os as _os
+
+        employee = _qr_employee("isolation@example.com")
+        code = QRCode.objects.create(employee=employee)
+        code.generate_qr()
+
+        employee.refresh_from_db()
+        written = _os.path.join(_test_media_root, employee.qr_code_image.name)
+        self.assertTrue(_os.path.exists(written))

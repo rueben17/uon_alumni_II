@@ -586,7 +586,16 @@ class AlumniProfileMembershipDisplayTests(_ActivePlusPendingMixin, TestCase):
         self.assertNotContains(resp, "Awaiting Confirmation")
 
 
-@override_settings(MEDIA_ROOT=_qa500_media_root)
+# See LOCAL_STORAGES' own note in apps/qr_manager/tests.py: MEDIA_ROOT
+# alone no longer isolates file writes once Cloudinary is the default
+# storage, so every media override sets STORAGES too, with both keys.
+LOCAL_STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}
+
+
+@override_settings(MEDIA_ROOT=_qa500_media_root, STORAGES=LOCAL_STORAGES)
 class AlumniQrBadgePdfTierTests(_ActivePlusPendingMixin, TestCase):
     """Site 2 -- apps/home/views.py:683, the printed QR-badge PDF.
 
@@ -1995,7 +2004,7 @@ class ProfileClaimCodeFormTests(TestCase):
 # ── AlumniDigitalIDApplicationForm (2) ───────────────────────────────
 
 
-@override_settings(MEDIA_ROOT=_forms_media_root)
+@override_settings(MEDIA_ROOT=_forms_media_root, STORAGES=LOCAL_STORAGES)
 class AlumniDigitalIDApplicationFormTests(TestCase):
     """forms.py:512-530 -- one editable field, made required in __init__."""
 
