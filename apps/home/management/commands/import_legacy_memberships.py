@@ -34,6 +34,7 @@ import openpyxl
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.utils import timezone
 
 from apps.home.models import (
     AlumniEmploymentRecord,
@@ -43,6 +44,7 @@ from apps.home.models import (
     Faculty,
     Membership,
     MembershipTier,
+    Payment,
     Qualification,
 )
 from apps.user.models import Gender, Honorific, UserProfile
@@ -219,7 +221,7 @@ class Command(BaseCommand):
         if nationality_raw and nationality_raw not in NATIONALITY_MAP:
             self.unmapped["Nationality"].add(nationality_raw)
 
-        user, created = User.objects.get_or_create(email=email)
+        user, created = self._resolve_user(email, s("IdNo"))
         self.stats["created" if created else "updated"] += 1
 
         phone = self._safe_phone(s("Telephone"))
@@ -316,12 +318,31 @@ class Command(BaseCommand):
 
         mem_id = s("MemId")
         status_raw = s("Subscription").upper()
-        started_on = row.get("JoinDate")
-        started_on = started_on.date() if hasattr(started_on, "date") else None
+        joined_raw = row.get("JoinDate")
+        started_on = joined_raw.date() if hasattr(joined_raw, "date") else None
+        # openpyxl reads the cell as a NAIVE datetime; USE_TZ=True (see
+        # main/settings.py) means Payment.payment_date/completion_date
+        # below want an aware one, or Django warns on every single row.
+        if joined_raw is not None and timezone.is_naive(joined_raw):
+            joined_raw = timezone.make_aware(joined_raw)
 
+        # Full renewal history (2026-09-04): EVERY legacy row is its own
+        # Membership now, not collapsed onto one row per (user, tier) --
+        # a member who renewed the same tier across several years used to
+        # have every renewal after the first silently dropped here. The
+        # dedup key still has to protect a re-run of this command from
+        # duplicating everything: MemId is the natural one when present
+        # (it already uniquely names one registration event); the rows
+        # that lack it fall back to (user, tier, started_on), which is as
+        # close to "the same registration" as the source data can say.
+        lookup = {"membership_number": mem_id} if mem_id else {
+            "user": user, "tier": tier, "started_on": started_on,
+        }
         membership, mem_created = Membership.objects.get_or_create(
-            user=user, tier=tier,
+            **lookup,
             defaults={
+                "user": user,
+                "tier": tier,
                 "membership_number": mem_id or None,
                 "status": STATUS_MAP.get(status_raw, Membership.Status.EXPIRED),
                 "is_lifetime": tier.is_lifetime(),
@@ -330,8 +351,35 @@ class Command(BaseCommand):
                 "legacy_signed": s("Signed").lower() in TRUE_STRINGS,
             },
         )
-        if not mem_created:
-            return  # already imported this user+tier combo -- idempotent, leave it alone
+        self._resupersede(user)
+
+        # Backfilled Payment (2026-09-04) -- what actually makes the
+        # renewal show up in the existing Payment History panel (admin
+        # inline, member's own profile, and the CSV export) without any
+        # new UI. Deduped on `membership` itself: each Membership row
+        # created above gets exactly one. The register never recorded an
+        # amount, only tier and status -- today's tier fee is used as a
+        # labelled estimate (Association decision, 2026-09-04), not a
+        # claim about what was actually paid.
+        Payment.objects.get_or_create(
+            membership=membership,
+            defaults={
+                "alumni": alumni,
+                "membership_tier": tier,
+                "amount": tier.fee,
+                "payment_method": "legacy_import",
+                "payment_status": "completed",
+                "payment_date": joined_raw or timezone.now(),
+                "completion_date": joined_raw or None,
+                "notes": (
+                    "Backfilled from the legacy membership register "
+                    "(2026-09-04). The register recorded tier and status "
+                    "per renewal but not an amount -- this figure is "
+                    "today's tier fee used as an estimate, not a "
+                    "confirmed historical payment."
+                ),
+            },
+        )
 
     # ------------------------------------------------------------------
     # Resolvers
@@ -389,6 +437,59 @@ class Command(BaseCommand):
         if match is None:
             self.unmapped["Course"].add(course_text)
         return match
+
+    def _resupersede(self, user):
+        """Re-derive which of THIS user's Memberships (across every tier,
+        matching the live system's own cross-tier supersession in
+        services._supersede_prior_active -- a tier upgrade supersedes
+        the prior tier too, not just a same-tier renewal) is the current
+        one: the latest by started_on, ties broken by pk (creation order)
+        so the result is deterministic even when the register isn't
+        strictly chronological. Everything else becomes SUPERSEDED.
+
+        Runs after every row for this user, not just the last one --
+        rows are not guaranteed to arrive in date order (the register is
+        hand-maintained), so a person's true latest membership might not
+        be the most recently processed row. Idempotent: a status already
+        correct is left alone rather than re-saved.
+        """
+        memberships = list(Membership.objects.filter(user=user))
+        if not memberships:
+            return
+        memberships.sort(key=lambda m: (m.started_on or date.min, m.pk))
+        current = memberships[-1]
+        for m in memberships:
+            target = m.status if m.pk == current.pk else Membership.Status.SUPERSEDED
+            if m.status != target:
+                m.status = target
+                m.save(update_fields=["status"])
+
+    def _resolve_user(self, email, national_id, row_number=None):
+        """National ID, not email, is the real identity anchor for this
+        register (2026-09-04). Confirmed by hand against every collision
+        the old National-ID unique constraint reported: the same person,
+        renewing under a NEW email each time (e.g. row 2853 vs 4154, same
+        national ID, different email, 2014 vs 2022) -- not a data error.
+        Matching on email alone, as before, created a second User for
+        every such renewal instead of recognising the same person.
+
+        Falls back to plain get_or_create-by-email when there is no
+        national_id match -- the common case, and also what protects a
+        genuinely blank/duplicated IdNo column from merging unrelated
+        people.
+        """
+        if national_id:
+            existing_profile = UserProfile.objects.filter(national_id=national_id).first()
+            if existing_profile:
+                user = existing_profile.user
+                if user.email != email:
+                    from allauth.account.models import EmailAddress
+                    EmailAddress.objects.get_or_create(
+                        user=user, email=email, defaults={"verified": False, "primary": False},
+                    )
+                return user, False
+
+        return User.objects.get_or_create(email=email)
 
     def _assign_phone_if_unclaimed(self, user, phone, row_number):
         """User.phone is unique=True, but the legacy register has no such

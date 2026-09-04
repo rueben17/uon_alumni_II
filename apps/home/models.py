@@ -1685,6 +1685,11 @@ class Payment(models.Model):
         ('mpesa', 'M-Pesa'),
         ('credit_card', 'Credit/Debit Card'),
         ('bank_transfer', 'Bank Transfer'),
+        # Legacy register backfill only (2026-09-04) -- the old register
+        # never recorded HOW a renewal was paid, only that it was. Never
+        # offered on any live payment form; claiming mpesa/card/bank_transfer
+        # for these would be inventing a fact the source data doesn't have.
+        ('legacy_import', 'Legacy Import (backfilled)'),
     ]
     
     PAYMENT_STATUS = [
