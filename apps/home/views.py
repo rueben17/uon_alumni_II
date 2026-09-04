@@ -1520,6 +1520,16 @@ class ProfileClaimVerifyView(View):
         claim.verified_at = timezone.now()
         claim.save(update_fields=["status", "verified_at"])
 
+        # A correct code on the phone channel is a real proof of control
+        # over that number (2026-09-04) -- User.phone_verified exists
+        # for exactly this and was otherwise only ever going to be set by
+        # 0.4's not-yet-built phone-login backend. Not gated on anything
+        # today (admin display/filter only), so setting it here is a
+        # pure completeness fix, not a behaviour change.
+        if claim.channel == ProfileClaimVerification.Channel.PHONE and not claim.user.phone_verified:
+            claim.user.phone_verified = True
+            claim.user.save(update_fields=["phone_verified"])
+
         request.session.pop("claim_pending_id", None)
         request.session["claim_verification_id"] = str(claim.pk)
         request.session["claim_verified_expires"] = (timezone.now() + timedelta(minutes=20)).isoformat()

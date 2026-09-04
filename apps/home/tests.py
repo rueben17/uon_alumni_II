@@ -2128,6 +2128,49 @@ class SendProfileClaimOtpPhoneTaskTests(TestCase):
         mock_send.assert_not_called()
 
 
+class ProfileClaimVerifyPhoneVerifiedTests(TestCase):
+    """views.py's ProfileClaimVerifyView -- a correct code on the phone
+    channel is real proof of control over that number, so
+    User.phone_verified gets set (2026-09-04)."""
+
+    def _pending_claim(self, user, channel):
+        claim = ProfileClaimVerification.objects.create(user=user, channel=channel)
+        claim.set_code("483920")
+        claim.save(update_fields=["code_hash"])
+        return claim
+
+    def test_a_correct_phone_code_marks_the_number_verified(self):
+        user = _make_user("phoneverify@example.com", phone="+254712345678")
+        self.assertFalse(user.phone_verified)
+        claim = self._pending_claim(user, ProfileClaimVerification.Channel.PHONE)
+
+        session = self.client.session
+        session["claim_pending_id"] = str(claim.pk)
+        session.save()
+        self.client.post(
+            reverse("home:uon_alumni_claim_verify"), {"code": "483920"}, HTTP_HOST=PUBLIC_HOST,
+        )
+
+        user.refresh_from_db()
+        self.assertTrue(user.phone_verified)
+
+    def test_the_email_channel_does_not_touch_it(self):
+        """Only proves what was actually verified -- an email-channel
+        code says nothing about the phone on file."""
+        user = _make_user("emailverify@example.com", phone="+254712345678")
+        claim = self._pending_claim(user, ProfileClaimVerification.Channel.EMAIL)
+
+        session = self.client.session
+        session["claim_pending_id"] = str(claim.pk)
+        session.save()
+        self.client.post(
+            reverse("home:uon_alumni_claim_verify"), {"code": "483920"}, HTTP_HOST=PUBLIC_HOST,
+        )
+
+        user.refresh_from_db()
+        self.assertFalse(user.phone_verified)
+
+
 # ── AlumniDigitalIDApplicationForm (2) ───────────────────────────────
 
 
