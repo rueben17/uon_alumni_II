@@ -245,9 +245,17 @@ see C.1/C.5 below; this section tracks the schema only.)
 ### 0.4 Auth: phone-as-login
 - [ ] Custom auth backend resolving a submitted phone (via
       `try_normalize_phone`) → User. Email stays usable too.
-- [ ] OTP verification for phone (Africa's Talking or chosen provider). This is
-      *transactional* SMS — foundational, not the later marketing build.
-      Sets `User.phone_verified`.
+- [ ] OTP verification for phone. **Decided 2026-09-04: WhatsApp (Meta
+      Business Cloud API), not SMS.** Kenya's "Authentication" template
+      category runs ~KES 0.50/message delivered — cheaper than a typical
+      SMS gateway (e.g. Africa's Talking), and `apps/home/sms.py`'s
+      `SmsGateway` interface already anticipated a swap like this
+      ("nothing calling `send_sms()` needs to change"). Two real
+      dependencies before this can send anything, though: (1) a verified
+      Meta Business/WhatsApp Business Account, and (2) Meta's approval of
+      the Authentication template itself — neither is instant. The cost
+      conversation with the Association is smaller now, but still has to
+      happen. Sets `User.phone_verified`.
 - [ ] **Identifier-change flow:** new SIM → login handle *and* (future) M-Pesa
       key both move. Deliberate "change verified identifier" flow, which must
       clear `phone_verified` until the new number is confirmed.
@@ -311,9 +319,12 @@ This is the loop that must be demonstrable before payments exist.
 - [x] Self-service signup → creates `User` + `UserProfile` + `AlumniProfile`
       (`AlumniRegisterView`). Registration does not activate membership.
 - [ ] Phone required + verified at signup (rides 0.4's OTP). **On hold
-      2026-08-07 — deliberate, not forgotten:** OTP means a paid SMS gateway,
-      and that cost conversation hasn't happened with the Association yet.
-      Revisit once 0.4 itself is prioritized.
+      2026-08-07 — deliberate, not forgotten; provider decided 2026-09-04
+      (WhatsApp/Meta, see 0.4) but not yet built.** Motivating case: the
+      legacy register import found 396 people with a phone on file but no
+      email at all — unreachable by this app today (Google-OAuth-only
+      login), holdable as phone-only records once this exists. Revisit
+      once 0.4 itself is prioritized.
 - [x] **BLOCKER resolved 2026-08-07.** `Article` rows seeded for Privacy
       Policy and Cookie Policy (`seed_legal_pages` management command,
       DPA-2019-aligned draft — covers the QR scan-log purpose/retention
@@ -340,8 +351,9 @@ This is the loop that must be demonstrable before payments exist.
       Satisfies the OTP-send throttling requirement above (DB-backed:
       8 searches / 15 min per IP, 5 wrong-code attempts per claim) for the
       email channel; `channel=phone` exists on the model but isn't wired to
-      a sender yet. Homepage hero's "Update Your Details" CTA still needs
-      pointing at `home:uon_alumni_claim_search` (currently `#`).
+      a sender yet — rides the same WhatsApp decision as 0.4 once built.
+      Homepage hero's "Update Your Details" CTA still needs pointing at
+      `home:uon_alumni_claim_search` (currently `#`).
 
 ### 1.2 Member dashboard (your own) — DONE, already built earlier this session
 - [x] Self-resolved from `request.user` (no pk in URL) — `AlumniProfileDetailView`
