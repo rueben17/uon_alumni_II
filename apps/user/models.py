@@ -195,7 +195,13 @@ class UserProfile(models.Model):
     alt_phone = PhoneNumberField(region="KE", blank=True)
     postal_address = models.CharField(max_length=200, blank=True)
     postal_code = models.CharField(max_length=20, blank=True)
-    city = models.CharField(max_length=100, blank=True)
+    # 255, not 100 (2026-09-04) -- the legacy register's Town column
+    # isn't reliably just a town: one real row is a 206-character
+    # department/institute address ("C/O: EAST AFRICAN KIDNEY INSTITUTE
+    # (EAKI), FACULTY OF HEALTH SCIENCES..."), which is what surfaced
+    # this at import time. 255 clears every value actually in that file
+    # (the next-longest is 77 characters) with headroom to spare.
+    city = models.CharField(max_length=255, blank=True)
 
     locale = models.CharField(max_length=10, blank=True)
 
