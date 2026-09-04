@@ -34,6 +34,7 @@ from django.apps import apps
 from django.conf import settings
 from django.core.files import File
 from django.core.files.storage import default_storage
+from django.db import transaction
 from django.db.models import FileField
 from django.core.management.base import BaseCommand, CommandError
 
@@ -89,7 +90,7 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout.write(self.style.WARNING("DRY RUN -- nothing will be written."))
 
-        moved = skipped_present = skipped_missing = 0
+        moved = skipped_present = skipped_missing = errors = 0
 
         for model, field in self._fields_to_migrate(options["model_label"]):
             queryset = model._default_manager.exclude(
@@ -123,19 +124,51 @@ class Command(BaseCommand):
                     )
                     continue
 
-                with local_path.open("rb") as handle:
-                    # save() writes through the field's storage (now the
-                    # configured default) and updates the stored name.
-                    # The local file is left exactly where it is.
-                    file_field.save(local_path.name, File(handle), save=True)
+                # default_storage.save(), NOT file_field.save() (2026-09-04,
+                # caught by a real run before it reached production):
+                # FieldFile.save() always re-derives the name through the
+                # field's generate_filename()/upload_to, which reapplies a
+                # %Y/%m/%d-style pattern using TODAY's date -- it does NOT
+                # preserve the original `name` passed in. A live attempt
+                # relanded Banner.top_banner under 2026/09/04 instead of its
+                # real 2026/08/19 path, with a Cloudinary-appended random
+                # suffix on top, defeating the entire point of this command.
+                # It also runs the field's own save-time side effects (e.g.
+                # Banner.top_banner's ResizedImageField re-resizing an image
+                # that was already sized correctly on its original upload) --
+                # unwanted for a pure "move the bytes, repoint the row"
+                # operation. default_storage.save(name, content) has neither
+                # problem: Storage.save() only renames on an actual naming
+                # collision (already ruled out by the exists() check above),
+                # and it skips every field-specific save-time hook entirely.
+                #
+                # Wrapped per-instance in its own transaction, and the whole
+                # write in a try/except: one bad row (the trigger for this
+                # fix was a DataError on the very next field) must be logged
+                # and skipped, not crash the entire run partway through --
+                # same reasoning as apps/home/management/commands/
+                # import_legacy_memberships.py's per-row isolation.
+                try:
+                    with transaction.atomic():
+                        with local_path.open("rb") as handle:
+                            saved_name = default_storage.save(name, File(handle))
+                        setattr(instance, field.name, saved_name)
+                        instance.save(update_fields=[field.name])
+                except Exception as exc:  # noqa: BLE001 -- one bad row must not abort the batch
+                    errors += 1
+                    self.stdout.write(self.style.ERROR(
+                        f"  error: {model.__name__}.{field.name} #{instance.pk} -> {name}: {exc}"
+                    ))
+                    continue
 
                 moved += 1
                 self.stdout.write(
-                    f"  moved: {model.__name__}.{field.name} #{instance.pk} -> {file_field.name}"
+                    f"  moved: {model.__name__}.{field.name} #{instance.pk} -> {saved_name}"
                 )
 
         verb = "would move" if dry_run else "moved"
         self.stdout.write(self.style.SUCCESS(
             f"Done: {moved} file(s) {verb}, {skipped_present} already present, "
-            f"{skipped_missing} missing on disk. No local file was deleted."
+            f"{skipped_missing} missing on disk, {errors} error(s). "
+            "No local file was deleted."
         ))

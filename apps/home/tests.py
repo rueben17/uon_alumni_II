@@ -2425,13 +2425,34 @@ class AlumniRegisterViewFormKwargsTests(TestCase):
         self.assertTrue(kwargs["instance"]._state.adding)
 
 
+# Genuinely separate from _forms_media_root (2026-09-04) -- LOCAL_STORAGES'
+# default FileSystemStorage has no explicit location, so it falls back to
+# MEDIA_ROOT, meaning the rest of this class's local storage and its
+# MEDIA_ROOT are the SAME directory. Fine for the dry-run/idempotency
+# tests, but wrong for the two commit-path tests below: a file dropped
+# straight onto MEDIA_ROOT would already "exist" in target storage too,
+# collapsing exactly the not-yet-migrated scenario they exist to test.
+_target_storage_root = tempfile.mkdtemp(prefix="home_target_storage_")
+_TARGET_STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "OPTIONS": {"location": _target_storage_root},
+    },
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}
+
+
 @override_settings(MEDIA_ROOT=_forms_media_root, STORAGES=LOCAL_STORAGES)
 class MigrateMediaCommandTests(TestCase):
     """apps/home/management/commands/migrate_media_to_cloudinary.py.
 
-    Exercised in --dry-run against local filesystem storage, so no
-    Cloudinary call is possible. The real run is a production-host step
-    (docs/finding-L-runbook-2026-09-03.md), not something a test does.
+    Most of this class exercises --dry-run; the two tests at the bottom
+    exercise a REAL write (no --dry-run) against LOCAL_STORAGES'
+    FileSystemStorage, which is what should have caught the 2026-09-04
+    bug before it ever reached a real run: file_field.save() silently
+    regenerating a brand new, wrong path instead of preserving the
+    original one. Still no Cloudinary call is possible either way --
+    LOCAL_STORAGES never points there.
     """
 
     def _banner_with_image(self):
@@ -2501,3 +2522,69 @@ class MigrateMediaCommandTests(TestCase):
         )
 
         self.assertIn(("home", "Publication", "file"), EXCLUDED_FIELDS)
+
+    def _preexisting_local_file(self, name):
+        """Simulates the REAL scenario a live run hits: a file already
+        sitting under MEDIA_ROOT at a specific path (from before the
+        STORAGES fix), with nothing yet in the TARGET storage under that
+        name. _banner_with_image() above does NOT simulate this -- it
+        writes through .save() into the very storage under test, so the
+        idempotency check always short-circuits before the real write
+        path this pair of tests exists to exercise. Needs a target
+        storage root that is genuinely different from MEDIA_ROOT (see
+        _TARGET_STORAGES below) -- with the two pointed at the same
+        directory, as LOCAL_STORAGES does for the rest of this class,
+        writing straight to MEDIA_ROOT also means the file already
+        "exists" in target storage, which defeats the entire point."""
+        path = Path(_forms_media_root, name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(_png_bytes())
+
+    @override_settings(STORAGES=_TARGET_STORAGES)
+    def test_commit_preserves_the_original_name_not_todays_date(self):
+        """The regression this whole fix was for (2026-09-04): a live run
+        against a real Banner row relanded it under TODAY's upload_to
+        date instead of its real, already-correct stored path, because
+        file_field.save() re-derives the name through the field's
+        generate_filename() regardless of what name is passed in --
+        default_storage.save(name, ...) must not do that.
+        """
+        from apps.home.models import Banner
+
+        original_name = "banner/logo/2020/01/01/already_here.png"
+        self._preexisting_local_file(original_name)
+        banner = Banner.objects.create()
+        banner.logo.name = original_name
+        banner.save(update_fields=["logo"])
+
+        output = self._run(model_label="home.Banner")
+
+        self.assertIn("1 file(s) moved", output)
+        banner.refresh_from_db()
+        self.assertEqual(banner.logo.name, original_name)
+        self.assertTrue(Path(_target_storage_root, original_name).exists())
+
+    @override_settings(STORAGES=_TARGET_STORAGES)
+    def test_a_write_failure_is_logged_and_skipped_not_fatal(self):
+        """One bad row (the trigger for this fix was a DataError from a
+        mangled path) must not crash the run -- logged and counted
+        instead, same reasoning as import_legacy_memberships.py's
+        per-row isolation."""
+        from apps.home.models import Banner
+
+        original_name = "banner/logo/2020/01/01/breaks.png"
+        self._preexisting_local_file(original_name)
+        banner = Banner.objects.create()
+        banner.logo.name = original_name
+        banner.save(update_fields=["logo"])
+
+        with mock.patch(
+            "apps.home.management.commands.migrate_media_to_cloudinary.default_storage.save",
+            side_effect=RuntimeError("simulated storage failure"),
+        ):
+            output = self._run(model_label="home.Banner")
+
+        self.assertIn("error:", output)
+        self.assertIn("1 error(s)", output)
+        banner.refresh_from_db()
+        self.assertEqual(banner.logo.name, original_name)  # unchanged, not half-written
