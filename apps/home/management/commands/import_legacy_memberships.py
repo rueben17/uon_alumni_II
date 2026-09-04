@@ -138,24 +138,40 @@ class Command(BaseCommand):
         }
         self.stats = {"created": 0, "updated": 0, "skipped_no_email": 0, "errors": 0}
         self.error_rows = []
+        self.phone_conflicts = []
 
         rows = list(self._read_rows(file_path))
         self.stdout.write(f"Read {len(rows)} data row(s) from {file_path}")
 
         with transaction.atomic():
-            sp = transaction.savepoint()
             for i, row in enumerate(rows, start=2):  # row 1 is the header
+                # Each row gets its OWN nested atomic() (2026-09-04), NOT
+                # the raw transaction.savepoint()/savepoint_rollback() API
+                # this used to call directly. Those low-level calls don't
+                # reset the connection's needs_rollback flag the way a
+                # nested `with transaction.atomic():` does -- so on a
+                # database-level error (e.g. IntegrityError) the raw form
+                # left the connection marked broken, and EVERY row after
+                # the first such failure then failed too, with a confusing
+                # TransactionManagementError on the very next query
+                # (confirmed: it broke even the final savepoint_rollback()
+                # below, crashing the whole dry run instead of finishing
+                # with a report). Nested atomic() is what Django's own
+                # docs recommend for exactly this reason.
                 try:
-                    self._import_row(row, row_number=i)
+                    with transaction.atomic():
+                        self._import_row(row, row_number=i)
                 except Exception as exc:  # noqa: BLE001 -- one bad row must not abort the batch
                     self.stats["errors"] += 1
                     self.error_rows.append((i, str(exc)))
 
             if options["commit"]:
-                transaction.savepoint_commit(sp)
                 self.stdout.write(self.style.WARNING("--commit passed: changes WRITTEN."))
             else:
-                transaction.savepoint_rollback(sp)
+                # set_rollback(True), not a raw savepoint call -- forces
+                # THIS atomic() block to roll back on exit via Django's own
+                # tracking, same reasoning as above.
+                transaction.set_rollback(True)
                 self.stdout.write(self.style.WARNING("Dry run (no --commit): all changes rolled back."))
 
         self._print_report()
@@ -207,8 +223,7 @@ class Command(BaseCommand):
         self.stats["created" if created else "updated"] += 1
 
         phone = self._safe_phone(s("Telephone"))
-        if phone:
-            user.phone = phone
+        self._assign_phone_if_unclaimed(user, phone, row_number)
         user.save()
 
         profile, _ = UserProfile.objects.get_or_create(user=user)
@@ -375,6 +390,24 @@ class Command(BaseCommand):
             self.unmapped["Course"].add(course_text)
         return match
 
+    def _assign_phone_if_unclaimed(self, user, phone, row_number):
+        """User.phone is unique=True, but the legacy register has no such
+        guarantee -- two different real people can share an office
+        landline (2026-09-04). A member's own mobile is what they'd
+        actually search on to find their profile, not this historical
+        field, so treat it as best-effort: skip and log the conflict
+        rather than fail the whole row over it. Checked proactively
+        (not left to the database) so a collision reads as one line in
+        the report, not an IntegrityError.
+        """
+        if not phone:
+            return
+        holder = User.objects.filter(phone=phone).exclude(pk=user.pk).first()
+        if holder:
+            self.phone_conflicts.append((row_number, phone, holder.email))
+            return
+        user.phone = phone
+
     def _safe_phone(self, value):
         if not value:
             return None
@@ -403,6 +436,15 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(f"\n{len(self.error_rows)} row-level issue(s):"))
             for row_number, msg in self.error_rows:
                 self.stdout.write(f"  row {row_number}: {msg}")
+
+        if self.phone_conflicts:
+            self.stdout.write(self.style.WARNING(
+                f"\n{len(self.phone_conflicts)} phone number(s) already claimed by another "
+                "account -- left blank on the row below rather than failing it. Likely a "
+                "shared office line; resolve by hand if it's actually the same person:"
+            ))
+            for row_number, phone, holder_email in self.phone_conflicts:
+                self.stdout.write(f"  row {row_number}: {phone} already on {holder_email}")
 
         any_unmapped = any(self.unmapped.values())
         if any_unmapped:
