@@ -244,18 +244,25 @@ see C.1/C.5 below; this section tracks the schema only.)
 
 ### 0.4 Auth: phone-as-login
 - [ ] Custom auth backend resolving a submitted phone (via
-      `try_normalize_phone`) → User. Email stays usable too.
-- [ ] OTP verification for phone. **Decided 2026-09-04: WhatsApp (Meta
+      `try_normalize_phone`) → User. Email stays usable too. **Still not
+      built** — a real alternate login path (type a phone on the LOGIN
+      page itself, no Google) is a different, bigger thing than 1.1's
+      account-recovery use of the phone channel below, which only ever
+      ends in signing in with Google. Every existing User row already
+      has a required, unique email, so this backend isn't needed for
+      access recovery — only for someone who'd rather never touch Google
+      at all.
+- [x] **The OTP-SENDING mechanism is real (2026-09-04): WhatsApp (Meta
       Business Cloud API), not SMS.** Kenya's "Authentication" template
       category runs ~KES 0.50/message delivered — cheaper than a typical
-      SMS gateway (e.g. Africa's Talking), and `apps/home/sms.py`'s
-      `SmsGateway` interface already anticipated a swap like this
-      ("nothing calling `send_sms()` needs to change"). Two real
-      dependencies before this can send anything, though: (1) a verified
-      Meta Business/WhatsApp Business Account, and (2) Meta's approval of
-      the Authentication template itself — neither is instant. The cost
-      conversation with the Association is smaller now, but still has to
-      happen. Sets `User.phone_verified`.
+      SMS gateway (e.g. Africa's Talking). `apps/home/sms.py`'s
+      `WhatsAppGateway` is wired in as the default gateway and used by
+      1.1's claim flow below — still a logging stub, though, not a real
+      send: (1) a verified Meta Business/WhatsApp Business Account and
+      (2) Meta's approval of the Authentication template itself don't
+      exist yet, and the Association cost conversation (smaller now,
+      but still real) hasn't happened. `User.phone_verified` is NOT set
+      by this — that's specific to the not-yet-built backend above.
 - [ ] **Identifier-change flow:** new SIM → login handle *and* (future) M-Pesa
       key both move. Deliberate "change verified identifier" flow, which must
       clear `phone_verified` until the new number is confirmed.
@@ -350,10 +357,22 @@ This is the loop that must be demonstrable before payments exist.
       both login templates ("Don't remember which email you used?").
       Satisfies the OTP-send throttling requirement above (DB-backed:
       8 searches / 15 min per IP, 5 wrong-code attempts per claim) for the
-      email channel; `channel=phone` exists on the model but isn't wired to
-      a sender yet — rides the same WhatsApp decision as 0.4 once built.
+      email channel.
       Homepage hero's "Update Your Details" CTA still needs pointing at
       `home:uon_alumni_claim_search` (currently `#`).
+- [x] **[2026-09-04] Phone channel shipped too**, on the same flow above --
+      `channel=phone` now sends via `WhatsAppGateway`
+      (`apps/home/tasks.py`'s `send_profile_claim_otp_phone`). A visitor
+      with both email and phone on file picks which one to receive the
+      code on (radio choice, shown only when both exist); the choice is
+      re-validated server-side against the real record, never trusted
+      from the client. `User.phone_verified` gets set on a successful
+      phone-channel code -- real proof of control over that number, and
+      the field otherwise had no writer at all. NOT the same thing as
+      0.4's still-unbuilt phone-as-login backend: this flow still ends in
+      signing in with Google, it just no longer requires reaching the
+      email inbox on file to get there. The underlying send is still a
+      logging stub (see 0.4) until the Meta side is real.
 
 ### 1.2 Member dashboard (your own) — DONE, already built earlier this session
 - [x] Self-resolved from `request.user` (no pk in URL) — `AlumniProfileDetailView`
