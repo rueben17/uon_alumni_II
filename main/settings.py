@@ -333,12 +333,14 @@ DEFAULT_FROM_EMAIL = 'UoN Alumni Association <noreply@uonalumni.or.ke>'
 # SMS
 # ─────────────────────────────────────────────
 
-# 'logging' (apps/home/sms.py's LoggingSmsGateway) -- no real provider
-# chosen yet, deliberately (docs/todo.md: on hold pending a cost
-# conversation with the Association). Switch this one key once that's
-# resolved and a gateway class is added to sms.py's GATEWAYS registry --
-# nothing calling send_sms() needs to change.
-SMS_GATEWAY = 'logging'
+# 'whatsapp' (apps/home/sms.py's WhatsAppGateway) -- provider decided
+# 2026-09-04 (docs/todo.md 0.4), still a logging stub: sending needs a
+# verified Meta Business/WhatsApp Business Account and an approved
+# Authentication template, neither of which exists yet, and the
+# Association cost conversation still has to happen. Switch this one key
+# once WhatsAppGateway.send() has a real implementation -- nothing
+# calling send_sms() needs to change.
+SMS_GATEWAY = 'whatsapp'
 
 
 # ─────────────────────────────────────────────

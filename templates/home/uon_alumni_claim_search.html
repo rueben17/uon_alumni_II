@@ -18,8 +18,8 @@
                 <h1 class="text-2xl font-bold text-black">Find Your Profile</h1>
                 <p class="mt-2 text-slate-600">
                     Already an alumnus on record with us? Search by the email or phone number you
-                    used with the Association, and we'll send a verification code to the address
-                    on file so you can connect it to your Google sign-in.
+                    used with the Association, and we'll send a verification code to your email
+                    or WhatsApp so you can connect it to your Google sign-in.
                 </p>
 
                 {% if form.non_field_errors %}
@@ -67,13 +67,34 @@
                                     {% endif %}
                                 </dl>
                                 <p class="mt-3 text-xs text-green-600">
-                                    Is this you? We'll email a verification code to the address on file.
+                                    {% if match_preview.masked_phone %}
+                                        Is this you? Choose where to receive your verification code.
+                                    {% else %}
+                                        Is this you? We'll email a verification code to the address on file.
+                                    {% endif %}
                                 </p>
                             </div>
 
-                            <form method="post" class="mt-4">
+                            <form method="post" class="mt-4 space-y-3">
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="send_code">
+                                {% if match_preview.masked_phone %}
+                                    {% comment %}
+                                    Only shown when both are on file -- with just one,
+                                    there's nothing to choose (2026-09-04, phone channel
+                                    now wired to WhatsApp).
+                                    {% endcomment %}
+                                    <div class="space-y-2 text-sm text-slate-700">
+                                        <label class="flex items-center gap-2">
+                                            <input type="radio" name="channel" value="email" checked class="text-[#38b6ff] focus:ring-[#38b6ff]">
+                                            Email me at {{ match_preview.masked_email }}
+                                        </label>
+                                        <label class="flex items-center gap-2">
+                                            <input type="radio" name="channel" value="phone" class="text-[#38b6ff] focus:ring-[#38b6ff]">
+                                            WhatsApp me at {{ match_preview.masked_phone }}
+                                        </label>
+                                    </div>
+                                {% endif %}
                                 <button type="submit" class="flex w-full items-center justify-center rounded-sm bg-[#38b6ff] px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2f9bd9] focus:outline-none focus:ring-2 focus:ring-slate-300">
                                     Send Verification Code
                                 </button>

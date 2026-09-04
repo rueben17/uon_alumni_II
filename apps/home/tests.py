@@ -652,7 +652,7 @@ from django.core.management import call_command
 from django.utils import timezone
 
 from apps.home import services
-from apps.home.tasks import expire_lapsed_installment_plans
+from apps.home.tasks import expire_lapsed_installment_plans, send_profile_claim_otp_phone
 
 
 def _life_tier(name="Gold Life Member", fee=100000):
@@ -2003,6 +2003,129 @@ class ProfileClaimCodeFormTests(TestCase):
         form = ProfileClaimCodeForm(data={"code": "4839"})
         self.assertFalse(form.is_valid())
         self.assertIn("code", form.errors)
+
+
+# ── Claim-flow phone channel (2026-09-04) -- WhatsApp OTP wired in as an
+# alternative to email, per docs/todo.md 0.4/1.1. Unlike the block above,
+# these DO need HTTP_HOST and a real DB user: the channel choice is
+# resolved server-side in ProfileClaimSearchView._send_code against
+# whichever phone is ACTUALLY on file, never trusted from the client. ──
+
+from apps.home.models import ProfileClaimVerification
+from apps.home.sms import WhatsAppGateway, get_sms_gateway
+from apps.home.sms import GATEWAYS as SMS_GATEWAYS
+
+
+class WhatsAppGatewayTests(TestCase):
+    """apps/home/sms.py -- provider decided 2026-09-04, still a logging
+    stub (no Meta Business Account / approved template yet)."""
+
+    def test_send_reports_success_without_a_real_provider(self):
+        self.assertTrue(WhatsAppGateway().send("+254712345678", "test"))
+
+    def test_it_is_the_default_gateway(self):
+        # SMS_GATEWAY = 'whatsapp' in settings; not overridden here on
+        # purpose -- this is asserting the actual configured default.
+        self.assertIsInstance(get_sms_gateway(), WhatsAppGateway)
+
+    def test_registered_under_its_own_key(self):
+        self.assertIs(SMS_GATEWAYS["whatsapp"], WhatsAppGateway)
+
+
+class ProfileClaimSendCodeChannelTests(TestCase):
+    """views.py's ProfileClaimSearchView._send_code -- channel resolution
+    only, not the async_task dispatch itself (nothing elsewhere in this
+    file exercises that Q2/on_commit machinery either; out of scope for
+    this pass)."""
+
+    def _search_then_ready_to_send(self, user):
+        """Puts the session in exactly the state _send_code needs,
+        mirroring what _search() itself would have set -- the deadline
+        this view actually checks."""
+        session = self.client.session
+        session["claim_preview_user_id"] = str(user.pk)
+        session["claim_preview_expires"] = (
+            timezone.now() + timedelta(minutes=10)
+        ).isoformat()
+        session.save()
+
+    def test_phone_channel_is_used_when_requested_and_on_file(self):
+        user = _make_user("withphone@example.com", phone="+254712345678")
+        self._search_then_ready_to_send(user)
+
+        self.client.post(
+            reverse("home:uon_alumni_claim_search"),
+            {"action": "send_code", "channel": "phone"},
+            HTTP_HOST=PUBLIC_HOST,
+        )
+
+        claim = ProfileClaimVerification.objects.get(user=user)
+        self.assertEqual(claim.channel, ProfileClaimVerification.Channel.PHONE)
+
+    def test_phone_channel_falls_back_to_email_when_not_on_file(self):
+        """The request is client-supplied POST data -- re-validated
+        against the real record, not trusted outright (same reasoning
+        as the view's own docstring on reading the match from session,
+        not a client id)."""
+        user = _make_user("nophone@example.com")
+        self.assertFalse(user.phone)
+        self._search_then_ready_to_send(user)
+
+        self.client.post(
+            reverse("home:uon_alumni_claim_search"),
+            {"action": "send_code", "channel": "phone"},
+            HTTP_HOST=PUBLIC_HOST,
+        )
+
+        claim = ProfileClaimVerification.objects.get(user=user)
+        self.assertEqual(claim.channel, ProfileClaimVerification.Channel.EMAIL)
+
+    def test_no_channel_requested_still_defaults_to_email(self):
+        """Pre-existing behaviour, unchanged: a plain send_code POST with
+        no channel field at all (the pre-2026-09-04 shape) must still
+        work exactly as before."""
+        user = _make_user("plain@example.com", phone="+254712345678")
+        self._search_then_ready_to_send(user)
+
+        self.client.post(
+            reverse("home:uon_alumni_claim_search"),
+            {"action": "send_code"},
+            HTTP_HOST=PUBLIC_HOST,
+        )
+
+        claim = ProfileClaimVerification.objects.get(user=user)
+        self.assertEqual(claim.channel, ProfileClaimVerification.Channel.EMAIL)
+
+
+class SendProfileClaimOtpPhoneTaskTests(TestCase):
+    """tasks.py's send_profile_claim_otp_phone -- the phone twin of
+    send_profile_claim_otp_email, tested the same way that one would be:
+    called directly, not through async_task/on_commit."""
+
+    def test_sends_to_the_number_on_file_with_the_code(self):
+        user = _make_user("claimant@example.com", phone="+254712345678")
+        claim = ProfileClaimVerification.objects.create(
+            user=user, channel=ProfileClaimVerification.Channel.PHONE,
+        )
+
+        with mock.patch("apps.home.sms.send_sms") as mock_send:
+            send_profile_claim_otp_phone(str(claim.pk), "483920")
+
+        mock_send.assert_called_once()
+        sent_phone, sent_message = mock_send.call_args[0]
+        self.assertEqual(sent_phone, "+254712345678")
+        self.assertIn("483920", sent_message)
+
+    def test_a_bookkeeping_only_row_sends_nothing(self):
+        """user_id is None for a claim row created against a search that
+        matched nobody -- exists purely for IP-throttling timestamps."""
+        claim = ProfileClaimVerification.objects.create()
+        self.assertIsNone(claim.user_id)
+
+        with mock.patch("apps.home.sms.send_sms") as mock_send:
+            send_profile_claim_otp_phone(str(claim.pk), "483920")
+
+        mock_send.assert_not_called()
 
 
 # ── AlumniDigitalIDApplicationForm (2) ───────────────────────────────

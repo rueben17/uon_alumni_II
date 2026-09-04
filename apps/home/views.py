@@ -1429,6 +1429,19 @@ class ProfileClaimSearchView(View):
         if matched_user is None:
             return redirect("home:uon_alumni_claim_search")
 
+        # The visitor's channel pick is a client-supplied POST value, so
+        # it's re-validated against what's ACTUALLY on file for
+        # matched_user rather than trusted outright -- same reasoning as
+        # this view reading who-to-send-to from the server-side session,
+        # never a client-supplied id (see the class docstring). Falls
+        # back to email whenever phone wasn't actually requested, or was
+        # requested but isn't on file.
+        requested_channel = request.POST.get("channel")
+        if requested_channel == ProfileClaimVerification.Channel.PHONE and matched_user.phone:
+            channel = ProfileClaimVerification.Channel.PHONE
+        else:
+            channel = ProfileClaimVerification.Channel.EMAIL
+
         ip_address = _client_ip(request)
         existing = ProfileClaimVerification.objects.filter(
             user=matched_user,
@@ -1438,14 +1451,19 @@ class ProfileClaimSearchView(View):
         if existing is not None:
             claim = existing
         else:
-            claim = ProfileClaimVerification.objects.create(user=matched_user, ip_address=ip_address)
+            claim = ProfileClaimVerification.objects.create(
+                user=matched_user, ip_address=ip_address, channel=channel,
+            )
             raw_code = ProfileClaimVerification.generate_code()
             claim.set_code(raw_code)
             claim.save(update_fields=["code_hash"])
+            task_name = (
+                "apps.home.tasks.send_profile_claim_otp_phone"
+                if claim.channel == ProfileClaimVerification.Channel.PHONE
+                else "apps.home.tasks.send_profile_claim_otp_email"
+            )
             transaction.on_commit(
-                lambda: async_task(
-                    "apps.home.tasks.send_profile_claim_otp_email", str(claim.pk), raw_code,
-                )
+                lambda: async_task(task_name, str(claim.pk), raw_code)
             )
 
         request.session.pop("claim_preview_user_id", None)
@@ -1461,9 +1479,14 @@ class ProfileClaimVerifyView(View):
     template_name = "home/uon_alumni_claim_verify.html"
 
     def get(self, request, *args, **kwargs):
-        if not request.session.get("claim_pending_id"):
+        claim_id = request.session.get("claim_pending_id")
+        if not claim_id:
             return redirect("home:uon_alumni_claim_search")
-        return render(request, self.template_name, {"form": ProfileClaimCodeForm()})
+        claim = ProfileClaimVerification.objects.filter(pk=claim_id).first()
+        sent_via_phone = bool(claim and claim.channel == ProfileClaimVerification.Channel.PHONE)
+        return render(request, self.template_name, {
+            "form": ProfileClaimCodeForm(), "sent_via_phone": sent_via_phone,
+        })
 
     def post(self, request, *args, **kwargs):
         claim_id = request.session.get("claim_pending_id")

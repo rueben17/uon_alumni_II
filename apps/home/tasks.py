@@ -149,6 +149,34 @@ def send_profile_claim_otp_email(claim_id, raw_code):
     )
 
 
+def send_profile_claim_otp_phone(claim_id, raw_code):
+    """Phone twin of send_profile_claim_otp_email() above (2026-09-04) --
+    same shape, same reasoning: sends to claim.user.phone (the number ON
+    FILE), not whatever the visitor typed, and the ProfileClaimVerification
+    row's own status/attempts is the idempotency, not a delivery log, since
+    a resend here is legitimate. Goes straight to send_sms(), not through
+    dispatch_sms() above -- this caller already has a real business object
+    to reason about (the claim row), which is exactly why
+    send_profile_claim_otp_email() doesn't route through a generic
+    send-an-email primitive either.
+    """
+    from apps.home.models import ProfileClaimVerification
+    from apps.home.sms import send_sms
+
+    claim = ProfileClaimVerification.objects.select_related("user__profile").get(pk=claim_id)
+    if claim.user_id is None:
+        return  # bookkeeping-only row for a non-match -- nothing to send
+
+    send_sms(
+        claim.user.phone,
+        (
+            f"UoN Alumni Association: your verification code is {raw_code}. "
+            f"It expires in {claim.OTP_EXPIRY_MINUTES} minutes. "
+            "If you didn't request this, you can ignore this message."
+        ),
+    )
+
+
 def dispatch_sms(phone_number, message):
     """Q2 wrapper around apps.home.sms.send_sms() -- primitives only, a
     phone number and message string. Not wired to any real trigger yet
