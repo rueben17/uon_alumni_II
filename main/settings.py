@@ -384,27 +384,35 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # dead settings that still read as authoritative are how that went
 # unnoticed. See docs/finding-L-storage-design-2026-09-03.md.
 #
+# Cloudinary unconditionally, both environments (2026-09-04, Association
+# decision) -- media is Cloudinary everywhere, full stop, matching how
+# every other project here already runs it, not a per-environment
+# fallback. Nothing conditional on CLOUDINARY_CLOUD_NAME any more: local
+# dev's .env already carries the same credentials as production (same
+# Cloudinary account), and apps/home/models.py's RawMediaCloudinaryStorage
+# import (Publication.file) has always required them to even be able to
+# boot regardless -- a conditional default here was never actually
+# optional in practice, just quieter about it. Test isolation is
+# unaffected: every test that writes media already forces
+# override_settings(STORAGES=LOCAL_STORAGES) itself (see
+# apps/qr_manager/tests.py's and apps/home/tests.py's own LOCAL_STORAGES),
+# which overrides this default regardless of what it says.
+#
 # staticfiles uses CompressedStaticFilesStorage, not the Manifest variant:
 # the manifest backend raises at template-render time for any {% static %}
 # reference missing from the manifest, so a skipped or failed collectstatic
 # becomes a 500 on every page using that asset. Compression now, hashing
 # as a later deliberate change.
 STORAGES = {
-    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'default': {'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage'},
     'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage'},
 }
 
-# Cloudinary handles user-uploaded media in production.
-# Falls back to local filesystem when CLOUDINARY_CLOUD_NAME is not set (local dev).
-if os.environ.get('CLOUDINARY_CLOUD_NAME'):
-    STORAGES['default'] = {
-        'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage',
-    }
-    CLOUDINARY_STORAGE = {
-        'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME', ''),
-        'API_KEY': os.environ.get('CLOUDINARY_API_KEY', ''),
-        'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET', ''),
-    }
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME', ''),
+    'API_KEY': os.environ.get('CLOUDINARY_API_KEY', ''),
+    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET', ''),
+}
 
 
 # ─────────────────────────────────────────────
