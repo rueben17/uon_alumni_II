@@ -4,7 +4,16 @@
 {% block title_interior %}Sign In | UoNAA{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+<div class="container mx-auto min-h-screen space-y-2 relative" style="max-width: 1700px;">
+    {% comment %}
+    Same fixed-backdrop treatment as templates/home/uon_alumni_register.html
+    and uon_alumni_claim_search.html -- position:fixed, not a background on
+    this container.
+    {% endcomment %}
+    <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
+    {% include "snippets/navbar.html" %}
+
+    <section class="max-w-full min-h-screen mx-auto flex items-center justify-center px-4 py-8">
     <div class="w-full max-w-md">
 
         {# UoN Branding #}
@@ -72,5 +81,6 @@
 
         </div>
     </div>
+    </section>
 </div>
 {% endblock %}
