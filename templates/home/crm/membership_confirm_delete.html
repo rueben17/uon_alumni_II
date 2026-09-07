@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% comment %}
+Cancel confirmation. POST sets status=CANCELLED (soft) -- mirrors
+AlumniProfileDeleteView's deactivate-not-delete. Staff/superuser only.
+{% endcomment %}
+
+{% block title_interior %}Cancel membership | UoNAA{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<div class="container mx-auto min-h-screen" style="max-width: 1700px;">
+    {% include "snippets/navbar.html" %}
+
+    <section class="mx-auto max-w-lg px-3 py-10">
+        <div class="rounded-sm border border-slate-200 bg-white p-6 text-center shadow-sm">
+            <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">
+                <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            </div>
+            <h1 class="text-lg font-semibold text-slate-900">Cancel this membership?</h1>
+            <p class="mx-auto mt-2 max-w-sm text-sm text-slate-600">
+                This marks <strong>{{ membership.user.profile.full_name|default:membership.user.email }}</strong>’s
+                {{ membership.tier.name }} membership as <strong>Cancelled</strong>. The record, its number and its
+                payment history are kept — it is not deleted.
+            </p>
+            <div class="mt-6 flex justify-center gap-3">
+                <a href="{% url 'membership_crm:list' %}" class="rounded-sm border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Keep membership</a>
+                <form method="post" action="{% url 'membership_crm:cancel' membership.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="rounded-sm bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700">Yes, cancel it</button>
+                </form>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock content %}

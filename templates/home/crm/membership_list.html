@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% comment %}
+Secretariat Membership CRM -- register + search/filter + stats, with a
+slide-over detail drawer (HTMX-loaded). Staff/superuser only
+(MembershipListView uses StaffOrSuperuserRequiredMixin).
+{% endcomment %}
+
+{% block title_interior %}Membership CRM | UoNAA{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<div class="container mx-auto min-h-screen space-y-4" style="max-width: 1700px;">
+    {% include "snippets/navbar.html" %}
+
+    {% comment %}
+    max-w-7xl + p-6, matching membership_analytics.html's section --
+    without it this stretched edge-to-edge inside the 1700px outer div
+    (2026-09-04, reported as "spans the full viewport").
+    {% endcomment %}
+    <section class="max-w-7xl min-h-screen mx-auto space-y-4 p-6">
+
+        {# Header #}
+        <div class="flex flex-col gap-3 rounded-sm border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
+            <div>
+                <h1 class="text-2xl font-semibold text-[#0E4E80]">Membership CRM</h1>
+                <p class="text-sm text-slate-600">Manage alumni memberships — search, review, record payments, edit or add members.</p>
+            </div>
+            <a href="{% url 'membership_crm:create' %}"
+               class="inline-flex items-center justify-center gap-2 rounded-sm bg-[#38b6ff] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#1aa1f2]">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                Add member
+            </a>
+        </div>
+
+        {# Stats #}
+        <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div class="rounded-sm border border-slate-200 bg-white p-4 shadow-sm">
+                <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Total memberships</p>
+                <p class="mt-1 text-2xl font-semibold text-slate-900 tabular-nums">{{ stats.total }}</p>
+            </div>
+            <div class="rounded-sm border border-slate-200 bg-white p-4 shadow-sm">
+                <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Active</p>
+                <p class="mt-1 text-2xl font-semibold text-green-700 tabular-nums">{{ stats.active }}</p>
+            </div>
+            <div class="rounded-sm border border-slate-200 bg-white p-4 shadow-sm">
+                <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Pending confirmation</p>
+                <p class="mt-1 text-2xl font-semibold text-amber-600 tabular-nums">{{ stats.pending }}</p>
+            </div>
+            <div class="rounded-sm border border-slate-200 bg-white p-4 shadow-sm">
+                <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Subscriptions recorded</p>
+                <p class="mt-1 text-2xl font-semibold text-slate-900 tabular-nums">KES {{ stats.revenue|floatformat:0 }}</p>
+            </div>
+        </div>
+
+        {# Filters — HTMX GET, swaps only the table partial #}
+        <form class="grid grid-cols-1 gap-3 rounded-sm border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_200px_200px_auto]"
+              action="{% url 'membership_crm:list' %}" method="get"
+              hx-get="{% url 'membership_crm:list' %}"
+              hx-target="#crm-table-container" hx-swap="outerHTML" hx-push-url="true"
+              hx-trigger="keyup changed delay:350ms from:#id_q, change from:#id_status, change from:#id_tier_type, submit">
+            <div class="max-w-md">
+                <label for="id_q" class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-600">Search</label>
+                <input id="id_q" name="q" type="text" value="{{ query }}" placeholder="Name, email or member number"
+                       class="w-full rounded-sm border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#38b6ff] focus:ring-2 focus:ring-[#38b6ff]/30">
+            </div>
+            <div>
+                <label for="id_status" class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-600">Status</label>
+                <select id="id_status" name="status" class="w-full rounded-sm border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#38b6ff]">
+                    <option value="">All statuses</option>
+                    {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="id_tier_type" class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-600">Tier type</label>
+                <select id="id_tier_type" name="tier_type" class="w-full rounded-sm border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#38b6ff]">
+                    <option value="">All tiers</option>
+                    {% for value, label in tier_type_choices %}
+                        <option value="{{ value }}" {% if selected_tier_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex items-end gap-2">
+                <button type="submit" class="rounded-sm border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Apply</button>
+                <a href="{% url 'membership_crm:list' %}" class="rounded-sm border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Reset</a>
+            </div>
+        </form>
+
+        {% include "home/crm/_membership_table.html" %}
+    </section>
+</div>
+
+{# ---- Slide-over detail drawer (content HTMX-loaded into #crm-drawer-body) ---- #}
+<div id="crm-drawer" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-slate-900/40" onclick="closeCrmDrawer()"></div>
+    <div class="absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-white shadow-2xl">
+        <div id="crm-drawer-body" class="flex-1 overflow-y-auto">
+            <div class="flex h-full items-center justify-center p-10 text-sm text-slate-400">Loading…</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openCrmDrawer() { document.getElementById('crm-drawer').classList.remove('hidden'); }
+    function closeCrmDrawer() { document.getElementById('crm-drawer').classList.add('hidden'); }
+    // Close on Escape
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeCrmDrawer(); });
+</script>
+{% endblock content %}

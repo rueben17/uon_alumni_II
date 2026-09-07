@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% comment %}
+Shared create/edit form. mode == "create" -> NewMemberForm (new person +
+pending membership); mode == "edit" -> MembershipStaffForm (edit the row).
+Posts to the same URL it was served from (no action attribute).
+Staff/superuser only.
+{% endcomment %}
+
+{% block title_interior %}{% if mode == 'create' %}Add member{% else %}Edit membership{% endif %} | UoNAA{% endblock %}
+{% block robots %}noindex, nofollow{% endblock %}
+
+{% block content %}
+<div class="container mx-auto min-h-screen" style="max-width: 1700px;">
+    {% include "snippets/navbar.html" %}
+
+    <section class="mx-auto max-w-3xl px-3 py-6">
+        <a href="{% url 'membership_crm:list' %}" class="mb-3 inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-[#0E4E80]">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+            Back to members
+        </a>
+
+        <div class="rounded-sm border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 p-5">
+                <h1 class="text-xl font-semibold text-[#0E4E80]">
+                    {% if mode == 'create' %}Add a new member{% else %}Edit membership{% endif %}
+                </h1>
+                <p class="mt-1 text-sm text-slate-600">
+                    {% if mode == 'create' %}
+                        Creates the member and a pending membership — record a payment afterwards to activate it.
+                    {% else %}
+                        {{ membership.user.profile.full_name|default:membership.user.email }} · correcting the record directly.
+                    {% endif %}
+                </p>
+            </div>
+
+            <form method="post" class="p-5">
+                {% csrf_token %}
+                {% if form.non_field_errors %}
+                    <div class="mb-4 rounded-sm border border-red-200 bg-red-50 p-3 text-sm text-red-700">{{ form.non_field_errors }}</div>
+                {% endif %}
+
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {% for field in form %}
+                        {% if field.field.widget.input_type == "checkbox" %}
+                            {% include "snippets/form_field.html" with field=field wrapper_class="sm:col-span-2 py-1" %}
+                        {% else %}
+                            {% include "snippets/form_field.html" with field=field %}
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <div class="mt-6 flex items-center gap-3 border-t border-slate-100 pt-4">
+                    <button type="submit" class="rounded-sm bg-[#38b6ff] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#1aa1f2]">
+                        {% if mode == 'create' %}Add member{% else %}Save changes{% endif %}
+                    </button>
+                    <a href="{% url 'membership_crm:list' %}" class="rounded-sm border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </section>
+</div>
+{% endblock content %}

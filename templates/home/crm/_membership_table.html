@@ -1,0 +1,111 @@
+{% comment %}
+Membership table partial. Returned on its own for HTMX requests
+(MembershipListView.get_template_names), swapped into #crm-table-container
+by the filter form and pagination links -- same pattern as
+staff/partials/employee_table.html.
+
+Row click loads the detail drawer (hx-get) and opens it (openCrmDrawer(),
+defined in membership_list.html). Both are plain HTMX/JS attributes, not
+Alpine, so they keep working on rows swapped in after a filter.
+{% endcomment %}
+<section id="crm-table-container"
+         class="w-full bg-white shadow-sm border border-slate-200 rounded-sm overflow-hidden flex flex-col">
+    <div class="overflow-x-auto flex-1 min-h-[55dvh]">
+        <table class="min-w-full divide-y divide-slate-200">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Member</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Tier</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Status</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Member No.</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Faculty</th>
+                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Subscription</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+                {% for m in memberships %}
+                    <tr class="cursor-pointer hover:bg-[#38b6ff]/10 transition-colors"
+                        hx-get="{% url 'membership_crm:drawer' m.pk %}"
+                        hx-target="#crm-drawer-body"
+                        hx-swap="innerHTML"
+                        onclick="openCrmDrawer()">
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-3">
+                                <span class="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-[#38b6ff]/15 text-sm font-semibold text-[#0E4E80] uppercase">
+                                    {{ m.user.profile.given_name|slice:":1" }}{{ m.user.profile.family_name|slice:":1" }}
+                                </span>
+                                <div class="min-w-0">
+                                    <div class="font-medium text-slate-900 truncate">{{ m.user.profile.full_name|default:m.user.email }}</div>
+                                    <div class="text-xs text-slate-500 truncate">{{ m.user.email }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3 text-sm">
+                            {% with t=m.tier.tier_type %}
+                            <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold
+                                {% if t == 'life' %}bg-amber-50 text-amber-700
+                                {% elif t == 'corporate' %}bg-indigo-50 text-indigo-700
+                                {% elif t == 'annual' %}bg-[#38b6ff]/15 text-[#0E4E80]
+                                {% elif t == 'honorary' %}bg-purple-50 text-purple-700
+                                {% elif t == 'student' %}bg-teal-50 text-teal-700
+                                {% else %}bg-slate-100 text-slate-600{% endif %}">
+                                {{ m.tier.name }}
+                            </span>
+                            {% endwith %}
+                        </td>
+                        <td class="px-4 py-3 text-sm">
+                            <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold
+                                {% if m.status == 'active' %}bg-green-50 text-green-700
+                                {% elif m.status == 'pending' %}bg-amber-50 text-amber-700
+                                {% elif m.status == 'expired' %}bg-red-50 text-red-700
+                                {% else %}bg-slate-100 text-slate-600{% endif %}">
+                                <span class="h-1.5 w-1.5 rounded-full
+                                    {% if m.status == 'active' %}bg-green-600
+                                    {% elif m.status == 'pending' %}bg-amber-500
+                                    {% elif m.status == 'expired' %}bg-red-600
+                                    {% else %}bg-slate-400{% endif %}"></span>
+                                {{ m.get_status_display }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-sm text-slate-700 tabular-nums">{{ m.membership_number|default:"—" }}</td>
+                        <td class="px-4 py-3 text-sm text-slate-700">
+                            {% if m.user.alumni_profile and m.user.alumni_profile.faculty %}
+                                {{ m.user.alumni_profile.faculty.faculty_name }}
+                            {% else %}<span class="text-slate-400">—</span>{% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-right text-sm tabular-nums text-slate-900">
+                            KES {{ m.subscription_amount|default:m.tier.fee|floatformat:0 }}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-4 py-12 text-center text-sm text-slate-500">
+                            No memberships match your filters.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+        <div class="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 md:flex-row md:items-center md:justify-between">
+            <p>Page {{ page_obj.number }} of {{ paginator.num_pages }} · {{ paginator.count }} members</p>
+            <div class="flex flex-wrap items-center gap-2">
+                {% if page_obj.has_previous %}
+                    <a class="rounded border border-slate-300 px-3 py-1.5 hover:bg-white"
+                       href="?page={{ page_obj.previous_page_number }}&q={{ query|urlencode }}&status={{ selected_status|urlencode }}&tier_type={{ selected_tier_type|urlencode }}"
+                       hx-get="?page={{ page_obj.previous_page_number }}&q={{ query|urlencode }}&status={{ selected_status|urlencode }}&tier_type={{ selected_tier_type|urlencode }}"
+                       hx-target="#crm-table-container" hx-swap="outerHTML" hx-push-url="true">Previous</a>
+                {% endif %}
+                <span class="rounded border border-[#0E4E80] bg-[#0E4E80] px-3 py-1.5 font-semibold text-white">{{ page_obj.number }}</span>
+                {% if page_obj.has_next %}
+                    <a class="rounded border border-slate-300 px-3 py-1.5 hover:bg-white"
+                       href="?page={{ page_obj.next_page_number }}&q={{ query|urlencode }}&status={{ selected_status|urlencode }}&tier_type={{ selected_tier_type|urlencode }}"
+                       hx-get="?page={{ page_obj.next_page_number }}&q={{ query|urlencode }}&status={{ selected_status|urlencode }}&tier_type={{ selected_tier_type|urlencode }}"
+                       hx-target="#crm-table-container" hx-swap="outerHTML" hx-push-url="true">Next</a>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+</section>
