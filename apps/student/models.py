@@ -294,7 +294,7 @@ class ScholarshipApplication(models.Model):
     # always scanned to PDF in practice, and narrowing the accepted type
     # avoids phone-camera photos of varying quality/orientation.
     physical_copy = models.FileField(
-        upload_to=_scholarship_physical_copy_path,
+        max_length=255, upload_to=_scholarship_physical_copy_path,
         validators=[FileExtensionValidator(["pdf"])],
     )
 

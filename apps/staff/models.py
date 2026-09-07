@@ -316,7 +316,7 @@ class Employee(models.Model):
     # QR code image
     # ------------------------------------------------------------------
     qr_code_image = models.ImageField(
-        upload_to=qr_upload_path,
+        max_length=255, upload_to=qr_upload_path,
         blank=True,
         null=True,
         verbose_name=_("QR Code"),

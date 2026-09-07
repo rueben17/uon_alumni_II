@@ -189,7 +189,7 @@ class UserProfile(models.Model):
     national_id = models.CharField(max_length=50, unique=True, null=True, blank=True)
     nationality = models.CharField(max_length=100, default="Kenyan")
 
-    photo = models.ImageField(upload_to=profile_photo_path, null=True, blank=True)
+    photo = models.ImageField(max_length=255, upload_to=profile_photo_path, null=True, blank=True)
     google_photo_url = models.URLField(max_length=2000, blank=True, default="")
 
     alt_phone = PhoneNumberField(region="KE", blank=True)

@@ -65,6 +65,10 @@ urlpatterns = [
     # UoNAA Secretariat's scoped-down admin -- payment confirmation,
     # membership tier/number assignment, and #Issued Items tracking.
     path("membership-admin/", membership_admin_site.urls),
+    # Secretariat Membership CRM -- staff-facing console over the same
+    # Membership/Payment data, for officers who don't live in the admin
+    # (README_MEMBERSHIP_CRM.md). Staff/superuser gated at the view level.
+    path("membership-crm/", include("apps.home.crm_urls")),
     # qr-admin/ lives on the staff subdomain instead (apps/staff/site_urls.py)
     # -- supervisors are staff members, that's where they already work.
     # qr/ itself IS mounted here too (2026-08-21, alongside its existing

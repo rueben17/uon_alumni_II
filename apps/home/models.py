@@ -195,9 +195,9 @@ class Article(ThumbnailMixin, models.Model):
     body = models.TextField()
     quote = models.TextField(max_length=1000,  blank=True, null=True)
     thumbnail = ResizedImageField(size=[1600, 1600], quality=85,
-                        upload_to='articles/images/', blank=True, null=True)
+                        max_length=255, upload_to='articles/images/', blank=True, null=True)
     article_banner_image = ResizedImageField(size=[2200, 2200], quality=85,
-                        upload_to='articles/banners/', blank=True, null=True)
+                        max_length=255, upload_to='articles/banners/', blank=True, null=True)
     created_at = models.DateTimeField(verbose_name=_("Created at"), default=timezone.now, blank=True)
     date_updated = models.DateTimeField(auto_now=True, verbose_name="date updated", blank=True)
     slug = AutoSlugField(populate_from='title',
@@ -254,18 +254,18 @@ class Banner(models.Model):
     # /snippets/footer.html). middle_banner/image stay generic/unused
     # for now, same as before this pass.
     top_banner = ResizedImageField(size=[2200, 2200], quality=85,
-                        upload_to='banner/top_banner/%Y/%m/%d/',
+                        max_length=255, upload_to='banner/top_banner/',
                         help_text=_("Homepage hero background (templates/snippets/banner.html)."), blank=True, null=True)
     middle_banner = ResizedImageField(size=[2200, 2200], quality=85,
-                        upload_to='banner/middle_banner/%Y/%m/%d/',
+                        max_length=255, upload_to='banner/middle_banner/',
                         help_text=_("Upload your item images "), blank=True, null=True)
 
     bottom_banner = ResizedImageField(size=[2200, 2200], quality=85,
-                        upload_to='banner/bottom_banner/%Y/%m/%d/',
+                        max_length=255, upload_to='banner/bottom_banner/',
                         help_text=_("Footer background image (templates/snippets/footer.html)."), blank=True, null=True)
 
     image = ResizedImageField(size=[2200, 2200], quality=85,
-                        upload_to='banner/image/%Y/%m/%d/',
+                        max_length=255, upload_to='banner/image/',
                         help_text=_("Upload banner images "), blank=True, null=True)
 
     # Homepage hero's two small cards (templates/home/alumni_home.html,
@@ -273,10 +273,10 @@ class Banner(models.Model):
     # middle_banner/image above, so each is unambiguous about which card
     # it feeds regardless of what those two end up used for later.
     profile_update_card_image = ResizedImageField(size=[2200, 2200], quality=85,
-                        upload_to='banner/profile_update_card_image/%Y/%m/%d/',
+                        max_length=255, upload_to='banner/profile_update_card_image/',
                         help_text=_("Homepage 'Keep Your UoN Alumni Profile Up to Date' card image."), blank=True, null=True)
     volunteer_card_image = ResizedImageField(size=[2200, 2200], quality=85,
-                        upload_to='banner/volunteer_card_image/%Y/%m/%d/',
+                        max_length=255, upload_to='banner/volunteer_card_image/',
                         help_text=_("Homepage 'Volunteer and Share Your Experience' card image."), blank=True, null=True)
 
     # Homepage "Why We Engage" program-area cards (2026-08-21, reversed
@@ -288,29 +288,29 @@ class Banner(models.Model):
     # renamed/added/removed program needs its matching field added here
     # and in that view's PROGRAM_AREA_IMAGE_FIELDS mapping.
     affinity_programs_image = ResizedImageField(size=[2200, 2200], quality=85,
-                        upload_to='banner/program_areas/affinity_programs/%Y/%m/%d/',
+                        max_length=255, upload_to='banner/program_areas/affinity_programs/',
                         help_text=_("Homepage 'Affinity programs' card image."), blank=True, null=True)
     career_professional_programs_image = ResizedImageField(size=[2200, 2200], quality=85,
-                        upload_to='banner/program_areas/career_professional_programs/%Y/%m/%d/',
+                        max_length=255, upload_to='banner/program_areas/career_professional_programs/',
                         help_text=_("Homepage 'Career and professional programs' card image."), blank=True, null=True)
     off_campus_programs_image = ResizedImageField(size=[2200, 2200], quality=85,
-                        upload_to='banner/program_areas/off_campus_programs/%Y/%m/%d/',
+                        max_length=255, upload_to='banner/program_areas/off_campus_programs/',
                         help_text=_("Homepage 'Off-campus programs' card image."), blank=True, null=True)
     on_campus_programs_image = ResizedImageField(size=[2200, 2200], quality=85,
-                        upload_to='banner/program_areas/on_campus_programs/%Y/%m/%d/',
+                        max_length=255, upload_to='banner/program_areas/on_campus_programs/',
                         help_text=_("Homepage 'On-campus programs' card image."), blank=True, null=True)
     online_part_time_alumni_image = ResizedImageField(size=[2200, 2200], quality=85,
-                        upload_to='banner/program_areas/online_part_time_alumni/%Y/%m/%d/',
+                        max_length=255, upload_to='banner/program_areas/online_part_time_alumni/',
                         help_text=_("Homepage 'Engagement of alumni of online and part-time degree programs' card image."), blank=True, null=True)
     undergraduate_alumni_programs_image = ResizedImageField(size=[2200, 2200], quality=85,
-                        upload_to='banner/program_areas/undergraduate_alumni_programs/%Y/%m/%d/',
+                        max_length=255, upload_to='banner/program_areas/undergraduate_alumni_programs/',
                         help_text=_("Homepage 'Programs for undergraduate students and undergraduate young alumni' card image."), blank=True, null=True)
 
     logo = ResizedImageField(size=[500, 500], quality=90,
-                        upload_to='banner/logo/%Y/%m/%d/',
+                        max_length=255, upload_to='banner/logo/',
                         help_text=_("Site logo -- navbar, top-left (templates/snippets/navbar.html)."), blank=True, null=True)
     footer_logo = ResizedImageField(size=[500, 500], quality=90,
-                        upload_to='banner/footer_logo/%Y/%m/%d/',
+                        max_length=255, upload_to='banner/footer_logo/',
                         help_text=_("Footer logo -- usually a white/reversed variant of the main logo, "
                                      "for contrast against the footer's dark background."), blank=True, null=True)
 
@@ -321,7 +321,7 @@ class Banner(models.Model):
     # exposes whichever Banner row has this set as page_background_url,
     # falling back to the original hardcoded image if none do yet.
     page_background = ResizedImageField(size=[2200, 2200], quality=85,
-                        upload_to='banner/page_background/%Y/%m/%d/',
+                        max_length=255, upload_to='banner/page_background/',
                         help_text=_("Background image shown behind the scholarship, profile, and analytics pages."),
                         blank=True, null=True)
 
@@ -334,11 +334,11 @@ class Banner(models.Model):
     # hardcoded static file was large enough to trip Pillow's
     # decompression-bomb warning on every generation.
     staff_qr_watermark = ResizedImageField(size=[800, 800], quality=90,
-                        upload_to='banner/staff_qr_watermark/%Y/%m/%d/',
+                        max_length=255, upload_to='banner/staff_qr_watermark/',
                         help_text=_("Crest embedded in the center of STAFF QR codes. Falls back to the UoN crest if unset."),
                         blank=True, null=True)
     alumni_qr_watermark = ResizedImageField(size=[800, 800], quality=90,
-                        upload_to='banner/alumni_qr_watermark/%Y/%m/%d/',
+                        max_length=255, upload_to='banner/alumni_qr_watermark/',
                         help_text=_("Crest embedded in the center of ALUMNI QR codes. Falls back to the UoNAA crest if unset."),
                         blank=True, null=True)
 
@@ -372,7 +372,7 @@ class Images(models.Model):
     publication = models.ForeignKey('Publication', on_delete=models.CASCADE, related_name="images", blank=True, null=True)
     in_memoriam = models.ForeignKey('InMemoriam', on_delete=models.CASCADE, related_name="images", blank=True, null=True)
     image = ResizedImageField(size=[2200, 2200], quality=85,
-                        upload_to='gallery/image-uploads',
+                        max_length=255, upload_to='gallery/image-uploads',
                         help_text=_("Upload your image "),
                         blank=True, null=True)
 
@@ -428,7 +428,7 @@ class CoreValue(models.Model):
     # For background image per value
     background_image = ResizedImageField(
         size=[2200, 2200], quality=85,
-        upload_to='core_values/bg/',
+        max_length=255, upload_to='core_values/bg/',
         blank=True,
         null=True,
         help_text="Background image for this core value"
@@ -534,7 +534,7 @@ class Executive(ThumbnailMixin, models.Model):
     middle_name = models.CharField(_('Middle Name'), max_length=150, blank=True)
     surname = models.CharField(_('Surname'), max_length=150, blank=True)
     bio = models.TextField(_("Bio"), max_length=2500, blank=True, null=True)
-    avatar = ResizedImageField(size=[1200, 1200], quality=85, upload_to='gallery/executive/', blank=True, null=True)
+    avatar = ResizedImageField(size=[1200, 1200], quality=85, max_length=255, upload_to='gallery/executive/', blank=True, null=True)
 
 
     class Meta:
@@ -569,7 +569,7 @@ class Event(ThumbnailMixin, models.Model):
     title =  Title(_("Title"), help_text=_("Required"), max_length=250)
     body = models.TextField()
     thumbnail = ResizedImageField(size=[2200, 2200], quality=85,
-                        upload_to='walk/images/',
+                        max_length=255, upload_to='walk/images/',
                         blank=True, null=True)
     created_at = models.DateTimeField(verbose_name=_("Created at"), default=timezone.now, blank=True)
     date_updated = models.DateTimeField(auto_now=True, verbose_name="date updated", blank=True)
@@ -602,7 +602,7 @@ class Chapter(ThumbnailMixin, models.Model):
                          unique_with=['year_launched', ],
                          editable=True, always_update=False, blank=True, null=True)
     thumbnail = ResizedImageField(size=[1600, 1600], quality=85,
-                        upload_to='chapter/uploads/%Y/%m/%d/',
+                        max_length=255, upload_to='chapter/uploads/',
                         help_text=_("Chapter banner "),
                         blank=True, null=True)
 
@@ -633,7 +633,7 @@ class Partner(ThumbnailMixin, models.Model):
                     blank=True,
                 )
     thumbnail = ResizedImageField(size=[1600, 1600], quality=85,
-                        upload_to='gallery/partners/',
+                        max_length=255, upload_to='gallery/partners/',
                         blank=True, null=True)
     created_at = models.DateTimeField(verbose_name=_("Created at"), default=timezone.now, blank=True)
 
@@ -693,7 +693,7 @@ class Secretariat(ThumbnailMixin, models.Model):
     position = models.CharField(_('Secretariat Position'), help_text=_("Secretariat Position"), max_length=255, choices=SECRETARIAT_POSITION, null=True, blank=True)
     rank = models.CharField(_('Secretariat Rank'), help_text=_("Secretariat Rank"), max_length=255, choices=RANK, null=True, blank=True)
     bio = models.TextField(_("Bio"), max_length=2500, blank=True, null=True)
-    avatar = ResizedImageField(size=[1200, 1200], quality=85, upload_to='gallery/secretariat/', blank=True, null=True)
+    avatar = ResizedImageField(size=[1200, 1200], quality=85, max_length=255, upload_to='gallery/secretariat/', blank=True, null=True)
 
 
     class Meta:
@@ -744,8 +744,8 @@ class Publication(models.Model):
     # DEBUG happens to fall back to local filesystem. Local dev needs real
     # (or sandbox) Cloudinary credentials in .env for uploads to this field
     # to actually work -- verify before building UI on top (todo.md 0.3b).
-    file = models.FileField(upload_to='publications/%Y/%m/', storage=RawMediaCloudinaryStorage)
-    cover_image = ResizedImageField(size=[1600, 1600], quality=85, upload_to='publications/covers/', blank=True, null=True)
+    file = models.FileField(max_length=255, upload_to='publications/', storage=RawMediaCloudinaryStorage)
+    cover_image = ResizedImageField(size=[1600, 1600], quality=85, max_length=255, upload_to='publications/covers/', blank=True, null=True)
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='publications'
     )
@@ -779,7 +779,7 @@ class InMemoriam(models.Model):
     faculty = models.ForeignKey(
         Faculty, on_delete=models.SET_NULL, null=True, blank=True, related_name='in_memoriam_entries'
     )
-    photo = ResizedImageField(size=[1200, 1200], quality=85, upload_to='in_memoriam/', blank=True, null=True)
+    photo = ResizedImageField(size=[1200, 1200], quality=85, max_length=255, upload_to='in_memoriam/', blank=True, null=True)
     tribute = models.TextField(blank=True)
     published = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1220,7 +1220,7 @@ class AlumniProfile(models.Model):
     # *something* rather than nothing.
     digital_id_photo = ResizedImageField(
         size=[800, 800], quality=90,
-        upload_to='alumni/digital_id_photos/%Y/%m/%d/',
+        max_length=255, upload_to='alumni/digital_id_photos/',
         blank=True,
         null=True,
         verbose_name=_("Alumni Digital ID Photo"),
@@ -1247,7 +1247,7 @@ class AlumniProfile(models.Model):
     # creates/regenerates it. Blank until an admin runs that action;
     # nothing generates it automatically.
     qr_code_image = models.ImageField(
-        upload_to=alumni_qr_upload_path,
+        max_length=255, upload_to=alumni_qr_upload_path,
         blank=True,
         null=True,
         verbose_name=_("QR Code"),
