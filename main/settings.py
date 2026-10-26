@@ -317,16 +317,40 @@ Q_CLUSTER = {
 # Email
 # ─────────────────────────────────────────────
 
-# Console backend (2026-08-18) -- no EMAIL_BACKEND existed at all before
-# this; the one pre-existing send_mail() call site (contact-form
-# notification, apps/home/views.py) was silently failing against
-# Django's own default (smtp to localhost:25, nothing listening there).
-# This writes the email to stdout instead of sending it, same
-# "real pipeline, stub destination" shape as apps/home/payments.py's
-# ManualGateway -- swap in real SMTP settings later, no code change
-# needed anywhere that calls send_mail().
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-DEFAULT_FROM_EMAIL = 'UoN Alumni Association <noreply@uonalumni.or.ke>'
+# Real SMTP when EMAIL_HOST is set in the environment (2026-10-27),
+# console backend otherwise -- the console fallback is what every
+# environment used before this (2026-08-18: no EMAIL_BACKEND existed at
+# all, and the one pre-existing send_mail() call site was silently
+# failing against Django's own default of smtp to localhost:25, nothing
+# listening there). Local dev stays on console with zero setup; set
+# EMAIL_HOST/EMAIL_HOST_USER/EMAIL_HOST_PASSWORD in .env to send real
+# mail from any environment, prod included.
+EMAIL_HOST = os.getenv('EMAIL_HOST')
+if EMAIL_HOST:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+    # TLS (port 587) is the default; set EMAIL_USE_SSL=True instead for
+    # port 465 -- the two are mutually exclusive, never both True.
+    EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').strip().lower() in ('true', '1', 'yes')
+    EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False').strip().lower() in ('true', '1', 'yes')
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = os.getenv(
+    'DEFAULT_FROM_EMAIL', 'UoN Alumni Association <noreply@uonalumni.or.ke>'
+)
+
+# Association static details (2026-10-27) -- printed on generated
+# payment-confirmation documents (apps/home/pdf_documents.py). Not
+# secrets, just the same public banking/signatory info already on the
+# Association's letterhead -- plain constants, not .env.
+UONAA_MPESA_PAYBILL = "826300"
+UONAA_BANK_NAME = "KCB University Way, Nairobi"
+UONAA_BANK_ACCOUNT_NUMBER = "1108316638"
+UONAA_BANK_SWIFT_CODE = "KCBLKENX"
+UONAA_SIGNATORY_NAME = "Mr. Morgan Kiptum"
+UONAA_SIGNATORY_TITLE = "Executive Director"
 
 
 # ─────────────────────────────────────────────
