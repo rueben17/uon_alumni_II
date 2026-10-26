@@ -352,6 +352,15 @@ UONAA_BANK_SWIFT_CODE = "KCBLKENX"
 UONAA_SIGNATORY_NAME = "Mr. Morgan Kiptum"
 UONAA_SIGNATORY_TITLE = "Executive Director"
 
+# Contact/social -- used by the branded email signature
+# (apps/home/branding.py) and templates/snippets/footer.html.
+UONAA_WEBSITE_URL = "https://www.uonalumni.or.ke/"
+UONAA_CONTACT_EMAIL = "alumni@uonbi.ac.ke"
+UONAA_FACEBOOK_URL = "https://www.facebook.com/AlumniUON"
+UONAA_LINKEDIN_URL = "https://www.linkedin.com/company/uonalumni"
+UONAA_TWITTER_URL = "https://twitter.com/AlumniUON"
+UONAA_WHATSAPP_URL = "https://whatsapp.com/channel/0029Vanw0LXG3R3m4cg08t1I"
+
 
 # ─────────────────────────────────────────────
 # SMS

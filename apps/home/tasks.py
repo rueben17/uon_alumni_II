@@ -6,9 +6,12 @@ safely picklable for the ORM broker and re-runnable regardless of what
 changed in the database between enqueue and execution.
 """
 from django.conf import settings
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
 from django.core.management import call_command
+from django.template.loader import render_to_string
 from django.utils import timezone
+
+from apps.home.branding import email_branding_context, site_base_url
 
 
 def send_alumni_registration_confirmation(alumni_profile_id):
@@ -31,22 +34,98 @@ def send_alumni_registration_confirmation(alumni_profile_id):
     try:
         alumni = AlumniProfile.objects.select_related("user", "user__profile").get(pk=alumni_profile_id)
         recipient = alumni.user.email
-        send_mail(
-            subject="Welcome to the University of Nairobi Alumni Association",
-            message=(
-                f"Dear {alumni.user.profile.given_name},\n\n"
-                "Thank you for registering with the University of Nairobi "
-                "Alumni Association. Your profile has been created "
-                "successfully and your membership application is now "
-                "being processed.\n\n"
-                "We look forward to keeping you connected with the UoN "
-                "alumni community.\n\n"
-                "Regards,\nUoN Alumni Association"
-            ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[recipient],
-            fail_silently=False,
+        given_name = alumni.user.profile.given_name
+        text_body = (
+            f"Dear {given_name},\n\n"
+            "Thank you for registering with the University of Nairobi "
+            "Alumni Association. Your profile has been created "
+            "successfully and your membership application is now "
+            "being processed.\n\n"
+            "We look forward to keeping you connected with the UoN "
+            "alumni community.\n\n"
+            "Regards,\nUoN Alumni Association"
         )
+        html_body = render_to_string(
+            "emails/registration_confirmation.html",
+            {**email_branding_context(), "given_name": given_name},
+        )
+        email = EmailMultiAlternatives(
+            subject="Welcome to the University of Nairobi Alumni Association",
+            body=text_body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[recipient],
+        )
+        email.attach_alternative(html_body, "text/html")
+        email.send(fail_silently=False)
+    except Exception as exc:
+        log.error = str(exc)
+        log.save(update_fields=["error"])
+        raise
+
+    log.recipient_email = recipient
+    log.sent_at = timezone.now()
+    log.error = ""
+    log.save(update_fields=["recipient_email", "sent_at", "error"])
+
+
+def send_payment_confirmation_documents(payment_id):
+    """Sends the acknowledgement letter + invoice email once a Payment is
+    confirmed (Payment.mark_as_completed, apps.home.models.py). Idempotent
+    via EmailLog's UniqueConstraint on (email_type, related_object_id),
+    same pattern as send_alumni_registration_confirmation above. Builds
+    both PDFs fresh from current Payment/Membership state rather than
+    storing them -- cheap to regenerate, and a stored copy could go stale
+    if either row changes after the fact.
+    """
+    from apps.home.models import EmailLog, Payment
+    from apps.home.pdf_documents import (
+        _resolve_membership, build_acknowledgement_letter_pdf, build_invoice_pdf,
+    )
+
+    log, _created = EmailLog.objects.get_or_create(
+        email_type=EmailLog.EmailType.PAYMENT_CONFIRMATION,
+        related_object_id=str(payment_id),
+    )
+    if log.sent_at is not None:
+        return
+
+    try:
+        payment = Payment.objects.select_related(
+            "alumni__user__profile", "membership__tier", "membership_tier",
+        ).get(pk=payment_id)
+        recipient = payment.alumni.user.email
+        first_name = payment.alumni.user.profile.given_name or "there"
+        text_body = (
+            f"Dear {first_name},\n\n"
+            "Thank you for your payment. Your membership has been "
+            "confirmed -- please find your acknowledgement letter and "
+            "invoice attached.\n\n"
+            "Regards,\nUoN Alumni Association"
+        )
+        html_body = render_to_string(
+            "emails/payment_confirmation.html",
+            {**email_branding_context(), "given_name": first_name},
+        )
+        email = EmailMultiAlternatives(
+            subject="Your UoN Alumni Association Membership Confirmation",
+            body=text_body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[recipient],
+        )
+        email.attach_alternative(html_body, "text/html")
+        membership = _resolve_membership(payment)
+        membership_number = membership.membership_number if membership else payment.pk
+        email.attach(
+            f"UONAA_Acknowledgement_{membership_number}.pdf",
+            build_acknowledgement_letter_pdf(payment),
+            "application/pdf",
+        )
+        email.attach(
+            f"UONAA_Invoice_INV-{payment.id:06d}.pdf",
+            build_invoice_pdf(payment),
+            "application/pdf",
+        )
+        email.send(fail_silently=False)
     except Exception as exc:
         log.error = str(exc)
         log.save(update_fields=["error"])
@@ -86,26 +165,36 @@ def send_newsletter_email(publication_id, user_id):
         user = User.objects.select_related("profile").get(pk=user_id)
         recipient = user.email
 
-        # Same base-URL pattern as apps/home/context_processors.py's
-        # home_url() -- a background task has no request to build an
-        # absolute URL from, so the production/dev domain is picked the
-        # same way that context processor already does.
-        base = 'http://lvh.me:8000' if settings.DEBUG else 'https://uonalumni.or.ke'
-        downloads_url = base + reverse("home:uon_alumni_downloads", urlconf="main.urls") + "?category=newsletter"
+        # site_base_url() (apps/home/branding.py) -- a background task has
+        # no request to build an absolute URL from, same reasoning as
+        # apps/home/context_processors.py's home_url().
+        downloads_url = site_base_url() + reverse("home:uon_alumni_downloads", urlconf="main.urls") + "?category=newsletter"
 
-        send_mail(
-            subject=f"New newsletter: {publication.title}",
-            message=(
-                f"Dear {user.profile.given_name},\n\n"
-                f"A new issue of the UoN Alumni Association newsletter is "
-                f"now available: \"{publication.title}\" ({publication.document_date}).\n\n"
-                f"Read it here: {downloads_url}\n\n"
-                "Regards,\nUoN Alumni Association"
-            ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[recipient],
-            fail_silently=False,
+        text_body = (
+            f"Dear {user.profile.given_name},\n\n"
+            f"A new issue of the UoN Alumni Association newsletter is "
+            f"now available: \"{publication.title}\" ({publication.document_date}).\n\n"
+            f"Read it here: {downloads_url}\n\n"
+            "Regards,\nUoN Alumni Association"
         )
+        html_body = render_to_string(
+            "emails/newsletter_announcement.html",
+            {
+                **email_branding_context(),
+                "given_name": user.profile.given_name,
+                "publication_title": publication.title,
+                "document_date": publication.document_date,
+                "downloads_url": downloads_url,
+            },
+        )
+        email = EmailMultiAlternatives(
+            subject=f"New newsletter: {publication.title}",
+            body=text_body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[recipient],
+        )
+        email.attach_alternative(html_body, "text/html")
+        email.send(fail_silently=False)
     except Exception as exc:
         log.error = str(exc)
         log.save(update_fields=["error"])
@@ -134,19 +223,31 @@ def send_profile_claim_otp_email(claim_id, raw_code):
         return  # bookkeeping-only row for a non-match -- nothing to send
 
     recipient = claim.user.email
-    send_mail(
-        subject="Your UoN Alumni Association verification code",
-        message=(
-            f"Dear {claim.user.profile.given_name},\n\n"
-            f"Your verification code is: {raw_code}\n\n"
-            f"This code expires in {claim.OTP_EXPIRY_MINUTES} minutes. "
-            "If you didn't request this, you can safely ignore this email.\n\n"
-            "Regards,\nUoN Alumni Association"
-        ),
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[recipient],
-        fail_silently=False,
+    given_name = claim.user.profile.given_name
+    text_body = (
+        f"Dear {given_name},\n\n"
+        f"Your verification code is: {raw_code}\n\n"
+        f"This code expires in {claim.OTP_EXPIRY_MINUTES} minutes. "
+        "If you didn't request this, you can safely ignore this email.\n\n"
+        "Regards,\nUoN Alumni Association"
     )
+    html_body = render_to_string(
+        "emails/otp_code.html",
+        {
+            **email_branding_context(),
+            "given_name": given_name,
+            "raw_code": raw_code,
+            "otp_expiry_minutes": claim.OTP_EXPIRY_MINUTES,
+        },
+    )
+    email = EmailMultiAlternatives(
+        subject="Your UoN Alumni Association verification code",
+        body=text_body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[recipient],
+    )
+    email.attach_alternative(html_body, "text/html")
+    email.send(fail_silently=False)
 
 
 def send_profile_claim_otp_phone(claim_id, raw_code):

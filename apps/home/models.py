@@ -1022,7 +1022,11 @@ class MembershipTier(models.Model):
             start_date = timezone.now().date()
 
         if self.is_lifetime():
-            return None  # Never expires
+            # A concrete far-future date instead of None (2026-10-26) --
+            # downstream code (CSV exports, QR credential validity, renewal
+            # reminder jobs) can treat expires_on uniformly as a real date
+            # instead of special-casing NULL everywhere it's read.
+            return start_date + relativedelta(years=100)
 
         return start_date + relativedelta(months=self.duration_months)
 
@@ -1596,7 +1600,7 @@ class Membership(models.Model):
         self.status = self.Status.ACTIVE
         self.is_lifetime = self.tier.is_lifetime()
         self.started_on = self.started_on or payment_date
-        self.expires_on = None if self.is_lifetime else self.tier.get_expiry_date(payment_date)
+        self.expires_on = self.tier.get_expiry_date(payment_date)
         if not self.membership_number:
             self.membership_number = self.generate_membership_number()
         self.save()
@@ -1814,8 +1818,23 @@ class Payment(models.Model):
         if old_status != 'completed':
             from apps.home import services
 
-            services.confirm_payment(self)
-    
+            membership = services.confirm_payment(self)
+
+            # Acknowledgement-letter + invoice email (2026-10-27) -- only
+            # once there's an actual membership/tier to document, and
+            # deferred to on_commit since no caller wraps this method in
+            # an outer transaction today (on_commit fires immediately
+            # when there's no active one, so this is safe either way).
+            if membership is not None:
+                from django.db import transaction
+                from django_q.tasks import async_task
+
+                transaction.on_commit(
+                    lambda: async_task(
+                        "apps.home.tasks.send_payment_confirmation_documents", self.pk
+                    )
+                )
+
     def mark_as_failed(self, reason=None):
         """Mark payment as failed with optional reason."""
         old_status = self.payment_status
@@ -1891,6 +1910,7 @@ class EmailLog(models.Model):
     class EmailType(models.TextChoices):
         ALUMNI_REGISTRATION_CONFIRMATION = 'alumni_registration_confirmation', _('Alumni Registration Confirmation')
         EVALUATION_RECEIPT = 'evaluation_receipt', _('Evaluation Receipt')
+        PAYMENT_CONFIRMATION = 'payment_confirmation', _('Payment Confirmation')
         # related_object_id is a composite "{publication_id}:{user_id}" --
         # this is a bulk send (one row per recipient per newsletter), not
         # one row per Publication, so the plain pk alone isn't unique.

@@ -1,0 +1,13 @@
+{% extends "emails/base_email.html" %}
+{% block title %}Your UoN Alumni Association verification code{% endblock %}
+{% block content %}
+<p style="margin:0 0 14px;">Dear {{ given_name }},</p>
+<p style="margin:0 0 10px;">Your verification code is:</p>
+<p style="margin:0 0 14px; font-size:32px; font-weight:bold; letter-spacing:6px; color:#0E4E80; text-align:center;">
+{{ raw_code }}
+</p>
+<p style="margin:0; color:#4b5563; font-size:13px;">
+This code expires in {{ otp_expiry_minutes }} minutes. If you didn't
+request this, you can safely ignore this email.
+</p>
+{% endblock %}

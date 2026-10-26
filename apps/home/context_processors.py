@@ -337,6 +337,12 @@ def contacts(request):
         "mobile": mobile,
         "address": address,
         "postal": postal,
+        # Real URLs (2026-10-27) -- footer.html's social icons had empty
+        # href="" since the footer was first built; these were only ever
+        # collected once the branded email signature needed them too.
+        "url_facebook":  settings.UONAA_FACEBOOK_URL,
+        "url_linkedin":  settings.UONAA_LINKEDIN_URL,
+        "url_twitter":   settings.UONAA_TWITTER_URL,
         "mission": mission,
         "vision": vision,
         # Every home-app URL below goes through home_url() (reverse(), pinned

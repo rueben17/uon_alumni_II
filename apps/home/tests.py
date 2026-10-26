@@ -652,7 +652,9 @@ from django.core.management import call_command
 from django.utils import timezone
 
 from apps.home import services
-from apps.home.tasks import expire_lapsed_installment_plans, send_profile_claim_otp_phone
+from apps.home.tasks import (
+    expire_lapsed_installment_plans, send_profile_claim_otp_email, send_profile_claim_otp_phone,
+)
 
 
 def _life_tier(name="Gold Life Member", fee=100000):
@@ -769,13 +771,15 @@ class ActivateMembershipTests(TestCase):
         self.assertFalse(membership.is_lifetime)
         self.assertTrue(membership.membership_number)
 
-    def test_lifetime_tier_leaves_no_expiry(self):
+    def test_lifetime_tier_gets_a_100_year_expiry(self):
+        on = timezone.now().date()
         membership = services.activate_membership(
-            services.assign_membership_tier(self.user, self.gold)
+            services.assign_membership_tier(self.user, self.gold),
+            payment_date=on,
         )
 
         self.assertTrue(membership.is_lifetime)
-        self.assertIsNone(membership.expires_on)
+        self.assertEqual(membership.expires_on, self.gold.get_expiry_date(on))
         self.assertTrue(membership.is_valid)
 
     def test_reactivating_an_active_row_skips_supersession(self):
@@ -1392,6 +1396,272 @@ class PaymentStatusMethodTests(TestCase):
         payment.refresh_from_db()
         self.assertEqual(payment.payment_status, "refunded")
         self.assertEqual(payment.notes, "Duplicate transfer")
+
+
+# ── Payment-confirmation email: acknowledgement letter + invoice (2026-10-27) ──
+
+from django.core import mail
+from django.template.loader import render_to_string
+
+from apps.home import pdf_documents, tasks
+from apps.home.branding import email_branding_context
+from apps.home.models import EmailLog, Publication, ProfileClaimVerification
+
+
+class PaymentConfirmationDocumentsEnqueueTests(TestCase):
+    """apps/home/models.py's Payment.mark_as_completed -- the
+    on_commit(async_task(...)) call added alongside services.confirm_payment."""
+
+    def setUp(self):
+        self.alumni, self.user = _alumni_for("confirmed-docs@example.com")
+        self.tier = _annual_tier()
+
+    def _payment(self):
+        return Payment.objects.create(
+            alumni=self.alumni, membership_tier=self.tier,
+            amount=Decimal("2000"), payment_method="mpesa",
+        )
+
+    def test_completion_enqueues_the_task_exactly_once(self):
+        payment = self._payment()
+
+        with mock.patch("django_q.tasks.async_task") as mocked, \
+                self.captureOnCommitCallbacks(execute=True):
+            payment.mark_as_completed()
+
+        mocked.assert_called_once_with(
+            "apps.home.tasks.send_payment_confirmation_documents", payment.pk
+        )
+
+    def test_a_second_completion_call_does_not_re_enqueue(self):
+        payment = self._payment()
+        with self.captureOnCommitCallbacks(execute=True):
+            payment.mark_as_completed()
+
+        with mock.patch("django_q.tasks.async_task") as mocked, \
+                self.captureOnCommitCallbacks(execute=True):
+            payment.mark_as_completed()
+
+        mocked.assert_not_called()
+
+
+class PaymentConfirmationPdfDocumentsTests(TestCase):
+    """apps/home/pdf_documents.py's two builders -- non-empty, valid PDF
+    bytes for both an annual (real expiry) and a lifetime tier."""
+
+    def setUp(self):
+        self.alumni, self.user = _alumni_for("pdf-docs@example.com")
+
+    def _confirmed_payment(self, tier):
+        payment = Payment.objects.create(
+            alumni=self.alumni, membership_tier=tier,
+            amount=tier.fee, payment_method="bank_transfer",
+        )
+        with self.captureOnCommitCallbacks(execute=True):
+            payment.mark_as_completed()
+        payment.refresh_from_db()
+        return payment
+
+    def test_annual_tier_documents_are_valid_pdfs(self):
+        payment = self._confirmed_payment(_annual_tier())
+
+        letter_pdf = pdf_documents.build_acknowledgement_letter_pdf(payment)
+        invoice_pdf = pdf_documents.build_invoice_pdf(payment)
+
+        self.assertTrue(letter_pdf.startswith(b"%PDF"))
+        self.assertTrue(invoice_pdf.startswith(b"%PDF"))
+
+    def test_lifetime_tier_documents_are_valid_pdfs(self):
+        payment = self._confirmed_payment(_life_tier())
+
+        letter_pdf = pdf_documents.build_acknowledgement_letter_pdf(payment)
+        invoice_pdf = pdf_documents.build_invoice_pdf(payment)
+
+        self.assertTrue(letter_pdf.startswith(b"%PDF"))
+        self.assertTrue(invoice_pdf.startswith(b"%PDF"))
+
+
+class SendPaymentConfirmationDocumentsTaskTests(TestCase):
+    """apps/home/tasks.py's send_payment_confirmation_documents -- the
+    EmailLog idempotency pattern plus the two-PDF-attachment email."""
+
+    def setUp(self):
+        self.alumni, self.user = _alumni_for("task-docs@example.com")
+        self.tier = _annual_tier()
+
+    def _confirmed_payment(self):
+        payment = Payment.objects.create(
+            alumni=self.alumni, membership_tier=self.tier,
+            amount=self.tier.fee, payment_method="mpesa",
+        )
+        with self.captureOnCommitCallbacks():
+            payment.mark_as_completed()
+        return payment
+
+    def test_sends_an_email_with_both_pdfs_attached(self):
+        payment = self._confirmed_payment()
+        mail.outbox.clear()
+
+        tasks.send_payment_confirmation_documents(payment.pk)
+
+        self.assertEqual(len(mail.outbox), 1)
+        sent = mail.outbox[0]
+        self.assertEqual(sent.to, [self.user.email])
+        self.assertEqual(len(sent.attachments), 2)
+        filenames = {att[0] for att in sent.attachments}
+        self.assertTrue(any(name.startswith("UONAA_Acknowledgement_") for name in filenames))
+        self.assertTrue(any(name.startswith("UONAA_Invoice_") for name in filenames))
+        self.assertEqual(len(sent.alternatives), 1)
+        html_body, mimetype = sent.alternatives[0]
+        self.assertEqual(mimetype, "text/html")
+        self.assertIn(self.user.profile.given_name, html_body)
+
+        log = EmailLog.objects.get(
+            email_type=EmailLog.EmailType.PAYMENT_CONFIRMATION, related_object_id=str(payment.pk)
+        )
+        self.assertIsNotNone(log.sent_at)
+
+    def test_a_second_call_is_a_no_op(self):
+        payment = self._confirmed_payment()
+        mail.outbox.clear()
+
+        tasks.send_payment_confirmation_documents(payment.pk)
+        tasks.send_payment_confirmation_documents(payment.pk)
+
+        self.assertEqual(len(mail.outbox), 1)
+
+
+class SendAlumniRegistrationConfirmationTaskTests(TestCase):
+    """apps/home/tasks.py's send_alumni_registration_confirmation --
+    first task to switch from plain send_mail to a branded
+    EmailMultiAlternatives (2026-10-27)."""
+
+    def test_sends_an_html_alternative_with_the_given_name(self):
+        alumni, user = _alumni_for("newmember@example.com")
+        mail.outbox.clear()
+
+        tasks.send_alumni_registration_confirmation(alumni.pk)
+
+        self.assertEqual(len(mail.outbox), 1)
+        sent = mail.outbox[0]
+        self.assertEqual(sent.to, [user.email])
+        self.assertEqual(len(sent.alternatives), 1)
+        html_body, mimetype = sent.alternatives[0]
+        self.assertEqual(mimetype, "text/html")
+        self.assertIn(user.profile.given_name, html_body)
+
+    def test_a_second_call_is_a_no_op(self):
+        alumni, _user = _alumni_for("newmember2@example.com")
+        tasks.send_alumni_registration_confirmation(alumni.pk)
+        mail.outbox.clear()
+
+        tasks.send_alumni_registration_confirmation(alumni.pk)
+
+        self.assertEqual(len(mail.outbox), 0)
+
+
+class SendProfileClaimOtpEmailTaskTests(TestCase):
+    """tasks.py's send_profile_claim_otp_email -- the email twin of
+    SendProfileClaimOtpPhoneTaskTests below, now also checking the new
+    branded HTML alternative."""
+
+    def test_sends_to_the_address_on_file_with_the_code(self):
+        user = _make_user("otp-claimant@example.com")
+        claim = ProfileClaimVerification.objects.create(
+            user=user, channel=ProfileClaimVerification.Channel.EMAIL,
+        )
+        mail.outbox.clear()
+
+        tasks.send_profile_claim_otp_email(str(claim.pk), "483920")
+
+        self.assertEqual(len(mail.outbox), 1)
+        sent = mail.outbox[0]
+        self.assertEqual(sent.to, [user.email])
+        self.assertIn("483920", sent.body)
+        html_body, mimetype = sent.alternatives[0]
+        self.assertEqual(mimetype, "text/html")
+        self.assertIn("483920", html_body)
+
+    def test_a_bookkeeping_only_row_sends_nothing(self):
+        claim = ProfileClaimVerification.objects.create()
+        mail.outbox.clear()
+
+        tasks.send_profile_claim_otp_email(str(claim.pk), "483920")
+
+        self.assertEqual(len(mail.outbox), 0)
+
+
+_newsletter_media_root = tempfile.mkdtemp(prefix="home_newsletter_media_")
+
+
+@override_settings(MEDIA_ROOT=_newsletter_media_root, STORAGES=LOCAL_STORAGES)
+class SendNewsletterEmailTaskTests(TestCase):
+    """tasks.py's send_newsletter_email -- now a branded
+    EmailMultiAlternatives carrying the publication title/downloads link
+    in both the text and HTML bodies."""
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(_newsletter_media_root, ignore_errors=True)
+        super().tearDownClass()
+
+    def test_sends_an_html_alternative_with_the_publication_title(self):
+        _alumni, user = _alumni_for("subscriber@example.com")
+        publication = Publication.objects.create(
+            title="October 2026 Alumni Digest",
+            category=Publication.Category.NEWSLETTER,
+            document_date=timezone.now().date(),
+            file=SimpleUploadedFile("digest.pdf", b"%PDF-1.4 fake", content_type="application/pdf"),
+        )
+        mail.outbox.clear()
+
+        tasks.send_newsletter_email(str(publication.pk), user.pk)
+
+        self.assertEqual(len(mail.outbox), 1)
+        sent = mail.outbox[0]
+        self.assertIn("October 2026 Alumni Digest", sent.subject)
+        html_body, mimetype = sent.alternatives[0]
+        self.assertEqual(mimetype, "text/html")
+        self.assertIn("October 2026 Alumni Digest", html_body)
+
+
+class EmailBrandingContextTests(TestCase):
+    """apps/home/branding.py -- the shared context every templates/emails
+    template renders with. The real badge files now exist
+    (static/images/badges/, 2026-10-27), so both URLs must resolve; the
+    omission behaviour itself (what the template does when a URL is
+    None) is exercised directly against the template instead, so this
+    doesn't depend on deleting committed assets to test the gap."""
+
+    def test_badge_urls_resolve_when_the_files_exist(self):
+        context = email_branding_context()
+
+        self.assertTrue(context["badge_50_url"].endswith("50th_anniversary.png"))
+        self.assertTrue(context["badge_20_url"].endswith("20th_anniversary.png"))
+        self.assertTrue(context["badge_crest_url"].endswith("uonaa_crest.png"))
+        self.assertTrue(context["crest_url"].endswith("CREST_new-01.png"))
+
+    def test_base_template_includes_the_real_badge_images(self):
+        html = render_to_string("emails/registration_confirmation.html", {
+            **email_branding_context(), "given_name": "Test",
+        })
+
+        self.assertIn("50th_anniversary.png", html)
+        self.assertIn("20th_anniversary.png", html)
+        self.assertIn("uonaa_crest.png", html)
+
+    def test_base_template_omits_a_badge_whose_url_is_none(self):
+        """The graceful-omission behaviour itself, independent of
+        whether the real files happen to exist on disk right now."""
+        html = render_to_string("emails/registration_confirmation.html", {
+            **email_branding_context(),
+            "given_name": "Test",
+            "badge_50_url": None,
+            "badge_20_url": None,
+        })
+
+        self.assertNotIn("50th_anniversary", html)
+        self.assertNotIn("20th_anniversary", html)
 
 
 # ── Candidate findings D and E (2) ───────────────────────────────────

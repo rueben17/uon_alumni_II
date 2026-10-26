@@ -1,3 +1,5 @@
+from dateutil.relativedelta import relativedelta
+
 from django.contrib import admin, messages
 from apps.home.models import*
 from django.db import transaction
@@ -712,7 +714,15 @@ class MembershipAdmin(ExportMixin, admin.ModelAdmin):
 
     @admin.action(description="Mark as lifetime members")
     def mark_as_lifetime(self, request, queryset):
-        count = queryset.update(is_lifetime=True, expires_on=None)
+        # Matches MembershipTier.get_expiry_date()'s lifetime branch
+        # (2026-10-26): a concrete 100-years-out date instead of None.
+        count = 0
+        for membership in queryset:
+            anchor = membership.started_on or timezone.now().date()
+            membership.is_lifetime = True
+            membership.expires_on = anchor + relativedelta(years=100)
+            membership.save(update_fields=["is_lifetime", "expires_on", "updated_at"])
+            count += 1
         self.message_user(request, f"{count} member(s) marked as lifetime.")
 
 

@@ -1,0 +1,9 @@
+{% extends "emails/base_email.html" %}
+{% block title %}Your UoN Alumni Association Membership Confirmation{% endblock %}
+{% block content %}
+<p style="margin:0 0 14px;">Dear {{ given_name }},</p>
+<p style="margin:0;">
+Thank you for your payment. Your membership has been confirmed -- please
+find your acknowledgement letter and invoice attached.
+</p>
+{% endblock %}

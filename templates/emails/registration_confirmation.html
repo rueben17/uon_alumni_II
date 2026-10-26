@@ -1,0 +1,13 @@
+{% extends "emails/base_email.html" %}
+{% block title %}Welcome to the University of Nairobi Alumni Association{% endblock %}
+{% block content %}
+<p style="margin:0 0 14px;">Dear {{ given_name }},</p>
+<p style="margin:0 0 14px;">
+Thank you for registering with the University of Nairobi Alumni Association.
+Your profile has been created successfully and your membership application
+is now being processed.
+</p>
+<p style="margin:0;">
+We look forward to keeping you connected with the UoN alumni community.
+</p>
+{% endblock %}

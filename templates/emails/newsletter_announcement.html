@@ -1,0 +1,14 @@
+{% extends "emails/base_email.html" %}
+{% block title %}New newsletter: {{ publication_title }}{% endblock %}
+{% block content %}
+<p style="margin:0 0 14px;">Dear {{ given_name }},</p>
+<p style="margin:0 0 14px;">
+A new issue of the UoN Alumni Association newsletter is now available:
+&ldquo;{{ publication_title }}&rdquo; ({{ document_date }}).
+</p>
+<p style="margin:0;">
+<a href="{{ downloads_url }}" style="display:inline-block; padding:10px 20px; background-color:#38b6ff; color:#ffffff; text-decoration:none; border-radius:4px; font-weight:bold;">
+Read it here
+</a>
+</p>
+{% endblock %}

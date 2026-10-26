@@ -208,12 +208,12 @@ class Command(BaseCommand):
             used to roll its own dice internally, independently of
             `status`, which could and did produce a fully-paid lump-sum
             Life membership marked EXPIRED. The real app has no code path
-            that can ever produce that: a lump-sum Life row has no
-            expires_on and nothing that could lapse it -- only an
-            installment plan that stalled before paying off can
-            legitimately be EXPIRED."""
+            that can ever produce that: a lump-sum Life row's expires_on is
+            a 100-years-out sentinel (2026-10-26) that nothing realistic
+            could ever lapse -- only an installment plan that stalled
+            before paying off can legitimately be EXPIRED."""
             is_lifetime = tier.is_lifetime()
-            expires_on = None if is_lifetime else tier.get_expiry_date(started_on)
+            expires_on = tier.get_expiry_date(started_on)
             frequency = (
                 random.choice([Membership.PaymentFrequency.MONTHLY, Membership.PaymentFrequency.QUARTERLY,
                                 Membership.PaymentFrequency.ANNUALLY])
@@ -308,8 +308,9 @@ class Command(BaseCommand):
                 # One-time fee, no renewal -- a Life membership is paid
                 # once, UNLESS it's on a stalled installment plan (the
                 # only real way a Life-tier row can legitimately be
-                # EXPIRED -- a fully-paid lump sum never can, since it has
-                # no expires_on to lapse). Decide the coin flip HERE, once,
+                # EXPIRED -- a fully-paid lump sum never can, since its
+                # expires_on is a 100-years-out sentinel). Decide the coin
+                # flip HERE, once,
                 # so it's consistent with `status` below rather than a
                 # second independent roll inside build_row().
                 is_installment = (

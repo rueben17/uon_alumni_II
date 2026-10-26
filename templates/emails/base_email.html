@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}University of Nairobi Alumni Association{% endblock %}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f3f4f6; font-family:Arial, Helvetica, sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f3f4f6; padding:24px 0;">
+<tr>
+<td align="center">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%; background-color:#ffffff; border-radius:4px; overflow:hidden;">
+
+<!-- Header -->
+<tr>
+<td align="center" style="background-color:#0E4E80; padding:24px 24px 20px;">
+<img src="{{ crest_url }}" alt="UONAA Crest" width="64" height="64" style="display:block; margin:0 auto 10px; border:0;">
+<div style="color:#ffffff; font-size:16px; font-weight:bold; letter-spacing:0.5px;">
+UNIVERSITY OF NAIROBI ALUMNI ASSOCIATION
+</div>
+</td>
+</tr>
+
+<!-- Content -->
+<tr>
+<td style="padding:28px 28px 8px; color:#1f2937; font-size:15px; line-height:1.6;">
+{% block content %}{% endblock %}
+</td>
+</tr>
+
+<!-- Signature -->
+<tr>
+<td style="padding:8px 28px 28px; color:#1f2937; font-size:13px; line-height:1.7;">
+<p style="margin:16px 0 0;">
+Regards,<br>
+UoN Alumni Association.
+</p>
+<p style="margin:12px 0 0; color:#4b5563;">
+Kolobot Drive, Off State House Rd.<br>
+0724 820-908 | (020) 4916713
+</p>
+
+<div style="border-top:1px dashed #d1d5db; margin:16px 0;"></div>
+
+<p style="margin:0;">
+<a href="{{ website_url }}" style="color:#38b6ff; text-decoration:underline;">University of Nairobi Alumni Association</a>
+&nbsp;|&nbsp;
+<a href="mailto:{{ contact_email }}" style="color:#38b6ff; text-decoration:underline;">Email</a>
+</p>
+<p style="margin:8px 0 0;">
+<a href="{{ facebook_url }}" style="color:#38b6ff; text-decoration:underline;">Facebook</a>
+&nbsp;|&nbsp;
+<a href="{{ linkedin_url }}" style="color:#38b6ff; text-decoration:underline;">LinkedIn</a>
+&nbsp;|&nbsp;
+<a href="{{ twitter_url }}" style="color:#38b6ff; text-decoration:underline;">Twitter</a>
+&nbsp;|&nbsp;
+<a href="{{ whatsapp_url }}" style="color:#38b6ff; text-decoration:underline;">WhatsApp</a>
+</p>
+
+<div style="border-top:1px dashed #d1d5db; margin:16px 0;"></div>
+
+<table role="presentation" cellpadding="0" cellspacing="0">
+<tr>
+{% if badge_50_url %}
+<td style="padding-right:12px;"><img src="{{ badge_50_url }}" alt="UoN 50th Anniversary" height="56" style="display:block; border:0;"></td>
+{% endif %}
+<td style="padding-right:12px;"><img src="{{ badge_crest_url|default:crest_url }}" alt="UONAA Crest" height="56" style="display:block; border:0;"></td>
+{% if badge_20_url %}
+<td><img src="{{ badge_20_url }}" alt="UONAA 20th Anniversary" height="56" style="display:block; border:0;"></td>
+{% endif %}
+</tr>
+</table>
+</td>
+</tr>
+
+</table>
+</td>
+</tr>
+</table>
+</body>
+</html>
