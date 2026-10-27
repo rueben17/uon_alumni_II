@@ -166,9 +166,37 @@ class MembershipCrmHtmxTests(TestCase):
         self.assertNotContains(response, "Total memberships")  # stats block absent
 
 
+def _valid_new_member_payload(tier, **overrides):
+    """NewMemberForm now has full field parity with the member-facing
+    AlumniRegistrationForm (2026-10-27, minus privacy_consent) -- this is
+    the minimal valid payload, using graduation_institution=other so a
+    test doesn't need real Faculty/Qualification fixtures just to pass
+    validation."""
+    payload = {
+        "primary_email": "jane.doe@example.com",
+        "surname": "Doe",
+        "first_name": "Jane",
+        "date_of_birth": "1990-01-01",
+        "id_passport_no": "12345678",
+        "phone_mobile": "0712345678",
+        "phone_alt": "0712345679",
+        "email": "jane.alt@example.com",
+        "graduation_institution": "other",
+        "other_institution_name": "Kenyatta University",
+        "other_institution_qualification": "BSc, 2012",
+        "membership_tier": tier.pk,
+        "payment_method": "mpesa",
+        "payment_frequency": "once",
+    }
+    payload.update(overrides)
+    return payload
+
+
 class MembershipCrmCreateTests(TestCase):
-    """MembershipCreateView + NewMemberForm -- a brand-new person and a
-    PENDING membership, through services.assign_membership_tier()."""
+    """MembershipCreateView + NewMemberForm -- a brand-new person, a
+    PENDING membership (services.assign_membership_tier()), and a
+    recorded (not yet confirmed) Payment -- mirrors AlumniRegisterView's
+    own sequence (2026-10-27)."""
 
     @classmethod
     def setUpTestData(cls):
@@ -178,11 +206,12 @@ class MembershipCrmCreateTests(TestCase):
     def setUp(self):
         self.client.force_login(self.staff_user)
 
-    def test_create_makes_a_pending_membership(self):
-        response = self.client.post(reverse("membership_crm:create"), {
-            "given_name": "Jane", "family_name": "Doe",
-            "email": "jane.doe@example.com", "tier": self.tier.pk,
-        }, HTTP_HOST=PUBLIC_HOST)
+    def test_create_makes_a_pending_membership_and_a_payment(self):
+        response = self.client.post(
+            reverse("membership_crm:create"),
+            _valid_new_member_payload(self.tier),
+            HTTP_HOST=PUBLIC_HOST,
+        )
 
         self.assertRedirects(response, reverse("membership_crm:list"))
         user = User.objects.get(email="jane.doe@example.com")
@@ -190,38 +219,49 @@ class MembershipCrmCreateTests(TestCase):
         self.assertEqual(membership.status, Membership.Status.PENDING)
         self.assertEqual(membership.tier, self.tier)
 
+        payment = Payment.objects.get(membership=membership)
+        self.assertEqual(payment.payment_status, "pending")
+        self.assertEqual(payment.amount, self.tier.fee)
+        self.assertEqual(payment.payment_method, "mpesa")
+        self.assertEqual(payment.processed_by, self.staff_user)
+
     def test_an_existing_email_is_rejected(self):
         _make_user("dupe@example.com")
 
-        response = self.client.post(reverse("membership_crm:create"), {
-            "given_name": "Jane", "family_name": "Doe",
-            "email": "dupe@example.com", "tier": self.tier.pk,
-        }, HTTP_HOST=PUBLIC_HOST)
+        response = self.client.post(
+            reverse("membership_crm:create"),
+            _valid_new_member_payload(self.tier, primary_email="dupe@example.com"),
+            HTTP_HOST=PUBLIC_HOST,
+        )
 
         self.assertEqual(response.status_code, 200)  # re-rendered with the form error
         self.assertContains(response, "already exists")
         self.assertEqual(Membership.objects.count(), 0)
+        self.assertEqual(Payment.objects.count(), 0)
 
 
 class NewMemberFormConsentTests(TestCase):
-    """DPA 2019 caveat from README_MEMBERSHIP_CRM.md: this bypasses the
-    Google-OAuth onboarding path, so consent cannot be pre-granted --
-    both opt-ins must stay False."""
+    """DPA 2019: this bypasses the Google-OAuth onboarding path, so
+    consent cannot be pre-granted -- privacy_consent must not even be a
+    field on this form, and both opt-ins must stay False."""
+
+    def test_privacy_consent_is_not_a_field(self):
+        from apps.home.crm_forms import NewMemberForm
+
+        form = NewMemberForm()
+        self.assertNotIn("privacy_consent", form.fields)
 
     def test_sms_and_email_opt_in_stay_false(self):
         from apps.home.crm_forms import NewMemberForm
 
         tier = _annual_tier()
-        form = NewMemberForm(data={
-            "given_name": "Jane", "family_name": "Doe",
-            "email": "consent@example.com", "tier": tier.pk,
-        })
+        form = NewMemberForm(data=_valid_new_member_payload(tier, primary_email="consent@example.com"))
         self.assertTrue(form.is_valid(), form.errors)
 
-        user, _membership = form.save()
+        alumni = form.save()
 
-        self.assertFalse(user.profile.sms_opt_in)
-        self.assertFalse(user.profile.email_opt_in)
+        self.assertFalse(alumni.user.profile.sms_opt_in)
+        self.assertFalse(alumni.user.profile.email_opt_in)
 
 
 class MembershipCrmRecordPaymentTests(TestCase):

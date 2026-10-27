@@ -8,7 +8,13 @@ AlumniProfileDeleteView's deactivate-not-delete. Staff/superuser only.
 {% block robots %}noindex, nofollow{% endblock %}
 
 {% block content %}
-<div class="container mx-auto min-h-screen" style="max-width: 1700px;">
+<div class="container mx-auto min-h-screen relative" style="max-width: 1700px;">
+    {% comment %}
+    Same background treatment as templates/home/membership_analytics.html
+    -- position:fixed backdrop, not a background on this container (see
+    that template's own comment for the full rationale).
+    {% endcomment %}
+    <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
     {% include "snippets/navbar.html" %}
 
     <section class="mx-auto max-w-lg px-3 py-10">

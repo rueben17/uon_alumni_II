@@ -17,7 +17,8 @@ rest of the site (call self.apply_tailwind_styling() last in __init__).
 from django import forms
 from django.db import transaction
 
-from apps.home.models import AlumniProfile, Faculty, Membership, MembershipTier, Payment
+from apps.home.forms import AlumniRegistrationForm
+from apps.home.models import Membership, MembershipTier, Payment
 from apps.user.models import User
 from main.forms import TailwindStyledFormMixin
 
@@ -84,40 +85,50 @@ class RecordPaymentForm(TailwindStyledFormMixin, forms.Form):
         self.apply_tailwind_styling()
 
 
-class NewMemberForm(TailwindStyledFormMixin, forms.Form):
+class NewMemberForm(AlumniRegistrationForm):
     """Create a brand-new member from the console (a walk-in / phone / paper
     signup the Secretariat is entering by hand).
 
-    Deliberately a plain Form, not a ModelForm: one submit spans three
-    tables (User, UserProfile, AlumniProfile) plus a pending Membership,
-    and it must go through the same service door
-    (services.assign_membership_tier) as every other membership so the
-    row is created consistently.
+    Subclasses the member-facing AlumniRegistrationForm directly (2026-10-27)
+    rather than duplicating its ~25 fields -- a walk-in's record should be
+    just as complete as someone who registered themselves, and reusing the
+    same fields/validation/save() logic is what actually guarantees that,
+    rather than two parallel forms quietly drifting apart.
 
-    IMPORTANT (DPA 2019): this bypasses the Google-OAuth onboarding path
-    (apps/user/adapter.py), so consent is NOT collected here --
-    UserProfile.sms_opt_in / email_opt_in stay False by default, which is
-    correct (consent cannot be pre-granted). The account is created with
-    an unusable password (create_user(password=None)); the member sets a
-    password / links Google on first login. For an EXISTING person, don't
-    use this -- open their record and edit the membership instead.
+    Two deliberate differences from the base form:
+      - `primary_email` replaces the login identity AlumniRegistrationForm
+        normally gets for free from an already-authenticated Google user
+        (apps/user/adapter.py) -- there's no such user here, so the
+        Secretariat supplies the email that becomes the new account's
+        login. The inherited `email` field keeps its original meaning,
+        "alternate email", exactly as on the member-facing form.
+      - `privacy_consent` is REMOVED (DPA 2019): consent cannot be
+        pre-granted on someone else's behalf, same reasoning the old
+        version of this form already gave.
+
+    Still a plain Form-like save() in spirit -- membership/payment
+    creation stays in the view (MembershipCreateView.post), mirroring
+    exactly where AlumniRegisterView.form_valid() does the same thing,
+    so both entry points activate a membership through the identical
+    sequence.
     """
 
-    given_name = forms.CharField(max_length=255, label="First name")
-    family_name = forms.CharField(max_length=255, label="Surname")
-    email = forms.EmailField()
-    phone = forms.CharField(max_length=20, required=False, help_text="e.g. 0712345678")
-    student_reg_no = forms.CharField(max_length=50, required=False, label="Registration number")
-    graduation_date = forms.DateField(required=False, widget=_DATE_WIDGET, input_formats=_DATE_INPUT_FORMATS)
-    faculty = forms.ModelChoiceField(queryset=Faculty.objects.all().order_by("faculty_name"), required=False)
-    tier = forms.ModelChoiceField(queryset=_active_tiers(), label="Membership tier")
+    primary_email = forms.EmailField(
+        label="Email",
+        help_text="Their login email. A password-free account is created -- "
+                   "they set a password or link Google on first login.",
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        del self.fields["privacy_consent"]
+        # Login identity fields first, ahead of everything
+        # AlumniProfileForm/AlumniRegistrationForm already ordered.
+        self.order_fields(["primary_email", *[f for f in self.fields if f != "primary_email"]])
         self.apply_tailwind_styling()
 
-    def clean_email(self):
-        email = self.cleaned_data["email"].strip().lower()
+    def clean_primary_email(self):
+        email = self.cleaned_data["primary_email"].strip().lower()
         if User.objects.filter(email__iexact=email).exists():
             raise forms.ValidationError(
                 "A user with this email already exists — open their record and edit "
@@ -126,29 +137,13 @@ class NewMemberForm(TailwindStyledFormMixin, forms.Form):
         return email
 
     @transaction.atomic
-    def save(self):
-        """Returns (user, membership). The membership is PENDING; record a
-        payment on the detail page to activate it."""
-        from apps.home import services  # local import: services imports models at module load
-
-        user = User.objects.create_user(
-            email=self.cleaned_data["email"],
-            phone=self.cleaned_data.get("phone") or None,
-        )
-        # UserProfile is created by apps.user.signals.ensure_user_profile
-        # (post_save on User) with blank names -- fetch and fill it rather
-        # than creating a second one (the O2O would collide).
-        profile = user.profile
-        profile.given_name = self.cleaned_data["given_name"]
-        profile.family_name = self.cleaned_data["family_name"]
-        profile.save(update_fields=["given_name", "family_name"])
-
-        AlumniProfile.objects.create(
-            user=user,
-            student_reg_no=self.cleaned_data.get("student_reg_no", ""),
-            graduation_date=self.cleaned_data.get("graduation_date"),
-            faculty=self.cleaned_data.get("faculty"),
-        )
-
-        membership = services.assign_membership_tier(user, self.cleaned_data["tier"])
-        return user, membership
+    def save(self, commit=True):
+        """Returns the saved AlumniProfile. Creates the User first (an
+        unusable password -- they set one / link Google on first login,
+        same as the old version of this form), then hands off to
+        AlumniProfileForm.save() for everything else, exactly as
+        AlumniRegisterView does once Google auth has already created
+        the user for it."""
+        user = User.objects.create_user(email=self.cleaned_data["primary_email"])
+        self.instance.user = user
+        return super().save(commit=commit)

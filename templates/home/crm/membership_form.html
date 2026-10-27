@@ -10,7 +10,13 @@ Staff/superuser only.
 {% block robots %}noindex, nofollow{% endblock %}
 
 {% block content %}
-<div class="container mx-auto min-h-screen" style="max-width: 1700px;">
+<div class="container mx-auto min-h-screen relative" style="max-width: 1700px;">
+    {% comment %}
+    Same background treatment as templates/home/membership_analytics.html
+    -- position:fixed backdrop, not a background on this container (see
+    that template's own comment for the full rationale).
+    {% endcomment %}
+    <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
     {% include "snippets/navbar.html" %}
 
     <section class="mx-auto max-w-3xl px-3 py-6">
@@ -39,15 +45,90 @@ Staff/superuser only.
                     <div class="mb-4 rounded-sm border border-red-200 bg-red-50 p-3 text-sm text-red-700">{{ form.non_field_errors }}</div>
                 {% endif %}
 
-                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {% for field in form %}
-                        {% if field.field.widget.input_type == "checkbox" %}
-                            {% include "snippets/form_field.html" with field=field wrapper_class="sm:col-span-2 py-1" %}
-                        {% else %}
-                            {% include "snippets/form_field.html" with field=field %}
-                        {% endif %}
-                    {% endfor %}
-                </div>
+                {% if mode == 'create' %}
+                    {% comment %}
+                    Same field order/grouping as templates/home/uon_alumni_register.html
+                    (bio data, then education, then membership) -- NewMemberForm is a
+                    subclass of that page's form, so a plain {% for field in form %} loop
+                    rendered the ModelForm's internal field order instead (education
+                    fields before bio fields), which read as scrambled (2026-10-27).
+                    {% endcomment %}
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {% include "snippets/form_field.html" with field=form.primary_email %}
+                    </div>
+
+                    <h2 class="mt-6 border-t border-slate-100 pt-4 text-sm font-semibold text-[#0E4E80]">Personal Details</h2>
+                    <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {% include "snippets/form_field.html" with field=form.honorific %}
+                        {% include "snippets/form_field.html" with field=form.surname %}
+                        {% include "snippets/form_field.html" with field=form.first_name %}
+                        {% include "snippets/form_field.html" with field=form.middle_name %}
+                        {% include "snippets/form_field.html" with field=form.maiden_name %}
+                        {% include "snippets/form_field.html" with field=form.gender %}
+                        {% include "snippets/form_field.html" with field=form.date_of_birth %}
+                        {% include "snippets/form_field.html" with field=form.id_passport_no %}
+                        {% include "snippets/form_field.html" with field=form.nationality %}
+                    </div>
+
+                    <h2 class="mt-6 border-t border-slate-100 pt-4 text-sm font-semibold text-[#0E4E80]">Contact Information</h2>
+                    <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {% include "snippets/form_field.html" with field=form.phone_mobile %}
+                        {% include "snippets/form_field.html" with field=form.phone_alt %}
+                        {% include "snippets/form_field.html" with field=form.email %}
+                        {% include "snippets/form_field.html" with field=form.postal_address %}
+                        {% include "snippets/form_field.html" with field=form.postal_code %}
+                        {% include "snippets/form_field.html" with field=form.city %}
+                        {% include "snippets/form_field.html" with field=form.current_employer %}
+                        {% include "snippets/form_field.html" with field=form.employment_position %}
+                    </div>
+
+                    <h2 class="mt-6 border-t border-slate-100 pt-4 text-sm font-semibold text-[#0E4E80]">Graduation Details</h2>
+                    <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {% include "snippets/form_field.html" with field=form.graduation_institution %}
+                        {% include "snippets/form_field.html" with field=form.name_at_graduation %}
+
+                        <div id="faculty-wrapper">
+                            {% include "snippets/form_field.html" with field=form.faculty %}
+                        </div>
+                        <div id="qualification-wrapper">
+                            {% include "snippets/form_field.html" with field=form.qualification %}
+                        </div>
+
+                        <div id="other-institution-name-wrapper">
+                            {% include "snippets/form_field.html" with field=form.other_institution_name %}
+                        </div>
+                        <div id="other-institution-qualification-wrapper">
+                            {% include "snippets/form_field.html" with field=form.other_institution_qualification %}
+                        </div>
+
+                        {% include "snippets/form_field.html" with field=form.graduation_date %}
+                        {% include "snippets/form_field.html" with field=form.student_reg_no %}
+                    </div>
+
+                    <h2 class="mt-6 border-t border-slate-100 pt-4 text-sm font-semibold text-[#0E4E80]">Membership Subscription</h2>
+                    <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {% include "snippets/form_field.html" with field=form.membership_tier %}
+                        {% include "snippets/form_field.html" with field=form.payment_method %}
+                        {% include "snippets/form_field.html" with field=form.payment_frequency %}
+                        {% include "snippets/form_field.html" with field=form.installment_amount %}
+                    </div>
+
+                    <h2 class="mt-6 border-t border-slate-100 pt-4 text-sm font-semibold text-[#0E4E80]">Preferences</h2>
+                    <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {% include "snippets/form_field.html" with field=form.receive_newsletter wrapper_class="sm:col-span-2 py-1" %}
+                        {% include "snippets/form_field.html" with field=form.receive_sms_alerts wrapper_class="sm:col-span-2 py-1" %}
+                    </div>
+                {% else %}
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {% for field in form %}
+                            {% if field.field.widget.input_type == "checkbox" %}
+                                {% include "snippets/form_field.html" with field=field wrapper_class="sm:col-span-2 py-1" %}
+                            {% else %}
+                                {% include "snippets/form_field.html" with field=field %}
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                {% endif %}
 
                 <div class="mt-6 flex items-center gap-3 border-t border-slate-100 pt-4">
                     <button type="submit" class="rounded-sm bg-[#38b6ff] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#1aa1f2]">
@@ -59,4 +140,89 @@ Staff/superuser only.
         </div>
     </section>
 </div>
+
+{% if mode == 'create' %}
+{{ qualification_map|json_script:"qualification-map" }}
+<script>
+    (function () {
+        const graduationField = document.getElementById("id_graduation_institution");
+        const uonWrappers = [document.getElementById("faculty-wrapper"), document.getElementById("qualification-wrapper")];
+        const otherWrappers = [document.getElementById("other-institution-name-wrapper"), document.getElementById("other-institution-qualification-wrapper")];
+
+        function toggleGraduationFields() {
+            if (!graduationField) return;
+            const selected = graduationField.value;
+            uonWrappers.forEach((el) => el && el.classList.toggle("hidden", selected !== "uon"));
+            otherWrappers.forEach((el) => el && el.classList.toggle("hidden", selected !== "other"));
+        }
+
+        if (graduationField) {
+            graduationField.addEventListener("change", toggleGraduationFields);
+            toggleGraduationFields();
+        }
+
+        const facultyField = document.getElementById("id_faculty");
+        const qualificationField = document.getElementById("id_qualification");
+        const mapDataEl = document.getElementById("qualification-map");
+
+        if (facultyField && qualificationField && mapDataEl) {
+            const qualificationMap = JSON.parse(mapDataEl.textContent);
+
+            function rebuildQualificationOptions(selectValue) {
+                const options = qualificationMap[facultyField.value] || [];
+
+                qualificationField.innerHTML = "";
+                const blankOption = document.createElement("option");
+                blankOption.value = "";
+                blankOption.textContent = "---------";
+                qualificationField.appendChild(blankOption);
+
+                options.forEach((opt) => {
+                    const optionEl = document.createElement("option");
+                    optionEl.value = opt.value;
+                    optionEl.textContent = opt.label;
+                    if (selectValue && String(opt.value) === String(selectValue)) {
+                        optionEl.selected = true;
+                    }
+                    qualificationField.appendChild(optionEl);
+                });
+            }
+
+            const initialQualificationId = qualificationField.value;
+            rebuildQualificationOptions(initialQualificationId);
+
+            facultyField.addEventListener("change", function () {
+                rebuildQualificationOptions(null);
+            });
+        }
+    })();
+</script>
+
+{{ non_mpesa_tier_ids|json_script:"non-mpesa-tier-ids" }}
+<script>
+    (function () {
+        // M-Pesa is only available up to Gold's fee (MembershipTier.allows_mpesa) --
+        // this is UX only, the form's clean() is the real gate.
+        const tierField = document.getElementById("id_membership_tier");
+        const methodField = document.getElementById("id_payment_method");
+        const idsEl = document.getElementById("non-mpesa-tier-ids");
+        if (tierField && methodField && idsEl) {
+            const nonMpesaIds = JSON.parse(idsEl.textContent).map(String);
+            const mpesaOption = Array.from(methodField.options).find((o) => o.value === "mpesa");
+            if (mpesaOption) {
+                function toggleMpesaOption() {
+                    const ineligible = nonMpesaIds.includes(String(tierField.value));
+                    mpesaOption.disabled = ineligible;
+                    mpesaOption.textContent = ineligible ? "M-Pesa (not available for this tier)" : "M-Pesa";
+                    if (ineligible && methodField.value === "mpesa") {
+                        methodField.value = "bank_transfer";
+                    }
+                }
+                tierField.addEventListener("change", toggleMpesaOption);
+                toggleMpesaOption();
+            }
+        }
+    })();
+</script>
+{% endif %}
 {% endblock content %}

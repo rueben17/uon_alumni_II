@@ -19,15 +19,37 @@ Reuses existing infrastructure rather than duplicating it:
   - the HTMX list/partial pattern from apps/staff/views.py:EmployeeListView
 """
 from django.contrib import messages
+from django.db import transaction
 from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views import View
 from django.views.generic import ListView
+from django_q.tasks import async_task
 
+from apps.home import services
 from apps.home.crm_forms import MembershipStaffForm, NewMemberForm, RecordPaymentForm
 from apps.home.models import AlumniProfile, Membership, MembershipTier, Payment
+from apps.home.payments import initiate_payment
 from apps.user.mixins import StaffOrSuperuserRequiredMixin
+
+
+def _new_member_form_context(form):
+    """The same qualification_map/non_mpesa_tier_ids the member-facing
+    AlumniRegisterView feeds its template (QualificationMapMixin/
+    MpesaEligibilityMixin in apps/home/views.py) -- membership_form.html's
+    create-mode fieldset layout needs them for the identical faculty/
+    qualification and M-Pesa toggle JS. Duplicated rather than reused as a
+    mixin since MembershipCreateView is a plain View, not a CreateView."""
+    qualification_map = {}
+    for qualification in form.fields["qualification"].queryset:
+        qualification_map.setdefault(str(qualification.faculty_id), []).append(
+            {"value": qualification.id, "label": qualification.name}
+        )
+    non_mpesa_tier_ids = list(
+        MembershipTier.objects.filter(fee__gt=MembershipTier.MPESA_FEE_CEILING).values_list("id", flat=True)
+    )
+    return {"qualification_map": qualification_map, "non_mpesa_tier_ids": non_mpesa_tier_ids}
 
 
 def _member_queryset():
@@ -134,24 +156,56 @@ class MemberDrawerView(StaffOrSuperuserRequiredMixin, View):
 
 
 class MembershipCreateView(StaffOrSuperuserRequiredMixin, View):
-    """Add a brand-new member + their first (pending) membership."""
+    """Add a brand-new member, their first (pending) membership, and the
+    payment they're walking in with -- mirrors AlumniRegisterView.form_valid()
+    exactly (same services.assign_membership_tier() + Payment.objects.create()
+    + initiate_payment() sequence), since NewMemberForm's fields now match
+    AlumniRegistrationForm's one-for-one (2026-10-27). Payment starts PENDING
+    either way -- recording it here isn't confirming it; that's still a
+    separate action (the drawer's Confirm button) once the money has
+    actually been received."""
 
     template_name = "home/crm/membership_form.html"
 
     def get(self, request):
+        form = NewMemberForm()
         return render(request, self.template_name, {
-            "form": NewMemberForm(), "mode": "create",
+            "form": form, "mode": "create", **_new_member_form_context(form),
         })
 
     def post(self, request):
         form = NewMemberForm(request.POST)
         if not form.is_valid():
-            return render(request, self.template_name, {"form": form, "mode": "create"})
-        user, membership = form.save()
+            return render(request, self.template_name, {
+                "form": form, "mode": "create", **_new_member_form_context(form),
+            })
+
+        with transaction.atomic():
+            alumni = form.save()
+            tier = form.cleaned_data["membership_tier"]
+            frequency = form.cleaned_data["payment_frequency"]
+            amount = form.cleaned_data.get("installment_amount") or tier.fee
+            membership = services.assign_membership_tier(alumni.user, tier, payment_frequency=frequency)
+            payment = Payment.objects.create(
+                alumni=alumni,
+                membership=membership,
+                membership_tier=tier,
+                amount=amount,
+                payment_method=form.cleaned_data["payment_method"],
+                processed_by=request.user,
+            )
+            initiate_payment(payment)
+
+            alumni_profile_id = alumni.pk
+            transaction.on_commit(
+                lambda: async_task("apps.home.tasks.send_alumni_registration_confirmation", alumni_profile_id)
+            )
+
         messages.success(
             request,
-            f"{user.profile.full_name} added with a pending "
-            f"{membership.tier.name}. Record a payment to activate it.",
+            f"{alumni.user.profile.full_name} added with a pending "
+            f"{membership.tier.name} and a recorded payment -- confirm it "
+            "from their record once received to activate the membership.",
         )
         return redirect(reverse("membership_crm:list"))
 
