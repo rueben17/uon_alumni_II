@@ -157,11 +157,11 @@
                     <section>
                         <div class="container m-auto">
                             <div class="grid grid-cols-4 gap-6 md:grid-cols-8 lg:grid-cols-12">
-                                {% comment %} {% for featured_article in featured_articles  %}
+                                {% for featured_article in featured_articles %}
                                     <div class="col-span-4 md:col-span-8 lg:col-span-12">
                                         {% include "snippets/feature_article.html" %}
                                     </div>
-                                {% endfor %} {% endcomment %}
+                                {% endfor %}
                             </div>
                         </div>
                     </section>
@@ -170,11 +170,11 @@
                     <section>
                         <div class="container  m-auto">
                             <div class="grid grid-cols-4 gap-6 md:grid-cols-8 lg:grid-cols-12 ">
-                                {% comment %} {% for article in highlighted_articles %}
+                                {% for article in highlighted_articles %}
                                     <div class="col-span-4 ">
                                         {% include "snippets/highlighted_article.html" %}
                                     </div>
-                                {% endfor %} {% endcomment %}
+                                {% endfor %}
                             </div>
                         </div>
                     </section>
@@ -182,15 +182,15 @@
 
                 <div class="mx-auto py-8">
                     <div class="fter:h-px flex items-center before:h-px before:flex-1  before:bg-gray-400 before:content-[''] after:h-px after:flex-1 after:bg-gray-400  after:content-['']">
-                        {% comment %} <a href="{% url 'home:uon_alumni_all_news' %}" 
-                        class=" flex items-center rounded-full border border-gray-500 bg-secondary-50 px-3 py-2 text-center text-sm font-light text-black transition hover:bg-blue-400 hover:text-white">                                                             
+                        <a href="{% url 'home:uon_alumni_article_list' %}"
+                        class=" flex items-center rounded-full border border-gray-500 bg-secondary-50 px-3 py-2 text-center text-sm font-light text-black transition hover:bg-blue-400 hover:text-white">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-4 w-4 mr-2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
                             </svg>
                                 All News & Articles
-                        </a> {% endcomment %}
+                        </a>
                     </div>
-                </div>                
+                </div>
             </section>
 
 

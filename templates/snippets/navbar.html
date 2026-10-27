@@ -116,6 +116,7 @@
                     previous empty students-only stub was dead code left
                     over from before the student app existed) ── -->
                     <a href="{{url_home}}" class="px-3 xl:px-4 py-1 hover:bg-[#38b6ff] hover:text-white font-light cursor-pointer whitespace-nowrap">Home</a>
+                    <a href="{{ url_articles }}" class="px-3 xl:px-4 py-1 hover:bg-[#38b6ff] hover:text-white font-light cursor-pointer whitespace-nowrap">News</a>
 
                     <div class="relative group">
                         <button class="flex items-center tracking-wider px-3 xl:px-4 py-1 hover:bg-[#38b6ff] hover:text-white font-light cursor-pointer whitespace-nowrap">
@@ -375,6 +376,7 @@
                                 students subdomain, 2026-08-20 -- see the
                                 desktop menu's matching comment above) ── -->
                                 <a href="{{url_home}}" class="block px-3 py-2 transition font-light hover:bg-[#38b6ff] hover:text-white cursor-pointer">Home</a>
+                                <a href="{{ url_articles }}" class="block px-3 py-2 transition font-light hover:bg-[#38b6ff] hover:text-white cursor-pointer">News</a>
 
                                 <div x-data="{ aboutOpen: false }">
                                     <button @click="aboutOpen = !aboutOpen" class="w-full text-left px-3 py-2 transition font-light hover:bg-[#38b6ff] hover:text-white cursor-pointer flex justify-between items-center">

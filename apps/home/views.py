@@ -94,9 +94,16 @@ def uon_alumni_home(request):
         image_field = getattr(banner, field_name, None) if banner and field_name else None
         program.image_url = image_field.url if image_field else ""
 
+    news_articles = Article.objects.filter(is_published=True).exclude(type=Article.ArticleType.PAGE)
+
     context = {
         "carousel_images": Images.objects.filter(show_in_carousel=True).exclude(image="").order_by("created_at"),
         "program_areas": program_areas,
+        "featured_articles": news_articles.filter(is_feature=True).order_by("-created_at")[:3],
+        # Excludes is_feature=True so a feature article isn't shown twice
+        # (the doc's "Is Feature: Yes | Is Highlighted: Yes" pattern means
+        # most feature articles are also flagged highlighted).
+        "highlighted_articles": news_articles.filter(is_highlighted=True, is_feature=False).order_by("-created_at")[:6],
     }
     return render(request, "home/alumni_home.html", context)
 

@@ -1,0 +1,15 @@
+{% comment %}
+Grid card for the homepage "Our Latest News & Updates" section
+(templates/home/alumni_home.html) -- one per {% for article in
+highlighted_articles %} iteration. Expects `article` in context.
+{% endcomment %}
+<a href="{{ article.get_absolute_url }}"
+   class="block h-full overflow-hidden rounded-sm border border-slate-200 bg-white transition hover:shadow-md">
+    <div class="aspect-video bg-slate-100">
+        <img src="{{ article.get_thumbnail }}" alt="{{ article.title }}" class="h-full w-full object-cover">
+    </div>
+    <div class="p-4">
+        <h3 class="text-base font-semibold text-black">{{ article.title }}</h3>
+        <p class="mt-1 text-xs text-gray-500">{{ article.published_at|default:article.created_at|date:"F j, Y" }}</p>
+    </div>
+</a>
