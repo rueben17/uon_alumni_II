@@ -349,6 +349,16 @@ class Command(BaseCommand):
                 "started_on": started_on,
                 "card_issued": s("Card").upper() in TRUE_STRINGS,
                 "legacy_signed": s("Signed").lower() in TRUE_STRINGS,
+                # Same "today's tier fee as a labelled estimate" reasoning
+                # as the backfilled Payment below (2026-10-27 fix) --
+                # subscription_amount is what the membership analytics
+                # dashboard's revenue totals actually sum
+                # (Sum("subscription_amount"), apps/home/views.py's
+                # MembershipAnalyticsView); left unset here, every legacy
+                # row was NULL and every revenue figure in that dashboard
+                # read as zero.
+                "subscription_amount": tier.fee,
+                "amount_paid": tier.fee,
             },
         )
         self._resupersede(user)

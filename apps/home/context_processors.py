@@ -257,6 +257,15 @@ def contacts(request):
         # not a real "admin site" with its own has_permission(), just a
         # plain view, so checked directly here instead.
         if request.user.is_staff or request.user.is_superuser:
+            # Membership CRM (2026-10-27): built as the simple, no-Django-
+            # admin-needed console for the Secretariat's actual day-to-day
+            # work (search a member, register a walk-in, confirm a
+            # payment -- apps/home/crm_views.py's own docstring) but had
+            # no navbar entry at all since it shipped, so staff had no way
+            # to discover it short of typing the URL. Same gate as
+            # Membership Analytics below (StaffOrSuperuserRequiredMixin),
+            # not Membership Admin's separate admin-site has_permission().
+            admin_links.append({"label": "Membership CRM", "url": f"{base}/membership-crm/"})
             admin_links.append({"label": "Membership Analytics", "url": f"{base}{home_url('membership_analytics')}"})
             # Hardcoded paths, not reverse(urlconf="main.urls"), same reason
             # as QR Admin above -- apps.student.urls (the 'student'

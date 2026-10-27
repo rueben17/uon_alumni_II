@@ -2,6 +2,8 @@ import io
 import re
 from datetime import datetime, timedelta
 
+from dateutil.relativedelta import relativedelta
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout
@@ -618,8 +620,15 @@ class AlumniProfileDetailView(LoginRequiredMixin, DetailView):
         # over) so this page renders through the same shared card
         # component as the public tier comparison and Corporate, instead
         # of a third hand-rolled copy of the same markup.
-        if current_membership:
-            tier = current_membership.tier
+        # Falls back to the pending tier when there's no ACTIVE membership
+        # yet (2026-10-26) -- the benefit list is the same public copy
+        # shown on the Categories & Benefits page, so there's no reason to
+        # hide it from an owner who has registered and is simply awaiting
+        # Secretariat payment confirmation (already flagged separately by
+        # the Payment History card's "Awaiting Confirmation" box above).
+        benefits_membership = current_membership or context["pending_membership"]
+        if benefits_membership:
+            tier = benefits_membership.tier
             tier.previous_tier_name = None
             tier.new_benefits = (
                 tier.tier_benefits
@@ -1015,8 +1024,28 @@ class MembershipAnalyticsView(StaffOrSuperuserRequiredMixin, TemplateView):
     """
     template_name = "home/membership_analytics.html"
 
+    # Revenue-over-time range filter (2026-10-27) -- real membership
+    # history now spans back to the 1970s (legacy import), so the
+    # unfiltered monthly trend had 400+ points crammed into one chart.
+    # Only scopes the trend chart/table below, not total_revenue or the
+    # other charts -- "Total Subscriptions Recorded" stays a true
+    # all-time figure regardless of this filter.
+    TREND_RANGES = {
+        "12m": ("Last 12 Months", relativedelta(months=12)),
+        "3y": ("Last 3 Years", relativedelta(years=3)),
+        "5y": ("Last 5 Years", relativedelta(years=5)),
+        "10y": ("Last 10 Years", relativedelta(years=10)),
+        "all": ("All Time", None),
+    }
+    DEFAULT_TREND_RANGE = "5y"
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        trend_range = self.request.GET.get("trend_range", "")
+        if trend_range not in self.TREND_RANGES:
+            trend_range = self.DEFAULT_TREND_RANGE
+        _, trend_delta = self.TREND_RANGES[trend_range]
 
         by_tier = list(
             Membership.objects.values("tier__name")
@@ -1025,7 +1054,7 @@ class MembershipAnalyticsView(StaffOrSuperuserRequiredMixin, TemplateView):
         )
         by_status = list(
             Membership.objects.values("status")
-            .annotate(count=Count("id"))
+            .annotate(count=Count("id"), revenue=Sum("subscription_amount"))
             .order_by("-count")
         )
         by_faculty = list(
@@ -1034,8 +1063,13 @@ class MembershipAnalyticsView(StaffOrSuperuserRequiredMixin, TemplateView):
             .annotate(count=Count("id"))
             .order_by("-count")[:10]
         )
+        monthly_revenue_qs = Membership.objects.exclude(started_on__isnull=True)
+        if trend_delta is not None:
+            monthly_revenue_qs = monthly_revenue_qs.filter(
+                started_on__gte=timezone.now().date() - trend_delta
+            )
         monthly_revenue = list(
-            Membership.objects.exclude(started_on__isnull=True)
+            monthly_revenue_qs
             .annotate(month=TruncMonth("started_on"))
             .values("month")
             .annotate(revenue=Sum("subscription_amount"))
@@ -1062,6 +1096,16 @@ class MembershipAnalyticsView(StaffOrSuperuserRequiredMixin, TemplateView):
             }
             for row in by_tier
         ]
+        status_labels = dict(Membership.Status.choices)
+        context["status_table"] = [
+            {
+                "name": status_labels.get(row["status"], row["status"]),
+                "count": row["count"],
+                "revenue": row["revenue"] or 0,
+                "pct": (row["count"] / total_members * 100) if total_members else 0,
+            }
+            for row in by_status
+        ]
         context["revenue_table"] = [
             {"month": row["month"], "revenue": row["revenue"] or 0}
             for row in monthly_revenue
@@ -1074,7 +1118,7 @@ class MembershipAnalyticsView(StaffOrSuperuserRequiredMixin, TemplateView):
                 "revenue": [float(row["revenue"] or 0) for row in by_tier],
             },
             "by_status": {
-                "labels": [dict(Membership.Status.choices).get(row["status"], row["status"]) for row in by_status],
+                "labels": [status_labels.get(row["status"], row["status"]) for row in by_status],
                 "counts": [row["count"] for row in by_status],
             },
             "by_faculty": {
@@ -1092,6 +1136,8 @@ class MembershipAnalyticsView(StaffOrSuperuserRequiredMixin, TemplateView):
         }
         context["total_members"] = total_members
         context["total_revenue"] = Membership.objects.aggregate(total=Sum("subscription_amount"))["total"] or 0
+        context["selected_trend_range"] = trend_range
+        context["trend_range_choices"] = [(k, label) for k, (label, _delta) in self.TREND_RANGES.items()]
         return context
 
 

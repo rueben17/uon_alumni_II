@@ -1664,6 +1664,111 @@ class EmailBrandingContextTests(TestCase):
         self.assertNotIn("20th_anniversary", html)
 
 
+from datetime import date
+
+
+class MembershipAnalyticsTrendRangeTests(TestCase):
+    """apps/home/views.py's MembershipAnalyticsView -- the revenue-over-
+    time range filter (2026-10-27), added once real (legacy-imported)
+    membership history spanning 50+ years made the unfiltered monthly
+    trend unreadable. Only the trend chart/table is scoped by this
+    filter -- total_revenue stays all-time regardless."""
+
+    def setUp(self):
+        self.staff = _make_user("analytics-staff@example.com", is_staff=True)
+        self.tier = _annual_tier()
+        self.old_alumni, self.old_user = _alumni_for("old-member@example.com")
+        self.recent_alumni, self.recent_user = _alumni_for("recent-member@example.com")
+        Membership.objects.create(
+            user=self.old_user, tier=self.tier, status=Membership.Status.EXPIRED,
+            started_on=date(1995, 3, 1), subscription_amount=Decimal("2000"),
+        )
+        Membership.objects.create(
+            user=self.recent_user, tier=self.tier, status=Membership.Status.ACTIVE,
+            started_on=timezone.now().date() - timedelta(days=30),
+            subscription_amount=Decimal("2000"),
+        )
+
+    def _url(self, **params):
+        url = reverse("home:membership_analytics")
+        if params:
+            url += "?" + "&".join(f"{k}={v}" for k, v in params.items())
+        return url
+
+    def test_default_range_excludes_the_decades_old_row(self):
+        self.client.force_login(self.staff)
+        resp = self.client.get(self._url(), HTTP_HOST=PUBLIC_HOST)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["selected_trend_range"], "5y")
+        months = [row["month"] for row in resp.context["revenue_table"]]
+        self.assertNotIn(date(1995, 3, 1), months)
+
+    def test_all_time_range_includes_every_row(self):
+        self.client.force_login(self.staff)
+        resp = self.client.get(self._url(trend_range="all"), HTTP_HOST=PUBLIC_HOST)
+
+        months = [row["month"] for row in resp.context["revenue_table"]]
+        self.assertIn(date(1995, 3, 1), months)
+
+    def test_total_revenue_is_unaffected_by_the_filter(self):
+        self.client.force_login(self.staff)
+        resp = self.client.get(self._url(trend_range="12m"), HTTP_HOST=PUBLIC_HOST)
+
+        self.assertEqual(resp.context["total_revenue"], Decimal("4000"))
+
+    def test_an_unknown_range_value_falls_back_to_the_default(self):
+        self.client.force_login(self.staff)
+        resp = self.client.get(self._url(trend_range="bogus"), HTTP_HOST=PUBLIC_HOST)
+
+        self.assertEqual(resp.context["selected_trend_range"], "5y")
+
+    def test_status_table_breaks_down_count_share_and_revenue(self):
+        """apps/home/views.py's status_table (2026-10-27) -- the table
+        alongside the Members by Status chart, so a count is readable
+        without hovering the doughnut."""
+        self.client.force_login(self.staff)
+        resp = self.client.get(self._url(), HTTP_HOST=PUBLIC_HOST)
+
+        by_name = {row["name"]: row for row in resp.context["status_table"]}
+        self.assertEqual(by_name["Expired"]["count"], 1)
+        self.assertEqual(by_name["Expired"]["revenue"], Decimal("2000"))
+        self.assertEqual(by_name["Expired"]["pct"], 50.0)
+        self.assertEqual(by_name["Active"]["count"], 1)
+        self.assertEqual(by_name["Active"]["revenue"], Decimal("2000"))
+
+
+class NavbarMembershipCrmLinkTests(TestCase):
+    """apps/home/context_processors.py's contacts() -- the Membership CRM
+    had no navbar entry at all since it shipped (2026-10-27 fix); staff
+    had no way to discover /membership-crm/ short of typing the URL."""
+
+    def _home(self, client):
+        return client.get(reverse("home:uon_alumni_home"), HTTP_HOST=PUBLIC_HOST)
+
+    def test_staff_sees_the_membership_crm_link(self):
+        staff = _make_user("navbar-staff@example.com", is_staff=True)
+        self.client.force_login(staff)
+
+        resp = self._home(self.client)
+
+        self.assertContains(resp, "Membership CRM")
+        self.assertContains(resp, "/membership-crm/")
+
+    def test_an_ordinary_member_does_not_see_it(self):
+        _alumni, member = _alumni_for("ordinary-member@example.com")
+        self.client.force_login(member)
+
+        resp = self._home(self.client)
+
+        self.assertNotContains(resp, "Membership CRM")
+
+    def test_anonymous_visitor_does_not_see_it(self):
+        resp = self._home(self.client)
+
+        self.assertNotContains(resp, "Membership CRM")
+
+
 # ── Candidate findings D and E (2) ───────────────────────────────────
 
 

@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+/* Site typeface (2026-10-27) -- loaded via Google Fonts in base.html's
+   <head>. Redefining --font-sans here makes Barlow the default body/UI
+   font sitewide automatically (Tailwind's Preflight sets the base font
+   from this token, so no font-sans class is needed anywhere). Barlow
+   Condensed is exposed as the font-condensed utility for headings --
+   not applied globally here, that's a per-template design choice. */
+@theme {
+    --font-sans: "Barlow", ui-sans-serif, system-ui, sans-serif;
+    --font-condensed: "Barlow Condensed", ui-sans-serif, system-ui, sans-serif;
+}
+
 @layer base {
     /* Tailwind's preflight resets buttons to the browser default
     cursor (not pointer) -- restore pointer sitewide so every button
