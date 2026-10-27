@@ -305,7 +305,7 @@ class ArticleListView(ListView):
     model = Article
     template_name = "home/article_list.html"
     context_object_name = "articles"
-    paginate_by = 12
+    paginate_by = 10
 
     def get_queryset(self):
         return (
