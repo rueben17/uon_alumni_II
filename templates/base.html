@@ -100,10 +100,13 @@
         <meta name="twitter:description" content="{{ name_title }}">
         <meta name="twitter:image" content="{{ site_logo_url }}">
 
-        <!-- Structured data: Organization, every page. A page describing a
-             distinct event or article adds its own additional JSON-LD
-             block below rather than replacing this one. -->
+        <!-- Structured data: Organization + WebSite, every page -- Google
+             documents these as complementary (site identity vs. site
+             itself), not alternatives. A page describing a distinct
+             event or article adds its own additional JSON-LD block
+             below rather than replacing either of these. -->
         <script type="application/ld+json">{{ organization_jsonld|safe }}</script>
+        <script type="application/ld+json">{{ website_jsonld|safe }}</script>
         {% block json_ld_extra %}{% endblock %}
 
         <link rel="preconnect" href="https://fonts.googleapis.com">

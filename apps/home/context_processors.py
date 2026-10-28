@@ -165,11 +165,28 @@ def seo(request):
             "addressCountry": "KE",
         },
     })
+    # Separate from the Organization block above -- Google documents
+    # these as complementary, not alternatives (2026-10-29, added
+    # alongside Organization as an extra site-name signal: Google
+    # currently shows the raw domain next to our favicon in search
+    # results instead of the Association's name, unlike long-established
+    # domains like uonbi.ac.ke -- this doesn't force that, Google decides
+    # it from accumulated trust/authority, but it's a genuine supporting
+    # signal). No SearchAction/sitelinks-search-box claim here since the
+    # site has no working internal search to back that claim.
+    website_jsonld = json.dumps({
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": ASSOCIATION_NAME,
+        "alternateName": "UoNAA",
+        "url": f"{base}/",
+    })
 
     return {
         'canonical_url': canonical_url,
         'default_robots': default_robots,
         'organization_jsonld': organization_jsonld,
+        'website_jsonld': website_jsonld,
         'sitemap_url': sitemap_url,
     }
 
