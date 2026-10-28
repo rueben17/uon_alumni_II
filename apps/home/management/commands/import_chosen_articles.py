@@ -1,5 +1,20 @@
 # apps/home/management/commands/import_chosen_articles.py
 """
+RETIRED (2026-10-28) -- do not run this against a real database again.
+
+Its source, docs/CHOSEN UONNAA WEB ARTICLES.md, was an unverified first
+draft that went live with fabricated/unconfirmed figures (invented
+membership and endowment-fund numbers, a chronologically impossible
+"60th Anniversary" article) and several wrong chapter-launch dates --
+flagged by the Association as a serious accuracy problem on a public
+site. Use apps/home/management/commands/import_verified_history.py
+instead, which replaces everything this command created with the
+fact-checked set in docs/origins/deepseek_markdown_20261028_ef6da2.md.
+Left in place only for its own history / so the mistake and its fix are
+both visible in the repo.
+
+Original docstring follows, unmodified:
+
 Imports docs/CHOSEN UONNAA WEB ARTICLES.md -- ~95 curated historical
 UONAA/UoN news articles (2005-2015) -- as Article rows (apps/home/models.py).
 
