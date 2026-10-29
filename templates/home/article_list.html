@@ -61,19 +61,17 @@ data-model change, out of scope for this pass.
             </section>
 
             {% if is_paginated %}
-                <section class="rounded-sm shadow-sm border border-solid border-gray-200 bg-white overflow-hidden py-5 px-6">
-                    <div class="mx-auto max-w-7xl flex items-center justify-between flex-wrap gap-4">
-                        <div style="font-family:'Barlow Condensed';font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#5d6673">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</div>
-                        <div class="flex gap-2">
-                            {% if page_obj.has_previous %}
-                                <a href="?page={{ page_obj.previous_page_number }}" class="px-4 py-2 text-sm" style="border:1px solid rgba(11,20,32,0.14);color:#0E4E80">Previous</a>
-                            {% endif %}
-                            {% if page_obj.has_next %}
-                                <a href="?page={{ page_obj.next_page_number }}" class="px-4 py-2 text-sm" style="border:1px solid rgba(11,20,32,0.14);color:#0E4E80">Next</a>
-                            {% endif %}
-                        </div>
+                <div class="flex justify-center">
+                    <div class="inline-flex items-center gap-3 rounded-sm shadow-sm border border-solid border-gray-200 bg-white px-4 py-2.5">
+                        {% if page_obj.has_previous %}
+                            <a href="?page={{ page_obj.previous_page_number }}" class="px-3 py-1 text-xs rounded-sm" style="border:1px solid rgba(11,20,32,0.14);color:#0E4E80">Previous</a>
+                        {% endif %}
+                        <div style="font-family:'Barlow Condensed';font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#5d6673">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</div>
+                        {% if page_obj.has_next %}
+                            <a href="?page={{ page_obj.next_page_number }}" class="px-3 py-1 text-xs rounded-sm" style="border:1px solid rgba(11,20,32,0.14);color:#0E4E80">Next</a>
+                        {% endif %}
                     </div>
-                </section>
+                </div>
             {% endif %}
         {% else %}
             <section class="rounded-sm shadow-sm border border-solid border-gray-200 bg-white overflow-hidden py-14 px-6">
