@@ -1,44 +1,70 @@
 {% extends "base.html" %}
+{% comment %}
+Visual design from Claude Design's Membership Categories.dc.html
+mockup, applied to the page wrapper only. Its own pricing cards were
+entirely invented -- a simplified 3-tier model (Annual KSh 3,000, Life
+KSh 30,000, Corporate "on request") with made-up benefit text, versus
+the real 9-tier structure this site actually has (Student through
+Platinum Life, plus Corporate), each with a real benefits list from the
+TierBenefit model. Its own disclaimer even admitted this ("Fees shown
+are placeholders"). Kept the real snippets/tiers.html include instead
+of porting the mockup's card design -- that snippet is shared with the
+alumni profile page's own-tier panel, so restyling it here risks a
+regression there for a visual-only change; wrapped it in the new hero/
+page chrome and left the proven, already brand-correct card styling
+alone.
+{% endcomment %}
 
 {% block title_interior %}Membership Categories & Benefits | UoNAA{% endblock %}
 
 {% block content %}
-<div class="container mx-auto min-h-screen space-y-2 relative" style="max-width: 1700px;important;">
-    {% comment %}
-    position:fixed, not bg-fixed, on purpose (2026-08-14): this container
-    is several screens tall (a long tier grid), and background-size:cover
-    scales against the ELEMENT's own height, not the viewport -- on a
-    container this tall that zoomed the image in far more than on
-    shorter pages (e.g. alumni_detail.html, left alone, looks right
-    already). A fixed backdrop sized to the viewport keeps the same
-    crop/zoom level everywhere regardless of how tall the page's content
-    is. Plain position:fixed over background-attachment:fixed for
-    mobile/cross-browser reliability -- bg-fixed is inconsistently
-    supported and disabled outright by transforms/filters on ancestors.
-    {% endcomment %}
+<div class="container mx-auto min-h-screen relative" style="max-width: 1700px;">
     <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
     {% include "snippets/navbar.html" %}
 
-    <section class="flex min-h-screen items-center justify-center px-4 py-8">
-        <div class="w-full max-w-7xl">
-            {% comment %}
-            ml-4 sm:ml-6 lg:ml-8 matches snippets/tiers.html's own wrapper
-            padding (px-4 sm:px-6 lg:px-8) below -- that div insets the
-            tier-card grid from this same max-w-7xl container, but this
-            header card has no padding of its own, so without this it
-            sits flush left while the cards start further right (2026-08-18).
-            {% endcomment %}
-            <div class="cursor-pointer mb-6 ml-4 inline-block rounded-sm border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md sm:ml-6 sm:p-6 lg:ml-8">
-                <h1 class="text-xl font-semibold text-black sm:text-2xl">Membership Categories &amp; Benefits</h1>
-                <p class="text-sm text-slate-600">Pick a category to see exactly what it includes.</p>
+    <article class="bg-white shadow-sm border border-solid border-gray-200 rounded-sm overflow-hidden mt-2">
+        <!-- Hero -->
+        <section style="background:#0E4E80;color:#fff;padding:72px 24px 56px;position:relative">
+            <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-12 items-end">
+                <div>
+                    <div class="flex items-center gap-3 mb-6">
+                        <div style="width:44px;height:3px;background:#fdbe13"></div>
+                        <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#fdbe13">Membership</div>
+                    </div>
+                    <h1 style="font-family:'Barlow Condensed';font-weight:700;color:#fff;font-size:clamp(36px,6vw,64px);line-height:0.98;letter-spacing:-0.025em;margin:0 0 20px">Categories &amp; Benefits.</h1>
+                    <p style="font-size:17px;line-height:1.55;color:rgba(255,255,255,0.86);max-width:520px;margin:0">Pick a category to see exactly what it includes — each with its own privileges, each with a seat at the Annual General Meeting.</p>
+                </div>
+                <div style="border-left:1px solid rgba(255,255,255,0.2);padding-left:32px">
+                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:11px;letter-spacing:0.3em;text-transform:uppercase;color:#fdbe13;margin-bottom:14px">Who may join</div>
+                    <div style="font-size:14px;color:rgba(255,255,255,0.86);line-height:1.6">Any graduate of the University of Nairobi, from any school or faculty, from any era — along with firms and institutions that wish to partner with the Association as corporate members.</div>
+                </div>
             </div>
+        </section>
+        <div style="height:3px;background:#fdbe13"></div>
 
+        <!-- Real tier cards (snippets/tiers.html, unchanged) -->
+        <section class="py-4">
             {% if all_tiers %}
                 {% include "snippets/tiers.html" with tiers=all_tiers %}
             {% else %}
-                <p class="inline-block rounded-sm bg-white p-4 text-sm text-slate-500 shadow-sm">Membership categories aren't configured yet.</p>
+                <p class="mx-auto max-w-7xl px-6 py-8 text-sm text-slate-500">Membership categories aren't configured yet.</p>
             {% endif %}
-        </div>
-    </section>
+        </section>
+
+        <!-- CTA -->
+        <section style="background:#f6f6f4;padding:56px 24px">
+            <div class="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-8">
+                <div>
+                    <h2 style="color:#0E4E80;font-family:'Barlow Condensed';font-weight:700;font-size:clamp(24px,3.4vw,32px);line-height:1;letter-spacing:-0.02em;margin:0">Not sure which category fits?</h2>
+                </div>
+                <div class="flex gap-3 flex-wrap">
+                    <a href="{% url 'home:uon_alumni_register' %}" class="rounded-sm bg-[#38b6ff] px-6 py-3 text-sm font-semibold text-white hover:bg-[#2f9bd9]">Register as a member →</a>
+                    <a href="{% url 'home:uon_alumni_contact_us' %}" class="rounded-sm border border-[#0E4E80] px-6 py-3 text-sm font-semibold text-[#0E4E80] hover:bg-[#0E4E80] hover:text-white">Ask the Secretariat</a>
+                </div>
+            </div>
+        </section>
+    </article>
+
+    {% include "snippets/footer.html" %}
 </div>
 {% endblock content %}
