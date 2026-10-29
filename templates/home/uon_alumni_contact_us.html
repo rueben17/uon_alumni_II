@@ -1,95 +1,99 @@
 {% extends "base.html" %}
+{% comment %}
+Visual design from Claude Design's Contact.dc.html mockup. Its own form
+was a static mockup with fields the real ContactForm doesn't have
+("I'm writing about", phone, newsletter checkbox) -- kept the real form
+(apps/home/forms.py's ContactForm, looped via snippets/form_field.html
+like every other form on the site) and the real Google Maps embed
+instead of the mockup's "placeholder — swap for live map embed on
+build" blueprint graphic, which was never meant to ship as-is.
+{% endcomment %}
 
-{% comment %}BRAND -- 53 chars total.{% endcomment %}
-{% block title_brand %} Contact Us | University of Nairobi Alumni Association{% endblock %}
+{% block title_brand %}Contact Us | University of Nairobi Alumni Association{% endblock %}
 
 {% block content %}
+<div class="container mx-auto min-h-screen relative" style="max-width: 1700px;">
+    <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
+    {% include "snippets/navbar.html" %}
 
-        <div  class="container mx-auto min-h-screen space-y-4 relative" style="max-width: 1700px;important;">
-            {% comment %}
-            Same background treatment as templates/home/alumni_home.html --
-            position:fixed backdrop, admin-editable via Banner.page_background
-            (apps/home/context_processors.py's images()).
-            {% endcomment %}
-            <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
-            {% include "snippets/navbar.html" %}
-            {% include "snippets/banner.html" %}
-
-            <section id="contact_us" class="max-w-full min-h-screen mx-auto p-3 py-8 rounded-sm">
-                <section class="">
-                    <div class="max-w-7xl mx-auto py-5 px-4 sm:px-6 lg:py-5 lg:px-8">
-                        <div class="mt-5 lg:mt-10">
-                            {% comment %}
-                            Title/description and the map are two separate
-                            cards again (2026-08-19, per explicit instruction
-                            -- reverses the same day's earlier "share one
-                            card" version). Contact form + contact details
-                            stay as their own pair of cards below, side by
-                            side, spanning the SAME width as the map card --
-                            no max-w cap on either column and gap-4 (down
-                            from gap-8) instead of justify-items-center,
-                            which had been shrinking them to their content
-                            width and leaving the pair narrower than the map.
-                            {% endcomment %}
-                            <div class="cursor-pointer rounded-sm border border-gray-200 bg-white shadow-xs p-6 transition hover:shadow-md sm:p-8">
-                                <h1 class="text-4xl font-semibold tracking-wide text-black lg:text-6xl text-balance text-center">Contact Us</h1>
-                                <p class="mt-4 text-base font-light text-black text-balance">Have a question, an update to your details, or something you'd like the Secretariat to know? Send us a message below.</p>
-                            </div>
-
-                            <div class="cursor-pointer mt-6 rounded-sm border border-gray-200 bg-white shadow-xs p-3 transition hover:shadow-md sm:p-4">
-                                <iframe
-                                    class="w-full rounded-sm"
-                                    src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d15955.313229287662!2d36.8076789!3d-1.2764109!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x182f1b9c01e69503%3A0xc3b23e9bb4fc14fc!2sUniversity%20of%20Nairobi%20Alumni%20Association!5e0!3m2!1sen!2ske!4v1716916820421!5m2!1sen!2ske"
-                                    width="100%" height="560" style="border:0;" allowfullscreen="" loading="lazy">
-                                </iframe>
-                            </div>
-
-                            <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div class="cursor-pointer rounded-sm border border-gray-200 bg-white shadow-xs p-6 transition hover:shadow-md sm:p-8">
-                                    <h2 class="text-2xl font-semibold text-black">Send us a message</h2>
-                                    <form method="post" class="mt-4 space-y-4">
-                                        {% csrf_token %}
-                                        {% for field in form %}
-                                            <div>
-                                                <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ field.label }}:</label>
-                                                {{ field }}
-                                                {% if field.errors %}
-                                                    <p class="mt-1 text-sm text-red-600">{{ field.errors|striptags }}</p>
-                                                {% endif %}
-                                            </div>
-                                        {% endfor %}
-                                        <button type="submit" class="inline-flex items-center justify-center rounded-sm bg-[#38b6ff] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#2f9bd9]">Send Message</button>
-                                    </form>
-                                </div>
-
-                                <div class="cursor-pointer rounded-sm border border-gray-200 bg-white shadow-xs overflow-hidden transition hover:shadow-md">
-                                    <div class="px-6 py-4">
-                                        <h3 class="text-lg font-medium text-black">Our Address</h3>
-                                        <p class="mt-1 text-gray-600">{{address}}</p>
-                                        <strong>Postal: </strong><p class="mt-1 text-gray-600"> {{postal}}</p>
-                                    </div>
-                                    <div class="border-t border-gray-200 px-6 py-4">
-                                        <h3 class="text-lg font-medium text-black">Hours</h3>
-                                        <p class="mt-1 text-gray-600">Monday - Friday: 8am - 5pm</p>
-                                        <p class="mt-1 text-gray-600">Weekends & Public Holidays: Closed</p>
-                                    </div>
-                                    <div class="border-t border-gray-200 px-6 py-4">
-                                        <h3 class="text-lg font-medium text-black">Contact</h3>
-                                        <p class="mt-1 text-gray-600"><span class="font-bold">Website:</span>  {{website}}</p>
-                                        <p class="mt-1 text-gray-600"><span class="font-bold">Email:</span>  {{email}}</p>
-                                        <p class="mt-1 text-gray-600"><span class="font-bold">Phone:</span>  {{landline}} </p>
-                                        <p class="mt-1 text-gray-600"><span class="font-bold">Mobile Phone:</span>   {{mobile}}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+    <article class="bg-white shadow-sm border border-solid border-gray-200 rounded-sm overflow-hidden mt-2">
+        <!-- Hero -->
+        <section style="background:#0E4E80;color:#fff;padding:72px 24px 56px;position:relative">
+            <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-12 items-end">
+                <div>
+                    <div class="flex items-center gap-3 mb-6">
+                        <div style="width:44px;height:3px;background:#fdbe13"></div>
+                        <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#fdbe13">Contact the Secretariat</div>
                     </div>
-                </section>
+                    <h1 style="font-family:'Barlow Condensed';font-weight:700;color:#fff;font-size:clamp(36px,6vw,64px);line-height:0.98;letter-spacing:-0.025em;margin:0 0 20px">Write to us.<br>Call us.<br>Come and see us.</h1>
+                    <p style="font-size:17px;line-height:1.55;color:rgba(255,255,255,0.86);max-width:520px;margin:0">The UONAA Secretariat is at Kolobot Drive. The office is open to members and prospective members during working hours.</p>
+                </div>
+                <div style="border-left:1px solid rgba(255,255,255,0.2);padding-left:32px">
+                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:11px;letter-spacing:0.3em;text-transform:uppercase;color:#fdbe13;margin-bottom:14px">Office hours</div>
+                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:24px;color:#fff;line-height:1.2">Mon – Fri<br>8am – 5pm</div>
+                    <div style="font-size:13px;color:rgba(255,255,255,0.65);margin-top:12px">Closed weekends &amp; public holidays.</div>
+                </div>
+            </div>
+        </section>
+        <div style="height:3px;background:#fdbe13"></div>
 
-            </section>
+        <!-- Contact details strip -->
+        <section class="py-10 px-6">
+            <div class="mx-auto max-w-7xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" style="border-top:1px solid rgba(11,20,32,0.14);border-bottom:1px solid rgba(11,20,32,0.14)">
+                <div class="p-6 lg:border-r" style="border-color:rgba(11,20,32,0.14)">
+                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:8px">Address</div>
+                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:16px;color:#0E4E80;line-height:1.3">{{ address }}</div>
+                </div>
+                <div class="p-6 lg:border-r" style="border-color:rgba(11,20,32,0.14)">
+                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:8px">Postal</div>
+                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:16px;color:#0E4E80;line-height:1.3">{{ postal }}</div>
+                </div>
+                <div class="p-6 lg:border-r" style="border-color:rgba(11,20,32,0.14)">
+                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:8px">Phone</div>
+                    <a href="tel:+254204916713" class="block text-[#0E4E80] hover:text-[#38b6ff]" style="font-family:'Barlow Condensed';font-weight:700;font-size:16px">{{ landline }}</a>
+                    <a href="tel:+254724820908" class="block text-[#0E4E80] hover:text-[#38b6ff] mt-1" style="font-family:'Barlow Condensed';font-weight:700;font-size:16px">{{ mobile }}</a>
+                </div>
+                <div class="p-6">
+                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:8px">Email</div>
+                    <a href="mailto:{{ email }}" class="block text-[#0E4E80] hover:text-[#38b6ff]" style="font-family:'Barlow Condensed';font-weight:700;font-size:16px">{{ email }}</a>
+                </div>
+            </div>
+        </section>
 
-            {% include "snippets/footer.html" %}
-        </div>
+        <!-- Form + map -->
+        <section class="py-10 px-6 pb-20">
+            <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-12 items-start">
+                <div>
+                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:10px">Send us a message</div>
+                    <h2 style="font-family:'Barlow Condensed';font-weight:700;font-size:clamp(26px,4vw,36px);color:#0E4E80;line-height:1;letter-spacing:-0.02em;margin:0 0 10px">We read every one.</h2>
+                    <p class="text-sm text-slate-600 mb-8 max-w-lg">Have a question, an update to your details, or something you'd like the Secretariat to know? Send us a message below.</p>
 
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="mb-4 rounded-sm border border-green-200 bg-green-50 p-3 text-sm text-green-700">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <form method="post" class="space-y-4">
+                        {% csrf_token %}
+                        {% for field in form %}
+                            {% include "snippets/form_field.html" with field=field %}
+                        {% endfor %}
+                        <button type="submit" class="rounded-sm bg-[#38b6ff] px-6 py-3 text-sm font-semibold text-white hover:bg-[#2f9bd9]">Send message →</button>
+                    </form>
+                </div>
+
+                <div class="rounded-sm border border-slate-200 overflow-hidden">
+                    <iframe
+                        class="w-full"
+                        src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d15955.313229287662!2d36.8076789!3d-1.2764109!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x182f1b9c01e69503%3A0xc3b23e9bb4fc14fc!2sUniversity%20of%20Nairobi%20Alumni%20Association!5e0!3m2!1sen!2ske!4v1716916820421!5m2!1sen!2ske"
+                        width="100%" height="480" style="border:0;" allowfullscreen="" loading="lazy">
+                    </iframe>
+                </div>
+            </div>
+        </section>
+    </article>
+
+    {% include "snippets/footer.html" %}
+</div>
 {% endblock content %}
-

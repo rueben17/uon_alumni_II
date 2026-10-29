@@ -1,20 +1,100 @@
 {% extends "base.html" %}
+{% comment %}
+Visual design from Claude Design's Mission Vision Values.dc.html
+mockup. Every fact in that mockup (motto, vision, mission, all six
+core values) matched the real database content exactly -- the only
+change here is swapping its hardcoded text for the real `{{ }}`
+bindings the view already provides (motto_vision_mission,
+core_values_items), so this stays correct if the Association ever
+edits these via the admin, instead of silently drifting from the DB
+the way a hardcoded copy would.
+{% endcomment %}
 
 {% block title_interior %}Mission, Vision & Core Values | UoNAA{% endblock %}
 
 {% block content %}
-<div class="container mx-auto min-h-screen space-y-2 relative" style="max-width: 1700px;important;">
+<div class="container mx-auto min-h-screen relative" style="max-width: 1700px;">
     <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
     {% include "snippets/navbar.html" %}
 
-    <section class="flex min-h-screen items-center justify-center px-4 py-8">
-        <div class="w-full max-w-7xl">
-            <div class="cursor-pointer mb-6 ml-4 inline-block rounded-sm border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md sm:ml-6 sm:p-6 lg:ml-8">
-                <h1 class="text-xl font-semibold text-black sm:text-2xl">Mission, Vision &amp; Core Values</h1>
-            </div>
+    <article class="bg-white shadow-sm border border-solid border-gray-200 rounded-sm overflow-hidden mt-2">
+        {% if foundations or motto_vision_mission or core_values_article %}
+            <!-- Hero: motto -->
+            <section style="background:#0E4E80;color:#fff;padding:72px 24px 56px;position:relative">
+                <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                    <div>
+                        <div class="flex items-center gap-3 mb-6">
+                            <div style="width:44px;height:3px;background:#fdbe13"></div>
+                            <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#fdbe13">About UONAA</div>
+                        </div>
+                        <h1 style="font-family:'Barlow Condensed';font-weight:700;color:#fff;font-size:clamp(36px,6vw,64px);line-height:1;letter-spacing:-0.025em;margin:0 0 20px">Mission, Vision &amp; Core Values.</h1>
+                        {% if foundations.body %}<p style="font-size:16px;line-height:1.6;color:rgba(255,255,255,0.86);max-width:460px;margin:0">{{ foundations.body }}</p>{% endif %}
+                    </div>
+                    {% for item in motto_vision_mission %}
+                        {% if item.page_key == "motto" %}
+                            <div style="border-left:1px solid rgba(255,255,255,0.2);padding-left:40px">
+                                <div style="font-family:'Barlow Condensed';font-weight:600;font-size:11px;letter-spacing:0.3em;text-transform:uppercase;color:#fdbe13;margin-bottom:14px">Our motto</div>
+                                <blockquote style="font-family:'Barlow Condensed';font-weight:700;font-size:clamp(32px,4.4vw,48px);line-height:1;color:#fff;margin:0;letter-spacing:-0.02em">{{ item.body }}</blockquote>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </section>
+            <div style="height:3px;background:#fdbe13"></div>
 
-            {% include "snippets/uon_alumni_core.html" %}
-        </div>
-    </section>
+            <!-- Vision / Mission -->
+            {% for item in motto_vision_mission %}
+                {% if item.page_key != "motto" %}
+                <section class="py-14 px-6" {% if item.page_key == "mission" %}style="background:#f6f6f4"{% endif %}>
+                    <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-10 items-start">
+                        <div style="font-family:'Barlow Condensed';font-weight:700;font-size:28px;color:#0E4E80;line-height:1;letter-spacing:-0.02em">{{ item.title }}</div>
+                        <div style="padding-top:10px;border-top:1.5px solid #38b6ff">
+                            <p style="font-family:'Barlow Condensed';font-weight:600;font-size:clamp(22px,2.6vw,30px);line-height:1.3;color:#0E4E80;margin:0;max-width:860px">{{ item.body }}</p>
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
+            {% endfor %}
+
+            <!-- Core Values -->
+            {% if core_values_article %}
+            <section class="py-16 px-6" style="background:#f6f6f4">
+                <div class="mx-auto max-w-7xl">
+                    <div class="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-10 items-start mb-10">
+                        <div style="font-family:'Barlow Condensed';font-weight:700;font-size:28px;color:#0E4E80;line-height:1;letter-spacing:-0.02em">{{ core_values_article.title }}</div>
+                        {% if core_values_intro %}<p class="text-sm text-slate-600 leading-relaxed max-w-2xl">{{ core_values_intro }}</p>{% endif %}
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {% for value in core_values_items %}
+                        <div style="padding-top:18px;border-top:1.5px solid #38b6ff">
+                            <div style="font-family:'Barlow Condensed';font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#38b6ff;font-weight:700;margin-bottom:6px">{{ forloop.counter|stringformat:"02d" }}</div>
+                            <h3 style="font-size:20px;color:#0E4E80;line-height:1.1;margin-bottom:8px">{{ value.name }}</h3>
+                            <p class="text-sm text-slate-600 leading-relaxed m-0">{{ value.description }}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+            {% endif %}
+
+            <!-- CTA -->
+            <section style="background:#0E4E80;color:#fff;padding:56px 24px">
+                <div class="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-8">
+                    <div>
+                        <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#fdbe13;margin-bottom:14px">Keep in step</div>
+                        <h2 style="color:#fff;font-family:'Barlow Condensed';font-weight:700;font-size:clamp(26px,4vw,36px);line-height:1;letter-spacing:-0.02em;margin:0">The Association is only as strong as its members.</h2>
+                    </div>
+                    <div class="flex gap-3 flex-wrap">
+                        <a href="{% url 'home:uon_alumni_register' %}" class="rounded-sm bg-[#fdbe13] px-6 py-3 text-sm font-semibold text-black hover:bg-[#d7a110]">Register as a member →</a>
+                        <a href="{% url 'home:uon_alumni_history' %}" class="rounded-sm border border-white/40 px-6 py-3 text-sm font-semibold text-white hover:bg-white/10">Read our History</a>
+                    </div>
+                </div>
+            </section>
+        {% else %}
+            <p class="p-8 text-center text-gray-500">Content being prepared.</p>
+        {% endif %}
+    </article>
+
+    {% include "snippets/footer.html" %}
 </div>
 {% endblock content %}

@@ -1,258 +1,205 @@
 {% extends "base.html" %}
+{% comment %}
+Visual design from Claude Design's History.dc.html mockup, ported to a
+real Django page -- extends base.html and uses the site's real
+snippets/navbar.html + snippets/footer.html (not the mockup's own
+simplified standalone nav/footer, which would be a regression from the
+real ones everywhere else on the site).
+
+Every fact on this page was rewritten against docs/origins/
+deepseek_markdown_20261028_ef6da2.md (the verified history import) --
+the mockup invented a founding patron ("Prof. Joseph Mwangi"), a wrong
+founding year (2006, not 2005), a fabricated "Leadership Lecture
+Series" and "Global Alumni Forum", and other unverifiable milestones.
+None of that survived. Timeline/patrons content is still static HTML
+here, not a database query -- deliberately deferred (2026-10-29) so
+this pass is the page structure/design, not a data-wiring change.
+{% endcomment %}
 
 {% block title_interior %}History | UoNAA{% endblock %}
 
-
 {% block content %}
+<div class="container mx-auto min-h-screen relative" style="max-width: 1700px;">
+    <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
+    {% include "snippets/navbar.html" %}
 
-        <div  class="container mx-auto min-h-screen space-y-1" style="max-width: 1700px;important;">
-            {% include "snippets/navbar.html" %}
-           
-
-            <section id="history" class="max-w-full min-h-screen mx-auto bg-white shadow-sm border border-solid border-gray-300 p-3 rounded-sm">
-                <section class="p-4">
-                    <div class="mx-auto md:px-12 lg:px-18 max-w-7xl">
-                        <h1 class="text-4xl font-semibold tracking-wide text-black lg:text-6xl text-balance">
-                           UoNAA — Full Chronological History & Milestones
-                        </h1>
-                        <p class="mt-4 text-lg font-light text-black text-balance">
-                            Join a growing network of over 290,000 University of Nairobi graduates shaping the future of Kenya, Africa, and the world. The UoN Alumni Association brings together past students through lifelong connections, professional growth, and a shared pride in Kenya's leading university.
-                        </p>
+    <article class="bg-white shadow-sm border border-solid border-gray-200 rounded-sm overflow-hidden mt-2">
+        <!-- Hero -->
+        <section style="background:#0E4E80;color:#fff;padding:72px 24px 56px;position:relative">
+            <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-12 items-end">
+                <div>
+                    <div class="flex items-center gap-3 mb-6">
+                        <div style="width:44px;height:3px;background:#fdbe13"></div>
+                        <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#fdbe13">About UONAA</div>
                     </div>
-
-                    <div class="mt-10 mx-auto md:px-12 lg:px-18 max-w-7xl">
-                        <ol class="relative space-y-8 before:absolute before:top-0 before:left-1/2 before:h-full before:w-0.5 before:-translate-x-1/2 before:rounded-full before:bg-gray-200">
-                            
-                            <!--Right milestone -->
-                                <li class="group relative grid grid-cols-2 odd:-me-3 even:-ms-3">
-                                    <div class="relative flex items-start gap-4 group-odd:flex-row-reverse group-odd:text-right group-even:order-last">
-                                    <span class="size-3 shrink-0 rounded-full bg-blue-600"></span>
-
-                                    <div class="-mt-2">
-                                        <time class="text-xs/none font-medium text-gray-700">28 March 2025</time>
-
-                                        <h3 class="text-lg font-bold text-black">20th Anniversary</h3>
-
-                                        <p class="mt-0.5 text-balance text-gray-700">
-                                           The Association celebrated two decades of existence since its founding in February 2005 — a significant milestone marking 20 years of connecting over 300,000 alumni, growing to 17 chapters, and supporting thousands of students through scholarships and mentorship. 
-                                        </p>
-                                    </div>
-                                    </div>
-
-                                    <div aria-hidden="true"></div>
-                                </li>
-                            <!--End of right milestone -->   
-
-                            <!--Left milestone -->
-                                <li class="group relative grid grid-cols-2 odd:-me-3 even:-ms-3">
-                                    <div class="relative flex items-start gap-4 group-odd:flex-row-reverse group-odd:text-right group-even:order-last">
-                                    <span class="size-3 shrink-0 rounded-full bg-blue-600"></span>
-
-                                    <div class="-mt-2">
-                                        <time class="text-xs/none font-medium text-gray-700">27 September 2025  </time>
-
-                                        <h3 class="text-lg font-bold text-black">2nd Annual Alumni Walk</h3>
-
-                                        <p class="mt-0.5 text-balance text-gray-700">
-                                            The 2nd edition of the UoN Alumni Walk was held, building on the inaugural walk's success which had raised KES 2.4 million. The 2025 walk aimed to raise KES 50 million towards the Scholarship Fund, with partners including NCBA Bank, the Office of the Auditor General, and Mhasibu on board.
-                                        </p>
-                                    </div>
-                                    </div>
-
-                                    <div aria-hidden="true"></div>
-                                </li>
-                            <!--End of left milestone -->
-                                                       
-                            
-                            <!--Right milestone -->
-                                <li class="group relative grid grid-cols-2 odd:-me-3 even:-ms-3">
-                                    <div class="relative flex items-start gap-4 group-odd:flex-row-reverse group-odd:text-right group-even:order-last">
-                                    <span class="size-3 shrink-0 rounded-full bg-blue-600"></span>
-
-                                    <div class="-mt-2">
-                                        <time class="text-xs/none font-medium text-gray-700">4 May 2024</time>
-
-                                        <h3 class="text-lg font-bold text-black"> Inaugural Alumni Scholarship Walk</h3>
-
-                                        <p class="mt-0.5 text-balance text-gray-700">
-                                           UoNAA launched its first-ever 10 km charity walk with the ambitious aim of increasing annual scholarship funding from KES 2 million to KES 50 million. NCBA Bank presented an initial contribution of KES 250,000 at the launch event. 
-                                        </p>
-                                    </div>
-                                    </div>
-
-                                    <div aria-hidden="true"></div>
-                                </li>
-                            <!--End of right milestone -->   
-
-                            <!--Left milestone -->
-                                <li class="group relative grid grid-cols-2 odd:-me-3 even:-ms-3">
-                                    <div class="relative flex items-start gap-4 group-odd:flex-row-reverse group-odd:text-right group-even:order-last">
-                                    <span class="size-3 shrink-0 rounded-full bg-blue-600"></span>
-
-                                    <div class="-mt-2">
-                                        <time class="text-xs/none font-medium text-gray-700">5 April 2019 </time>
-
-                                        <h3 class="text-lg font-bold text-black">17th Chapter Launched (Mombasa — First Regional Chapter)</h3>
-
-                                        <p class="mt-0.5 text-balance text-gray-700">
-                                            UoNAA officially launched the Mombasa Campus Alumni Chapter at a colourful Gala event at the Voyager Beach Resort, presided over by Lamu Governor Fahim Twaha. It became the 17th chapter to be launched and the first regional chapter since UoNAA's inception.
-                                        </p>
-                                    </div>
-                                    </div>
-
-                                    <div aria-hidden="true"></div>
-                                </li>
-                            <!--End of left milestone -->
-                           
-                            <!--Right milestone -->
-                                <li class="group relative grid grid-cols-2 odd:-me-3 even:-ms-3">
-                                    <div class="relative flex items-start gap-4 group-odd:flex-row-reverse group-odd:text-right group-even:order-last">
-                                    <span class="size-3 shrink-0 rounded-full bg-blue-600"></span>
-
-                                    <div class="-mt-2">
-                                        <time class="text-xs/none font-medium text-gray-700">30 November 2019</time>
-
-                                        <h3 class="text-lg font-bold text-black"> Annual General Meeting (Education)</h3>
-
-                                        <p class="mt-0.5 text-balance text-gray-700">
-                                            UoNAA held its Annual General Meeting at the University of Nairobi's Taifa Hall.
-                                        </p>
-                                    </div>
-                                    </div>
-
-                                    <div aria-hidden="true"></div>
-                                </li>
-                            <!--End of right milestone -->                               
-                            
-                            <!--Left milestone -->
-                                <li class="group relative grid grid-cols-2 odd:-me-3 even:-ms-3">
-                                    <div class="relative flex items-start gap-4 group-odd:flex-row-reverse group-odd:text-right group-even:order-last">
-                                    <span class="size-3 shrink-0 rounded-full bg-blue-600"></span>
-
-                                    <div class="-mt-2">
-                                        <time class="text-xs/none font-medium text-gray-700">2018</time>
-
-                                        <h3 class="text-lg font-bold text-black">New Constitution</h3>
-
-                                        <p class="mt-0.5 text-balance text-gray-700">
-                                            A new UoNAA constitution was unveiled in 2018, modernising the governance framework of the Association.
-                                        </p>
-                                    </div>
-                                    </div>
-
-                                    <div aria-hidden="true"></div>
-                                </li>
-                            <!--End of left milestone -->,
-
-                            <!--Right milestone -->
-                                <li class="group relative grid grid-cols-2 odd:-me-3 even:-ms-3">
-                                    <div class="relative flex items-start gap-4 group-odd:flex-row-reverse group-odd:text-right group-even:order-last">
-                                    <span class="size-3 shrink-0 rounded-full bg-blue-600"></span>
-
-                                    <div class="-mt-2">
-                                        <time class="text-xs/none font-medium text-gray-700">30 April 2015 </time>
-
-                                        <h3 class="text-lg font-bold text-black"> 13th Chapter Launched (Education)</h3>
-
-                                        <p class="mt-0.5 text-balance text-gray-700">
-                                            UoNAA launched the Education Alumni Chapter at a colourful event at the Nairobi Safari Club — the 13th chapter established by the Association, representing the College of Education and External Studies.
-                                        </p>
-                                    </div>
-                                    </div>
-
-                                    <div aria-hidden="true"></div>
-                                </li>
-                            <!--End of right milestone -->                            
-                            
-                            <!--Left milestone -->
-                                <li class="group relative grid grid-cols-2 odd:-me-3 even:-ms-3">
-                                    <div class="relative flex items-start gap-4 group-odd:flex-row-reverse group-odd:text-right group-even:order-last">
-                                    <span class="size-3 shrink-0 rounded-full bg-blue-600"></span>
-
-                                    <div class="-mt-2">
-                                        <time class="text-xs/none font-medium text-gray-700">2012 </time>
-
-                                        <h3 class="text-lg font-bold text-black">Secretariat Transition</h3>
-
-                                        <p class="mt-0.5 text-balance text-gray-700">
-                                            Mr. Bernard D. Njuguna was replaced by Mr. Johnson Ireri Kinyua in 2012 as Administrator of the Secretariat.
-                                        </p>
-                                    </div>
-                                    </div>
-
-                                    <div aria-hidden="true"></div>
-                                </li>
-                            <!--End of left milestone -->
-
-                            <!--Right milestone -->
-                                <li class="group relative grid grid-cols-2 odd:-me-3 even:-ms-3">
-                                    <div class="relative flex items-start gap-4 group-odd:flex-row-reverse group-odd:text-right group-even:order-last">
-                                    <span class="size-3 shrink-0 rounded-full bg-blue-600"></span>
-
-                                    <div class="-mt-2">
-                                        <time class="text-xs/none font-medium text-gray-700">2010</time>
-
-                                        <h3 class="text-lg font-bold text-black"> Scholarship & Research Fund Established</h3>
-
-                                        <p class="mt-0.5 text-balance text-gray-700">
-                                        The Scholarship Fund started in 2010, and to date over KES 80 million has been disbursed to bright and needy students to cater for tuition fees, accommodation, and personal effects.
-                                        </p>
-                                    </div>
-                                    </div>
-
-                                    <div aria-hidden="true"></div>
-                                </li>
-                            <!--End of right milestone -->
-
-                            <!--Left milestone -->
-                                <li class="group relative grid grid-cols-2 odd:-me-3 even:-ms-3">
-                                    <div class="relative flex items-start gap-4 group-odd:flex-row-reverse group-odd:text-right group-even:order-last">
-                                    <span class="size-3 shrink-0 rounded-full bg-blue-600"></span>
-
-                                    <div class="-mt-2">
-                                        <time class="text-xs/none font-medium text-gray-700">5 February 2005</time>
-
-                                        <h3 class="text-lg font-bold text-black">Official Launch</h3>
-
-                                        <p class="mt-0.5 text-balance text-gray-700">
-                                        UoNAA was officially launched on February 5, 2005, repealing University Statutes XXXVIII (Convocation), officiated by the then Minister of Education, Prof. George Saitoti. Dr. Betty M. Gikonyo was appointed the first Chairperson, with Mr. Bernard D. Njuguna as the first Administrator.
-                                        </p>
-                                    </div>
-                                    </div>
-
-                                    <div aria-hidden="true"></div>
-                                </li>
-                            <!--End of left milestone -->
-
-                            <!--Right milestone -->
-                                <li class="group relative grid grid-cols-2 odd:-me-3 even:-ms-3">
-                                    <div class="relative flex items-start gap-4 group-odd:flex-row-reverse group-odd:text-right group-even:order-last">
-                                    <span class="size-3 shrink-0 rounded-full bg-blue-600"></span>
-
-                                    <div class="-mt-2">
-                                        <time class="text-xs/none font-medium text-gray-700">2004</time>
-
-                                        <h3 class="text-lg font-bold text-black"><strong> The Genesis</strong></h3>
-
-                                        <p class="mt-0.5 text-balance text-gray-700">
-                                        The University of Nairobi Council Sub-Committee headed by Dr. Betty M. Gikonyo was created to consider the possibility of launching an Alumni Association, with the first tasks being drafting of objectives and a constitution. The university granted formal permission to use its protected names, and the registration process was completed.
-                                        </p>
-                                    </div>
-                                    </div>
-
-                                    <div aria-hidden="true"></div>
-                                </li>
-                            <!--End of right milestone -->
-                        </ol>
+                    <h1 style="font-family:'Barlow Condensed';font-weight:700;color:#fff;font-size:clamp(40px,6vw,72px);line-height:0.98;letter-spacing:-0.025em;margin:0 0 20px">History.</h1>
+                    <p style="font-size:17px;line-height:1.55;color:rgba(255,255,255,0.86);max-width:520px;margin:0">Two decades of a formally registered Alumni Association, from its founding in 2004 to its public launch on 5 February 2005.</p>
+                </div>
+                <div style="border-left:1px solid rgba(255,255,255,0.2);padding-left:32px">
+                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:11px;letter-spacing:0.3em;text-transform:uppercase;color:#fdbe13;margin-bottom:14px">By the dates</div>
+                    <div class="flex gap-9">
+                        <div><div style="font-family:'Barlow Condensed';font-weight:700;font-size:44px;color:#fff;line-height:1">2005</div><div style="font-size:12px;color:rgba(255,255,255,0.7);letter-spacing:0.14em;text-transform:uppercase;margin-top:6px">Launched</div></div>
+                        <div><div style="font-family:'Barlow Condensed';font-weight:700;font-size:44px;color:#fdbe13;line-height:1">20+</div><div style="font-size:12px;color:rgba(255,255,255,0.7);letter-spacing:0.14em;text-transform:uppercase;margin-top:6px">Years</div></div>
                     </div>
+                </div>
+            </div>
+        </section>
+        <div style="height:3px;background:#fdbe13"></div>
 
+        <!-- Intro -->
+        <section class="py-16 px-6">
+            <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-10 items-start">
+                <div>
+                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:8px">01</div>
+                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:30px;color:#0E4E80;line-height:1;letter-spacing:-0.02em">In brief</div>
+                </div>
+                <div style="padding-top:10px;border-top:1.5px solid #38b6ff">
+                    <p style="font-family:'Barlow';font-size:18px;line-height:1.7;color:#0b1420;margin:0 0 18px;max-width:760px">In September 2004, the University of Nairobi Council asked Dr. Betty Gikonyo, an alumna and Council member, to chair a sub-committee on launching an alumni association. The University Council repealed Statute XXVIII (which had governed the old Convocation) to make way for it, and on Saturday, 5 February 2005, the Association was officially launched at a ceremony at the Chancellor's Court, presided over by the then Minister for Education, the late Prof. George Saitoti.</p>
+                    <p style="font-family:'Barlow';font-size:16px;line-height:1.7;color:#3b4654;margin:0 0 18px;max-width:760px">Twenty years on, the Association operates through a Secretariat at Kolobot Drive, an elected Executive Committee, and chapters across disciplines and the diaspora. Its programming spans mentorship, scholarships, and the public events that bring the alumni community together year on year.</p>
+                    <p style="font-family:'Barlow';font-size:16px;line-height:1.7;color:#3b4654;margin:0;max-width:760px">The time-line below records the Association's verified milestones, drawn from its own newsletters, annual reports, and university records.</p>
+                </div>
+            </div>
+        </section>
 
-                </section>                      
-            </section>
+        <!-- Timeline -->
+        <section class="py-12 px-6" style="background:#f6f6f4">
+            <div class="mx-auto max-w-7xl">
+                <div class="mb-10">
+                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:10px">02 · Time-line</div>
+                    <h2 style="font-family:'Barlow Condensed';font-weight:700;font-size:clamp(28px,4vw,40px);color:#0E4E80;line-height:1;letter-spacing:-0.02em;margin:0">Verified milestones, 2004 – 2025.</h2>
+                </div>
 
-            {% include "snippets/footer.html" %}
-        </div>
+                {% comment %}
+                Static for now, by design (2026-10-29) -- the Article
+                model already has this exact data (import_verified_history.py),
+                but wiring this timeline to a live query is deliberately
+                deferred to a separate pass. Every entry below is checked
+                against docs/origins/deepseek_markdown_20261028_ef6da2.md.
+                {% endcomment %}
 
-    
+                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2004</div>
+                    <div>
+                        <span style="display:inline-block;background:#fdbe13;color:#000;padding:2px 8px;font-family:'Barlow Condensed';font-weight:700;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:8px">Founding</span>
+                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">The University Council acts</h3>
+                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">The Council repeals Statute XXVIII, which had governed the old Convocation, and asks Dr. Betty Gikonyo to chair a sub-committee on launching a proper Alumni Association. Prof. David Wasawo leads the Taskforce on Alumni Relations that drafts its blueprint.</p>
+                    </div>
+                </article>
 
+                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2005</div>
+                    <div>
+                        <span style="display:inline-block;background:#fdbe13;color:#000;padding:2px 8px;font-family:'Barlow Condensed';font-weight:700;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:8px">Launch</span>
+                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">UONAA is officially launched</h3>
+                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">Launched 5 February 2005 at the Chancellor's Court, presided over by the then Minister for Education, the late Prof. George Saitoti. By year's end: 2,147 paid-up members, the first issue of "The Alumnus" newsletter, and the first disbursement to 36 students.</p>
+                    </div>
+                </article>
+
+                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2007</div>
+                    <div>
+                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Medical Chapter launched</h3>
+                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">The first of several discipline-specific alumni chapters, bringing together graduates from the College of Health Sciences.</p>
+                    </div>
+                </article>
+
+                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2008</div>
+                    <div>
+                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Three African leaders honoured</h3>
+                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">H.E. Mwai Kibaki, Rt. Hon. Raila Odinga, and H.E. Dr. Kofi Annan receive honorary degrees for their role in ending the violence that followed the 2007 election — the Association welcomes all three as alumni.</p>
+                    </div>
+                </article>
+
+                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2014</div>
+                    <div>
+                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Prof. David Wasawo passes away</h3>
+                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">The founding patron and intellectual father of UONAA dies on 4 February 2014, aged 91.</p>
+                    </div>
+                </article>
+
+                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2015</div>
+                    <div>
+                        <span style="display:inline-block;background:#fdbe13;color:#000;padding:2px 8px;font-family:'Barlow Condensed';font-weight:700;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:8px">10th Anniversary</span>
+                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Tenth anniversary, and the Education Chapter</h3>
+                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">A Gala Dinner at the Great Court on 6 February marks ten years since launch. The Education Chapter is launched on 30 April.</p>
+                    </div>
+                </article>
+
+                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2016</div>
+                    <div>
+                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Leadership transition</h3>
+                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">After eleven years as founding Chairperson, Dr. Betty Gikonyo hands over the leadership to Mr. Isaac Awuondo.</p>
+                    </div>
+                </article>
+
+                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2017</div>
+                    <div>
+                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">School of Law Chapter launched</h3>
+                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">The Association's fifteenth chapter. The same year, KSh 2 million is donated to support needy and bright students.</p>
+                    </div>
+                </article>
+
+                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2020</div>
+                    <div>
+                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">UONAA Scholarship Fund launched</h3>
+                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">Officially launched 13 March 2020 at the Vice-Chancellor's Parlour, with 52 students in the inaugural cohort — the Association's most ambitious scholarship commitment to date.</p>
+                    </div>
+                </article>
+
+                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2025</div>
+                    <div>
+                        <span style="display:inline-block;background:#fdbe13;color:#000;padding:2px 8px;font-family:'Barlow Condensed';font-weight:700;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:8px">20th Anniversary</span>
+                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Twenty years of UONAA</h3>
+                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">Celebrated 28 February 2025 under the theme "Let Us Embrace a Culture of Giving Back," honouring founding visionaries Dr. Joseph Barrage Wanjui, Prof. George Magoha, and Prof. David Wasawo.</p>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <!-- Founding figures -->
+        <section class="py-16 px-6">
+            <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-10 items-start">
+                <div>
+                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:8px">03</div>
+                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:30px;color:#0E4E80;line-height:1;letter-spacing:-0.02em">Founding figures</div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                    <div style="padding-top:14px;border-top:1.5px solid #38b6ff">
+                        <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:10px">Founding Patron</div>
+                        <div style="font-family:'Barlow Condensed';font-weight:700;font-size:22px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Prof. David Wasawo (1923 – 2014)</div>
+                        <p style="font-size:14px;color:#3b4654;line-height:1.6;margin:0">Led the 2003 Taskforce on Alumni Relations that produced the Association's blueprint and chaired its founding Interim Committee. Declined to stand for election as chairperson due to age, but remained a patron until his death in 2014.</p>
+                    </div>
+                    <div style="padding-top:14px;border-top:1.5px solid #38b6ff">
+                        <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:10px">Founding Chairperson</div>
+                        <div style="font-family:'Barlow Condensed';font-weight:700;font-size:22px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Dr. Betty Gikonyo</div>
+                        <p style="font-size:14px;color:#3b4654;line-height:1.6;margin:0">A consultant cardiologist and alumna who chaired the launch sub-committee and served as the Association's first Chairperson from 2005 to 2015, before handing over to Mr. Isaac Awuondo.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA -->
+        <section style="background:#0E4E80;color:#fff;padding:56px 24px">
+            <div class="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-8">
+                <div>
+                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#fdbe13;margin-bottom:14px">Carry it forward</div>
+                    <h2 style="color:#fff;font-family:'Barlow Condensed';font-weight:700;font-size:clamp(28px,4vw,38px);line-height:1;letter-spacing:-0.02em;margin:0">Twenty years is a start, not a finish.</h2>
+                </div>
+                <div class="flex gap-3 flex-wrap">
+                    <a href="{% url 'home:uon_alumni_register' %}" class="rounded-sm bg-[#fdbe13] px-6 py-3 text-sm font-semibold text-black hover:bg-[#d7a110]">Register as a member →</a>
+                    <a href="{% url 'home:uon_alumni_donate' %}" class="rounded-sm border border-white/40 px-6 py-3 text-sm font-semibold text-white hover:bg-white/10">Give to the Endowment</a>
+                </div>
+            </div>
+        </section>
+    </article>
+
+    {% include "snippets/footer.html" %}
+</div>
 {% endblock content %}
