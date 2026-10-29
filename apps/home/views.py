@@ -330,6 +330,26 @@ class ArticleDetailView(DetailView):
     def get_queryset(self):
         return Article.objects.filter(is_published=True).exclude(type=Article.ArticleType.PAGE)
 
+    def get_context_data(self, **kwargs):
+        # import_verified_history.py (and the retired import_chosen_
+        # articles.py) append "References:"/"Editor's Note:" to body as
+        # trailing plain-text sections, so the sourcing trail survives
+        # the import -- but rendering article.body raw put those straight
+        # into the public article text via {{ article.body|linebreaks }},
+        # bloating the card and showing internal fact-check flags
+        # ([VERIFY: ...]) to visitors. Split here so the template can
+        # show the narrative + a small, de-emphasized References line;
+        # Editor's Note is intentionally dropped from the public page --
+        # it's an internal QA note, not reader-facing content -- while
+        # staying in the stored body for whoever edits this in the admin.
+        context = super().get_context_data(**kwargs)
+        body = context["article"].body or ""
+        body_main, _, rest = body.partition("\n\nReferences:\n")
+        references, _, _editor_note = rest.partition("\n\nEditor's Note:\n")
+        context["article_body_main"] = body_main
+        context["article_references"] = references
+        return context
+
 
 class EventListView(ListView):
     """The 'UoN Alumni Walk' page -- scoped to event_type=WALK.

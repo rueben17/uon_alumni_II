@@ -30,7 +30,7 @@ Reading time is computed from the real body length, not invented.
             <div class="mx-auto" style="max-width:900px">
                 <div class="flex gap-3 items-center mb-6 flex-wrap">
                     {% if article.chapter %}<span style="background:#fdbe13;color:#000;padding:4px 12px;font-family:'Barlow Condensed';font-weight:700;font-size:11px;letter-spacing:0.2em;text-transform:uppercase">{{ article.chapter.name }}</span>{% endif %}
-                    <span style="font-family:'Barlow Condensed';font-size:12px;letter-spacing:0.2em;text-transform:uppercase;color:#5d6673">{{ article.published_at|default:article.created_at|date:"d F Y" }} · {% widthratio article.body|wordcount 200 1 %} min read</span>
+                    <span style="font-family:'Barlow Condensed';font-size:12px;letter-spacing:0.2em;text-transform:uppercase;color:#5d6673">{{ article.published_at|default:article.created_at|date:"d F Y" }} · {% widthratio article_body_main|wordcount 200 1 %} min read</span>
                 </div>
                 <h1 style="font-family:'Barlow Condensed';font-weight:700;font-size:clamp(32px,5.4vw,56px);line-height:1.05;letter-spacing:-0.025em;color:#0E4E80;margin:0">{{ article.title }}</h1>
             </div>
@@ -51,7 +51,7 @@ Reading time is computed from the real body length, not invented.
         <section class="rounded-sm shadow-sm border border-solid border-gray-200 bg-white overflow-hidden py-14 px-6">
             <div class="mx-auto grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-14" style="max-width:1100px">
                 <div class="prose max-w-none" style="font-family:'Barlow';font-size:17px;line-height:1.7;color:#1d1f20">
-                    {{ article.body|linebreaks }}
+                    {{ article_body_main|linebreaks }}
                 </div>
                 <aside class="flex flex-col gap-6">
                     {% if article.quote %}
@@ -65,6 +65,12 @@ Reading time is computed from the real body length, not invented.
                             <a href="mailto:?subject={{ article.title|urlencode }}&body={{ request.build_absolute_uri|urlencode }}" class="w-9 h-9 flex items-center justify-center" style="border:1px solid rgba(11,20,32,0.14)" aria-label="Email this article"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14"/><path d="m3 7 9 6 9-6"/></svg></a>
                         </div>
                     </div>
+                    {% if article_references %}
+                    <div style="padding-top:16px;border-top:1px solid rgba(11,20,32,0.14)">
+                        <div style="font-family:'Barlow Condensed';font-weight:600;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#5d6673;margin-bottom:8px">Sources</div>
+                        <div style="font-size:12px;line-height:1.6;color:#5d6673;white-space:pre-line">{{ article_references }}</div>
+                    </div>
+                    {% endif %}
                 </aside>
             </div>
         </section>
