@@ -56,23 +56,29 @@ the way a hardcoded copy would.
 
             <!-- Core Values -->
             {% if core_values_article %}
-            <section class="rounded-sm shadow-sm border border-solid border-gray-200 overflow-hidden py-16 px-6" style="background:#f6f6f4">
-                <div class="mx-auto max-w-7xl">
-                    <div class="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-10 items-start mb-10">
-                        <div style="font-family:'Barlow Condensed';font-weight:700;font-size:28px;color:#0E4E80;line-height:1;letter-spacing:-0.02em">{{ core_values_article.title }}</div>
-                        {% if core_values_intro %}<p class="text-sm text-slate-600 leading-relaxed max-w-2xl">{{ core_values_intro }}</p>{% endif %}
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {% for value in core_values_items %}
-                        <div style="padding-top:18px;border-top:1.5px solid #38b6ff">
-                            <div style="font-family:'Barlow Condensed';font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#38b6ff;font-weight:700;margin-bottom:6px">{{ forloop.counter|stringformat:"02d" }}</div>
-                            <h3 style="font-size:20px;color:#0E4E80;line-height:1.1;margin-bottom:8px">{{ value.name }}</h3>
-                            <p class="text-sm text-slate-600 leading-relaxed m-0">{{ value.description }}</p>
-                        </div>
-                        {% endfor %}
-                    </div>
+            <section class="rounded-sm shadow-sm border border-solid border-gray-200 bg-white overflow-hidden py-10 px-6">
+                <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-10 items-start">
+                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:28px;color:#0E4E80;line-height:1;letter-spacing:-0.02em">{{ core_values_article.title }}</div>
+                    {% if core_values_intro %}<p class="text-sm text-slate-600 leading-relaxed max-w-2xl">{{ core_values_intro }}</p>{% endif %}
                 </div>
             </section>
+
+            {% comment %}
+            No wrapping card around this grid, deliberately (2026-10-29)
+            -- each value is now its own bordered card (matching the
+            article/tier-card treatment elsewhere), so the fixed
+            page_background_url backdrop shows through between them
+            instead of being hidden behind one card holding all six.
+            {% endcomment %}
+            <div class="mx-auto max-w-7xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {% for value in core_values_items %}
+                <div class="rounded-sm shadow-sm border border-solid border-gray-200 bg-white overflow-hidden p-6" style="border-top:3px solid #38b6ff">
+                    <div style="font-family:'Barlow Condensed';font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#38b6ff;font-weight:700;margin-bottom:6px">{{ forloop.counter|stringformat:"02d" }}</div>
+                    <h3 style="font-size:20px;color:#0E4E80;line-height:1.1;margin-bottom:8px">{{ value.name }}</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed m-0">{{ value.description }}</p>
+                </div>
+                {% endfor %}
+            </div>
             {% endif %}
 
             <!-- CTA -->
