@@ -14,191 +14,195 @@ Series" and "Global Alumni Forum", and other unverifiable milestones.
 None of that survived. Timeline/patrons content is still static HTML
 here, not a database query -- deliberately deferred (2026-10-29) so
 this pass is the page structure/design, not a data-wiring change.
+
+Split into separate cards with gaps (2026-10-29) -- the mockup's own
+single continuous "page" card hid the fixed page_background_url
+backdrop entirely except at the very edges, which isn't how the rest
+of the site works (templates/home/alumni_home.html, crm/membership_list.html:
+the background shows through BETWEEN distinct cards). Each section
+below is now its own card again.
 {% endcomment %}
 
 {% block title_interior %}History | UoNAA{% endblock %}
 
 {% block content %}
-<div class="container mx-auto min-h-screen relative" style="max-width: 1700px;">
+<div class="container mx-auto min-h-screen space-y-4 relative" style="max-width: 1700px;">
     <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
     {% include "snippets/navbar.html" %}
 
-    <article class="bg-white shadow-sm border border-solid border-gray-200 rounded-sm overflow-hidden mt-2">
-        <!-- Hero -->
-        <section style="background:#0E4E80;color:#fff;padding:72px 24px 56px;position:relative">
-            <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-12 items-end">
+    <!-- Hero -->
+    <section class="rounded-sm shadow-sm overflow-hidden" style="background:#0E4E80;color:#fff;padding:72px 24px 56px;position:relative">
+        <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-12 items-end">
+            <div>
+                <div class="flex items-center gap-3 mb-6">
+                    <div style="width:44px;height:3px;background:#fdbe13"></div>
+                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#fdbe13">About UONAA</div>
+                </div>
+                <h1 style="font-family:'Barlow Condensed';font-weight:700;color:#fff;font-size:clamp(40px,6vw,72px);line-height:0.98;letter-spacing:-0.025em;margin:0 0 20px">History.</h1>
+                <p style="font-size:17px;line-height:1.55;color:rgba(255,255,255,0.86);max-width:520px;margin:0">Two decades of a formally registered Alumni Association, from its founding in 2004 to its public launch on 5 February 2005.</p>
+            </div>
+            <div style="border-left:1px solid rgba(255,255,255,0.2);padding-left:32px">
+                <div style="font-family:'Barlow Condensed';font-weight:600;font-size:11px;letter-spacing:0.3em;text-transform:uppercase;color:#fdbe13;margin-bottom:14px">By the dates</div>
+                <div class="flex gap-9">
+                    <div><div style="font-family:'Barlow Condensed';font-weight:700;font-size:44px;color:#fff;line-height:1">2005</div><div style="font-size:12px;color:rgba(255,255,255,0.7);letter-spacing:0.14em;text-transform:uppercase;margin-top:6px">Launched</div></div>
+                    <div><div style="font-family:'Barlow Condensed';font-weight:700;font-size:44px;color:#fdbe13;line-height:1">20+</div><div style="font-size:12px;color:rgba(255,255,255,0.7);letter-spacing:0.14em;text-transform:uppercase;margin-top:6px">Years</div></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Intro -->
+    <section class="rounded-sm shadow-sm border border-solid border-gray-200 bg-white overflow-hidden py-16 px-6">
+        <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-10 items-start">
+            <div>
+                <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:8px">01</div>
+                <div style="font-family:'Barlow Condensed';font-weight:700;font-size:30px;color:#0E4E80;line-height:1;letter-spacing:-0.02em">In brief</div>
+            </div>
+            <div style="padding-top:10px;border-top:1.5px solid #38b6ff">
+                <p style="font-family:'Barlow';font-size:18px;line-height:1.7;color:#0b1420;margin:0 0 18px;max-width:760px">In September 2004, the University of Nairobi Council asked Dr. Betty Gikonyo, an alumna and Council member, to chair a sub-committee on launching an alumni association. The University Council repealed Statute XXVIII (which had governed the old Convocation) to make way for it, and on Saturday, 5 February 2005, the Association was officially launched at a ceremony at the Chancellor's Court, presided over by the then Minister for Education, the late Prof. George Saitoti.</p>
+                <p style="font-family:'Barlow';font-size:16px;line-height:1.7;color:#3b4654;margin:0 0 18px;max-width:760px">Twenty years on, the Association operates through a Secretariat at Kolobot Drive, an elected Executive Committee, and chapters across disciplines and the diaspora. Its programming spans mentorship, scholarships, and the public events that bring the alumni community together year on year.</p>
+                <p style="font-family:'Barlow';font-size:16px;line-height:1.7;color:#3b4654;margin:0;max-width:760px">The time-line below records the Association's verified milestones, drawn from its own newsletters, annual reports, and university records.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Timeline -->
+    <section class="rounded-sm shadow-sm border border-solid border-gray-200 overflow-hidden py-12 px-6" style="background:#f6f6f4">
+        <div class="mx-auto max-w-7xl">
+            <div class="mb-10">
+                <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:10px">02 · Time-line</div>
+                <h2 style="font-family:'Barlow Condensed';font-weight:700;font-size:clamp(28px,4vw,40px);color:#0E4E80;line-height:1;letter-spacing:-0.02em;margin:0">Verified milestones, 2004 – 2025.</h2>
+            </div>
+
+            {% comment %}
+            Static for now, by design (2026-10-29) -- the Article
+            model already has this exact data (import_verified_history.py),
+            but wiring this timeline to a live query is deliberately
+            deferred to a separate pass. Every entry below is checked
+            against docs/origins/deepseek_markdown_20261028_ef6da2.md.
+            {% endcomment %}
+
+            <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2004</div>
                 <div>
-                    <div class="flex items-center gap-3 mb-6">
-                        <div style="width:44px;height:3px;background:#fdbe13"></div>
-                        <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#fdbe13">About UONAA</div>
-                    </div>
-                    <h1 style="font-family:'Barlow Condensed';font-weight:700;color:#fff;font-size:clamp(40px,6vw,72px);line-height:0.98;letter-spacing:-0.025em;margin:0 0 20px">History.</h1>
-                    <p style="font-size:17px;line-height:1.55;color:rgba(255,255,255,0.86);max-width:520px;margin:0">Two decades of a formally registered Alumni Association, from its founding in 2004 to its public launch on 5 February 2005.</p>
+                    <span style="display:inline-block;background:#fdbe13;color:#000;padding:2px 8px;font-family:'Barlow Condensed';font-weight:700;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:8px">Founding</span>
+                    <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">The University Council acts</h3>
+                    <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">The Council repeals Statute XXVIII, which had governed the old Convocation, and asks Dr. Betty Gikonyo to chair a sub-committee on launching a proper Alumni Association. Prof. David Wasawo leads the Taskforce on Alumni Relations that drafts its blueprint.</p>
                 </div>
-                <div style="border-left:1px solid rgba(255,255,255,0.2);padding-left:32px">
-                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:11px;letter-spacing:0.3em;text-transform:uppercase;color:#fdbe13;margin-bottom:14px">By the dates</div>
-                    <div class="flex gap-9">
-                        <div><div style="font-family:'Barlow Condensed';font-weight:700;font-size:44px;color:#fff;line-height:1">2005</div><div style="font-size:12px;color:rgba(255,255,255,0.7);letter-spacing:0.14em;text-transform:uppercase;margin-top:6px">Launched</div></div>
-                        <div><div style="font-family:'Barlow Condensed';font-weight:700;font-size:44px;color:#fdbe13;line-height:1">20+</div><div style="font-size:12px;color:rgba(255,255,255,0.7);letter-spacing:0.14em;text-transform:uppercase;margin-top:6px">Years</div></div>
-                    </div>
-                </div>
-            </div>
-        </section>
-        <div style="height:3px;background:#fdbe13"></div>
+            </article>
 
-        <!-- Intro -->
-        <section class="py-16 px-6">
-            <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-10 items-start">
+            <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2005</div>
                 <div>
-                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:8px">01</div>
-                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:30px;color:#0E4E80;line-height:1;letter-spacing:-0.02em">In brief</div>
+                    <span style="display:inline-block;background:#fdbe13;color:#000;padding:2px 8px;font-family:'Barlow Condensed';font-weight:700;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:8px">Launch</span>
+                    <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">UONAA is officially launched</h3>
+                    <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">Launched 5 February 2005 at the Chancellor's Court, presided over by the then Minister for Education, the late Prof. George Saitoti. By year's end: 2,147 paid-up members, the first issue of "The Alumnus" newsletter, and the first disbursement to 36 students.</p>
                 </div>
-                <div style="padding-top:10px;border-top:1.5px solid #38b6ff">
-                    <p style="font-family:'Barlow';font-size:18px;line-height:1.7;color:#0b1420;margin:0 0 18px;max-width:760px">In September 2004, the University of Nairobi Council asked Dr. Betty Gikonyo, an alumna and Council member, to chair a sub-committee on launching an alumni association. The University Council repealed Statute XXVIII (which had governed the old Convocation) to make way for it, and on Saturday, 5 February 2005, the Association was officially launched at a ceremony at the Chancellor's Court, presided over by the then Minister for Education, the late Prof. George Saitoti.</p>
-                    <p style="font-family:'Barlow';font-size:16px;line-height:1.7;color:#3b4654;margin:0 0 18px;max-width:760px">Twenty years on, the Association operates through a Secretariat at Kolobot Drive, an elected Executive Committee, and chapters across disciplines and the diaspora. Its programming spans mentorship, scholarships, and the public events that bring the alumni community together year on year.</p>
-                    <p style="font-family:'Barlow';font-size:16px;line-height:1.7;color:#3b4654;margin:0;max-width:760px">The time-line below records the Association's verified milestones, drawn from its own newsletters, annual reports, and university records.</p>
-                </div>
-            </div>
-        </section>
+            </article>
 
-        <!-- Timeline -->
-        <section class="py-12 px-6" style="background:#f6f6f4">
-            <div class="mx-auto max-w-7xl">
-                <div class="mb-10">
-                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:10px">02 · Time-line</div>
-                    <h2 style="font-family:'Barlow Condensed';font-weight:700;font-size:clamp(28px,4vw,40px);color:#0E4E80;line-height:1;letter-spacing:-0.02em;margin:0">Verified milestones, 2004 – 2025.</h2>
-                </div>
-
-                {% comment %}
-                Static for now, by design (2026-10-29) -- the Article
-                model already has this exact data (import_verified_history.py),
-                but wiring this timeline to a live query is deliberately
-                deferred to a separate pass. Every entry below is checked
-                against docs/origins/deepseek_markdown_20261028_ef6da2.md.
-                {% endcomment %}
-
-                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
-                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2004</div>
-                    <div>
-                        <span style="display:inline-block;background:#fdbe13;color:#000;padding:2px 8px;font-family:'Barlow Condensed';font-weight:700;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:8px">Founding</span>
-                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">The University Council acts</h3>
-                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">The Council repeals Statute XXVIII, which had governed the old Convocation, and asks Dr. Betty Gikonyo to chair a sub-committee on launching a proper Alumni Association. Prof. David Wasawo leads the Taskforce on Alumni Relations that drafts its blueprint.</p>
-                    </div>
-                </article>
-
-                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
-                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2005</div>
-                    <div>
-                        <span style="display:inline-block;background:#fdbe13;color:#000;padding:2px 8px;font-family:'Barlow Condensed';font-weight:700;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:8px">Launch</span>
-                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">UONAA is officially launched</h3>
-                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">Launched 5 February 2005 at the Chancellor's Court, presided over by the then Minister for Education, the late Prof. George Saitoti. By year's end: 2,147 paid-up members, the first issue of "The Alumnus" newsletter, and the first disbursement to 36 students.</p>
-                    </div>
-                </article>
-
-                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
-                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2007</div>
-                    <div>
-                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Medical Chapter launched</h3>
-                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">The first of several discipline-specific alumni chapters, bringing together graduates from the College of Health Sciences.</p>
-                    </div>
-                </article>
-
-                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
-                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2008</div>
-                    <div>
-                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Three African leaders honoured</h3>
-                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">H.E. Mwai Kibaki, Rt. Hon. Raila Odinga, and H.E. Dr. Kofi Annan receive honorary degrees for their role in ending the violence that followed the 2007 election — the Association welcomes all three as alumni.</p>
-                    </div>
-                </article>
-
-                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
-                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2014</div>
-                    <div>
-                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Prof. David Wasawo passes away</h3>
-                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">The founding patron and intellectual father of UONAA dies on 4 February 2014, aged 91.</p>
-                    </div>
-                </article>
-
-                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
-                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2015</div>
-                    <div>
-                        <span style="display:inline-block;background:#fdbe13;color:#000;padding:2px 8px;font-family:'Barlow Condensed';font-weight:700;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:8px">10th Anniversary</span>
-                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Tenth anniversary, and the Education Chapter</h3>
-                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">A Gala Dinner at the Great Court on 6 February marks ten years since launch. The Education Chapter is launched on 30 April.</p>
-                    </div>
-                </article>
-
-                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
-                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2016</div>
-                    <div>
-                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Leadership transition</h3>
-                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">After eleven years as founding Chairperson, Dr. Betty Gikonyo hands over the leadership to Mr. Isaac Awuondo.</p>
-                    </div>
-                </article>
-
-                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
-                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2017</div>
-                    <div>
-                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">School of Law Chapter launched</h3>
-                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">The Association's fifteenth chapter. The same year, KSh 2 million is donated to support needy and bright students.</p>
-                    </div>
-                </article>
-
-                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
-                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2020</div>
-                    <div>
-                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">UONAA Scholarship Fund launched</h3>
-                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">Officially launched 13 March 2020 at the Vice-Chancellor's Parlour, with 52 students in the inaugural cohort — the Association's most ambitious scholarship commitment to date.</p>
-                    </div>
-                </article>
-
-                <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
-                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2025</div>
-                    <div>
-                        <span style="display:inline-block;background:#fdbe13;color:#000;padding:2px 8px;font-family:'Barlow Condensed';font-weight:700;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:8px">20th Anniversary</span>
-                        <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Twenty years of UONAA</h3>
-                        <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">Celebrated 28 February 2025 under the theme "Let Us Embrace a Culture of Giving Back," honouring founding visionaries Dr. Joseph Barrage Wanjui, Prof. George Magoha, and Prof. David Wasawo.</p>
-                    </div>
-                </article>
-            </div>
-        </section>
-
-        <!-- Founding figures -->
-        <section class="py-16 px-6">
-            <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-10 items-start">
+            <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2007</div>
                 <div>
-                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:8px">03</div>
-                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:30px;color:#0E4E80;line-height:1;letter-spacing:-0.02em">Founding figures</div>
+                    <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Medical Chapter launched</h3>
+                    <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">The first of several discipline-specific alumni chapters, bringing together graduates from the College of Health Sciences.</p>
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                    <div style="padding-top:14px;border-top:1.5px solid #38b6ff">
-                        <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:10px">Founding Patron</div>
-                        <div style="font-family:'Barlow Condensed';font-weight:700;font-size:22px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Prof. David Wasawo (1923 – 2014)</div>
-                        <p style="font-size:14px;color:#3b4654;line-height:1.6;margin:0">Led the 2003 Taskforce on Alumni Relations that produced the Association's blueprint and chaired its founding Interim Committee. Declined to stand for election as chairperson due to age, but remained a patron until his death in 2014.</p>
-                    </div>
-                    <div style="padding-top:14px;border-top:1.5px solid #38b6ff">
-                        <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:10px">Founding Chairperson</div>
-                        <div style="font-family:'Barlow Condensed';font-weight:700;font-size:22px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Dr. Betty Gikonyo</div>
-                        <p style="font-size:14px;color:#3b4654;line-height:1.6;margin:0">A consultant cardiologist and alumna who chaired the launch sub-committee and served as the Association's first Chairperson from 2005 to 2015, before handing over to Mr. Isaac Awuondo.</p>
-                    </div>
-                </div>
-            </div>
-        </section>
+            </article>
 
-        <!-- CTA -->
-        <section style="background:#0E4E80;color:#fff;padding:56px 24px">
-            <div class="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-8">
+            <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2008</div>
                 <div>
-                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#fdbe13;margin-bottom:14px">Carry it forward</div>
-                    <h2 style="color:#fff;font-family:'Barlow Condensed';font-weight:700;font-size:clamp(28px,4vw,38px);line-height:1;letter-spacing:-0.02em;margin:0">Twenty years is a start, not a finish.</h2>
+                    <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Three African leaders honoured</h3>
+                    <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">H.E. Mwai Kibaki, Rt. Hon. Raila Odinga, and H.E. Dr. Kofi Annan receive honorary degrees for their role in ending the violence that followed the 2007 election — the Association welcomes all three as alumni.</p>
                 </div>
-                <div class="flex gap-3 flex-wrap">
-                    <a href="{% url 'home:uon_alumni_register' %}" class="rounded-sm bg-[#fdbe13] px-6 py-3 text-sm font-semibold text-black hover:bg-[#d7a110]">Register as a member →</a>
-                    <a href="{% url 'home:uon_alumni_donate' %}" class="rounded-sm border border-white/40 px-6 py-3 text-sm font-semibold text-white hover:bg-white/10">Give to the Endowment</a>
+            </article>
+
+            <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2014</div>
+                <div>
+                    <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Prof. David Wasawo passes away</h3>
+                    <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">The founding patron and intellectual father of UONAA dies on 4 February 2014, aged 91.</p>
+                </div>
+            </article>
+
+            <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2015</div>
+                <div>
+                    <span style="display:inline-block;background:#fdbe13;color:#000;padding:2px 8px;font-family:'Barlow Condensed';font-weight:700;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:8px">10th Anniversary</span>
+                    <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Tenth anniversary, and the Education Chapter</h3>
+                    <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">A Gala Dinner at the Great Court on 6 February marks ten years since launch. The Education Chapter is launched on 30 April.</p>
+                </div>
+            </article>
+
+            <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2016</div>
+                <div>
+                    <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Leadership transition</h3>
+                    <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">After eleven years as founding Chairperson, Dr. Betty Gikonyo hands over the leadership to Mr. Isaac Awuondo.</p>
+                </div>
+            </article>
+
+            <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2017</div>
+                <div>
+                    <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">School of Law Chapter launched</h3>
+                    <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">The Association's fifteenth chapter. The same year, KSh 2 million is donated to support needy and bright students.</p>
+                </div>
+            </article>
+
+            <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2020</div>
+                <div>
+                    <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">UONAA Scholarship Fund launched</h3>
+                    <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">Officially launched 13 March 2020 at the Vice-Chancellor's Parlour, with 52 students in the inaugural cohort — the Association's most ambitious scholarship commitment to date.</p>
+                </div>
+            </article>
+
+            <article class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-6 sm:gap-10 py-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+                <div style="font-family:'Barlow Condensed';font-weight:700;font-size:40px;line-height:1;color:#0E4E80;letter-spacing:-0.02em">2025</div>
+                <div>
+                    <span style="display:inline-block;background:#fdbe13;color:#000;padding:2px 8px;font-family:'Barlow Condensed';font-weight:700;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:8px">20th Anniversary</span>
+                    <h3 style="font-size:20px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Twenty years of UONAA</h3>
+                    <p style="font-size:15px;color:#3b4654;line-height:1.65;margin:0;max-width:720px">Celebrated 28 February 2025 under the theme "Let Us Embrace a Culture of Giving Back," honouring founding visionaries Dr. Joseph Barrage Wanjui, Prof. George Magoha, and Prof. David Wasawo.</p>
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <!-- Founding figures -->
+    <section class="rounded-sm shadow-sm border border-solid border-gray-200 bg-white overflow-hidden py-16 px-6">
+        <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-10 items-start">
+            <div>
+                <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:8px">03</div>
+                <div style="font-family:'Barlow Condensed';font-weight:700;font-size:30px;color:#0E4E80;line-height:1;letter-spacing:-0.02em">Founding figures</div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                <div style="padding-top:14px;border-top:1.5px solid #38b6ff">
+                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:10px">Founding Patron</div>
+                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:22px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Prof. David Wasawo (1923 – 2014)</div>
+                    <p style="font-size:14px;color:#3b4654;line-height:1.6;margin:0">Led the 2003 Taskforce on Alumni Relations that produced the Association's blueprint and chaired its founding Interim Committee. Declined to stand for election as chairperson due to age, but remained a patron until his death in 2014.</p>
+                </div>
+                <div style="padding-top:14px;border-top:1.5px solid #38b6ff">
+                    <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:10px">Founding Chairperson</div>
+                    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:22px;color:#0E4E80;line-height:1.2;margin-bottom:8px">Dr. Betty Gikonyo</div>
+                    <p style="font-size:14px;color:#3b4654;line-height:1.6;margin:0">A consultant cardiologist and alumna who chaired the launch sub-committee and served as the Association's first Chairperson from 2005 to 2015, before handing over to Mr. Isaac Awuondo.</p>
                 </div>
             </div>
-        </section>
-    </article>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="rounded-sm shadow-sm overflow-hidden" style="background:#0E4E80;color:#fff;padding:56px 24px">
+        <div class="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-8">
+            <div>
+                <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#fdbe13;margin-bottom:14px">Carry it forward</div>
+                <h2 style="color:#fff;font-family:'Barlow Condensed';font-weight:700;font-size:clamp(28px,4vw,38px);line-height:1;letter-spacing:-0.02em;margin:0">Twenty years is a start, not a finish.</h2>
+            </div>
+            <div class="flex gap-3 flex-wrap">
+                <a href="{% url 'home:uon_alumni_register' %}" class="rounded-sm bg-[#fdbe13] px-6 py-3 text-sm font-semibold text-black hover:bg-[#d7a110]">Register as a member →</a>
+                <a href="{% url 'home:uon_alumni_donate' %}" class="rounded-sm border border-white/40 px-6 py-3 text-sm font-semibold text-white hover:bg-white/10">Give to the Endowment</a>
+            </div>
+        </div>
+    </section>
 
     {% include "snippets/footer.html" %}
 </div>

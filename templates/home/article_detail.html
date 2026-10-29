@@ -14,21 +14,19 @@ Reading time is computed from the real body length, not invented.
 {% block title_bare %}{{ article.title }}{% endblock %}
 
 {% block content %}
-<div class="container mx-auto min-h-screen relative" style="max-width: 1700px;">
+<div class="container mx-auto min-h-screen space-y-4 relative" style="max-width: 1700px;">
     <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
     {% include "snippets/navbar.html" %}
 
-    <article class="bg-white shadow-sm border border-solid border-gray-200 rounded-sm overflow-hidden mt-2">
-        <!-- Breadcrumb -->
+        <!-- Header (incl. breadcrumb) -->
+        <section class="rounded-sm shadow-sm border border-solid border-gray-200 bg-white overflow-hidden">
         <div class="px-6 py-3" style="border-bottom:1px solid rgba(11,20,32,0.14);background:#fafaf9">
             <div class="mx-auto max-w-7xl flex gap-3 items-center" style="font-family:'Barlow Condensed';font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#5d6673">
                 <a href="{% url 'home:uon_alumni_home' %}" class="hover:text-[#0E4E80]">Home</a><span>›</span>
                 <a href="{% url 'home:uon_alumni_article_list' %}" class="hover:text-[#0E4E80]">News &amp; Articles</a>
             </div>
         </div>
-
-        <!-- Header -->
-        <section class="py-14 px-6">
+        <div class="py-14 px-6">
             <div class="mx-auto" style="max-width:900px">
                 <div class="flex gap-3 items-center mb-6 flex-wrap">
                     {% if article.chapter %}<span style="background:#fdbe13;color:#000;padding:4px 12px;font-family:'Barlow Condensed';font-weight:700;font-size:11px;letter-spacing:0.2em;text-transform:uppercase">{{ article.chapter.name }}</span>{% endif %}
@@ -36,10 +34,11 @@ Reading time is computed from the real body length, not invented.
                 </div>
                 <h1 style="font-family:'Barlow Condensed';font-weight:700;font-size:clamp(32px,5.4vw,56px);line-height:1.05;letter-spacing:-0.025em;color:#0E4E80;margin:0">{{ article.title }}</h1>
             </div>
+        </div>
         </section>
 
         {% if article.article_banner_image or article.thumbnail %}
-        <section class="px-6">
+        <section class="rounded-sm shadow-sm border border-solid border-gray-200 bg-white overflow-hidden px-6 py-6">
             <div class="mx-auto max-w-7xl">
                 <div class="aspect-[21/9] bg-slate-100 overflow-hidden border" style="border-color:rgba(11,20,32,0.14)">
                     <img src="{{ article.get_article_banner_image }}" alt="{{ article.title }}" class="h-full w-full object-cover">
@@ -49,7 +48,7 @@ Reading time is computed from the real body length, not invented.
         {% endif %}
 
         <!-- Body -->
-        <section class="py-14 px-6">
+        <section class="rounded-sm shadow-sm border border-solid border-gray-200 bg-white overflow-hidden py-14 px-6">
             <div class="mx-auto grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-14" style="max-width:1100px">
                 <div class="prose max-w-none" style="font-family:'Barlow';font-size:17px;line-height:1.7;color:#1d1f20">
                     {{ article.body|linebreaks }}
@@ -71,12 +70,11 @@ Reading time is computed from the real body length, not invented.
         </section>
 
         <!-- Back link -->
-        <section class="py-10 px-6" style="border-top:1px solid rgba(11,20,32,0.14)">
+        <section class="rounded-sm shadow-sm border border-solid border-gray-200 bg-white overflow-hidden py-10 px-6">
             <div class="mx-auto max-w-7xl">
                 <a href="{% url 'home:uon_alumni_article_list' %}" class="inline-flex items-center gap-2 text-sm font-semibold text-[#0E4E80] hover:underline">&larr; Back to News &amp; Articles</a>
             </div>
         </section>
-    </article>
 
     {% include "snippets/footer.html" %}
 </div>

@@ -18,13 +18,12 @@ alone.
 {% block title_interior %}Membership Categories & Benefits | UoNAA{% endblock %}
 
 {% block content %}
-<div class="container mx-auto min-h-screen relative" style="max-width: 1700px;">
+<div class="container mx-auto min-h-screen space-y-4 relative" style="max-width: 1700px;">
     <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
     {% include "snippets/navbar.html" %}
 
-    <article class="bg-white shadow-sm border border-solid border-gray-200 rounded-sm overflow-hidden mt-2">
         <!-- Hero -->
-        <section style="background:#0E4E80;color:#fff;padding:72px 24px 56px;position:relative">
+        <section class="rounded-sm shadow-sm overflow-hidden" style="background:#0E4E80;color:#fff;padding:72px 24px 56px;position:relative">
             <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-12 items-end">
                 <div>
                     <div class="flex items-center gap-3 mb-6">
@@ -40,19 +39,24 @@ alone.
                 </div>
             </div>
         </section>
-        <div style="height:3px;background:#fdbe13"></div>
 
-        <!-- Real tier cards (snippets/tiers.html, unchanged) -->
-        <section class="py-4">
-            {% if all_tiers %}
-                {% include "snippets/tiers.html" with tiers=all_tiers %}
-            {% else %}
+        {% comment %}
+        No wrapping card here, deliberately (2026-10-29) -- snippets/tiers.html
+        already renders each tier as its OWN bordered card, so the fixed
+        page_background_url backdrop shows through between them the same
+        way it does on the homepage's card grid, instead of being hidden
+        behind one big card holding all nine tiers.
+        {% endcomment %}
+        {% if all_tiers %}
+            {% include "snippets/tiers.html" with tiers=all_tiers %}
+        {% else %}
+            <section class="rounded-sm shadow-sm border border-solid border-gray-200 bg-white overflow-hidden">
                 <p class="mx-auto max-w-7xl px-6 py-8 text-sm text-slate-500">Membership categories aren't configured yet.</p>
-            {% endif %}
-        </section>
+            </section>
+        {% endif %}
 
         <!-- CTA -->
-        <section style="background:#f6f6f4;padding:56px 24px">
+        <section class="rounded-sm shadow-sm overflow-hidden" style="background:#f6f6f4;padding:56px 24px">
             <div class="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-8">
                 <div>
                     <h2 style="color:#0E4E80;font-family:'Barlow Condensed';font-weight:700;font-size:clamp(24px,3.4vw,32px);line-height:1;letter-spacing:-0.02em;margin:0">Not sure which category fits?</h2>
@@ -63,7 +67,6 @@ alone.
                 </div>
             </div>
         </section>
-    </article>
 
     {% include "snippets/footer.html" %}
 </div>

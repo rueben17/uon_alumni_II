@@ -12,13 +12,12 @@ build" blueprint graphic, which was never meant to ship as-is.
 {% block title_brand %}Contact Us | University of Nairobi Alumni Association{% endblock %}
 
 {% block content %}
-<div class="container mx-auto min-h-screen relative" style="max-width: 1700px;">
+<div class="container mx-auto min-h-screen space-y-4 relative" style="max-width: 1700px;">
     <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
     {% include "snippets/navbar.html" %}
 
-    <article class="bg-white shadow-sm border border-solid border-gray-200 rounded-sm overflow-hidden mt-2">
         <!-- Hero -->
-        <section style="background:#0E4E80;color:#fff;padding:72px 24px 56px;position:relative">
+        <section class="rounded-sm shadow-sm overflow-hidden" style="background:#0E4E80;color:#fff;padding:72px 24px 56px;position:relative">
             <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-12 items-end">
                 <div>
                     <div class="flex items-center gap-3 mb-6">
@@ -35,10 +34,9 @@ build" blueprint graphic, which was never meant to ship as-is.
                 </div>
             </div>
         </section>
-        <div style="height:3px;background:#fdbe13"></div>
 
         <!-- Contact details strip -->
-        <section class="py-10 px-6">
+        <section class="rounded-sm shadow-sm border border-solid border-gray-200 bg-white overflow-hidden py-10 px-6">
             <div class="mx-auto max-w-7xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" style="border-top:1px solid rgba(11,20,32,0.14);border-bottom:1px solid rgba(11,20,32,0.14)">
                 <div class="p-6 lg:border-r" style="border-color:rgba(11,20,32,0.14)">
                     <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:8px">Address</div>
@@ -61,7 +59,7 @@ build" blueprint graphic, which was never meant to ship as-is.
         </section>
 
         <!-- Form + map -->
-        <section class="py-10 px-6 pb-20">
+        <section class="rounded-sm shadow-sm border border-solid border-gray-200 bg-white overflow-hidden py-10 px-6 pb-20">
             <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-12 items-start">
                 <div>
                     <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#0E4E80;margin-bottom:10px">Send us a message</div>
@@ -92,7 +90,6 @@ build" blueprint graphic, which was never meant to ship as-is.
                 </div>
             </div>
         </section>
-    </article>
 
     {% include "snippets/footer.html" %}
 </div>

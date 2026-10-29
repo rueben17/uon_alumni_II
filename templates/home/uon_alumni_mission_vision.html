@@ -13,14 +13,13 @@ the way a hardcoded copy would.
 {% block title_interior %}Mission, Vision & Core Values | UoNAA{% endblock %}
 
 {% block content %}
-<div class="container mx-auto min-h-screen relative" style="max-width: 1700px;">
+<div class="container mx-auto min-h-screen space-y-4 relative" style="max-width: 1700px;">
     <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
     {% include "snippets/navbar.html" %}
 
-    <article class="bg-white shadow-sm border border-solid border-gray-200 rounded-sm overflow-hidden mt-2">
         {% if foundations or motto_vision_mission or core_values_article %}
             <!-- Hero: motto -->
-            <section style="background:#0E4E80;color:#fff;padding:72px 24px 56px;position:relative">
+            <section class="rounded-sm shadow-sm overflow-hidden" style="background:#0E4E80;color:#fff;padding:72px 24px 56px;position:relative">
                 <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                     <div>
                         <div class="flex items-center gap-3 mb-6">
@@ -40,12 +39,11 @@ the way a hardcoded copy would.
                     {% endfor %}
                 </div>
             </section>
-            <div style="height:3px;background:#fdbe13"></div>
 
             <!-- Vision / Mission -->
             {% for item in motto_vision_mission %}
                 {% if item.page_key != "motto" %}
-                <section class="py-14 px-6" {% if item.page_key == "mission" %}style="background:#f6f6f4"{% endif %}>
+                <section class="rounded-sm shadow-sm border border-solid border-gray-200 overflow-hidden py-14 px-6" style="background:{% if item.page_key == 'mission' %}#f6f6f4{% else %}#fff{% endif %}">
                     <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-10 items-start">
                         <div style="font-family:'Barlow Condensed';font-weight:700;font-size:28px;color:#0E4E80;line-height:1;letter-spacing:-0.02em">{{ item.title }}</div>
                         <div style="padding-top:10px;border-top:1.5px solid #38b6ff">
@@ -58,7 +56,7 @@ the way a hardcoded copy would.
 
             <!-- Core Values -->
             {% if core_values_article %}
-            <section class="py-16 px-6" style="background:#f6f6f4">
+            <section class="rounded-sm shadow-sm border border-solid border-gray-200 overflow-hidden py-16 px-6" style="background:#f6f6f4">
                 <div class="mx-auto max-w-7xl">
                     <div class="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-10 items-start mb-10">
                         <div style="font-family:'Barlow Condensed';font-weight:700;font-size:28px;color:#0E4E80;line-height:1;letter-spacing:-0.02em">{{ core_values_article.title }}</div>
@@ -78,7 +76,7 @@ the way a hardcoded copy would.
             {% endif %}
 
             <!-- CTA -->
-            <section style="background:#0E4E80;color:#fff;padding:56px 24px">
+            <section class="rounded-sm shadow-sm overflow-hidden" style="background:#0E4E80;color:#fff;padding:56px 24px">
                 <div class="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-8">
                     <div>
                         <div style="font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#fdbe13;margin-bottom:14px">Keep in step</div>
@@ -91,9 +89,10 @@ the way a hardcoded copy would.
                 </div>
             </section>
         {% else %}
-            <p class="p-8 text-center text-gray-500">Content being prepared.</p>
+            <section class="rounded-sm shadow-sm border border-solid border-gray-200 bg-white overflow-hidden">
+                <p class="p-8 text-center text-gray-500">Content being prepared.</p>
+            </section>
         {% endif %}
-    </article>
 
     {% include "snippets/footer.html" %}
 </div>

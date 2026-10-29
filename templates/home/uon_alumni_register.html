@@ -15,13 +15,12 @@ on the surrounding chrome, not a rewrite of a form that handles money.
 {% block robots %}noindex, nofollow{% endblock %}
 
 {% block content %}
-<div class="container mx-auto min-h-screen relative" style="max-width: 1700px;">
+<div class="container mx-auto min-h-screen space-y-4 relative" style="max-width: 1700px;">
     <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
     {% include "snippets/navbar.html" %}
 
-    <article class="bg-white shadow-sm border border-solid border-gray-200 rounded-sm overflow-hidden mt-2">
         <!-- Hero -->
-        <section style="background:#0E4E80;color:#fff;padding:56px 24px 44px">
+        <section class="rounded-sm shadow-sm overflow-hidden" style="background:#0E4E80;color:#fff;padding:56px 24px 44px">
             <div class="mx-auto max-w-4xl">
                 <div class="flex items-center gap-3 mb-5">
                     <div style="width:44px;height:3px;background:#fdbe13"></div>
@@ -31,9 +30,15 @@ on the surrounding chrome, not a rewrite of a form that handles money.
                 <p style="font-size:15px;line-height:1.55;color:rgba(255,255,255,0.86);margin:0">Please fill in your details below. Fields marked with * are required.</p>
             </div>
         </section>
-        <div style="height:3px;background:#fdbe13"></div>
 
-        <section class="py-10 px-4">
+        {% comment %}
+        No wrapping card around the form itself, deliberately (2026-10-29)
+        -- each fieldset below is already its own bordered card (see the
+        comment further down), so the fixed page_background_url backdrop
+        shows through between them instead of being hidden behind one
+        card holding the whole form.
+        {% endcomment %}
+        <section class="py-2 px-4">
             <div class="max-w-4xl mx-auto space-y-6">
                 {% if form.non_field_errors %}
                     <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
@@ -143,7 +148,6 @@ on the surrounding chrome, not a rewrite of a form that handles money.
                 </form>
             </div>
         </section>
-    </article>
 
     {% include "snippets/footer.html" %}
 </div>

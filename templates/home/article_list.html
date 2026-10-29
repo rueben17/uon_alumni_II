@@ -14,13 +14,12 @@ data-model change, out of scope for this pass.
 {% block title_interior %}News & Articles | UoNAA{% endblock %}
 
 {% block content %}
-<div class="container mx-auto min-h-screen relative" style="max-width: 1700px;">
+<div class="container mx-auto min-h-screen space-y-4 relative" style="max-width: 1700px;">
     <div class="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ page_background_url }}');"></div>
     {% include "snippets/navbar.html" %}
 
-    <article class="bg-white shadow-sm border border-solid border-gray-200 rounded-sm overflow-hidden mt-2">
         <!-- Hero -->
-        <section class="py-16 px-6">
+        <section class="rounded-sm shadow-sm border border-solid border-gray-200 bg-white overflow-hidden py-16 px-6">
             <div class="mx-auto max-w-7xl">
                 <div class="flex items-center gap-3 mb-6">
                     <div style="width:44px;height:3px;background:#fdbe13"></div>
@@ -30,10 +29,9 @@ data-model change, out of scope for this pass.
                 <p style="font-size:17px;line-height:1.55;color:#3b4654;max-width:540px;margin:0">Dispatches from the Secretariat and the chapters, filed and searchable.</p>
             </div>
         </section>
-        <div style="height:3px;background:#fdbe13"></div>
 
         <!-- Article grid -->
-        <section class="py-14 px-6">
+        <section class="rounded-sm shadow-sm border border-solid border-gray-200 bg-white overflow-hidden py-14 px-6">
             <div class="mx-auto max-w-7xl">
                 {% if articles %}
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
@@ -69,7 +67,6 @@ data-model change, out of scope for this pass.
                 {% endif %}
             </div>
         </section>
-    </article>
 
     {% include "snippets/footer.html" %}
 </div>
